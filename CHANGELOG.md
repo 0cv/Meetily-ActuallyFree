@@ -18,6 +18,8 @@
 - Preferences now display the configured recordings folder instead of always
   showing the platform default.
 
+### macOS Audio Capture
+
 - The system-audio permission probe now plays its own short test sound, so
   Recheck no longer requires other audio to be playing and silence reliably
   indicates a denied capture tap.
