@@ -10,6 +10,18 @@
   imports, manual retranscription, and automatic post-call enhancement.
 - Made vocabulary controls available for both Parakeet and Whisper.
 
+### Recordings Folder
+
+- Added a Change Folder picker for the recordings save location in Recording
+  and Preference settings; previously the folder was fixed to the platform
+  default.
+- Preferences now display the configured recordings folder instead of always
+  showing the platform default.
+
+- The system-audio permission probe now plays its own short test sound, so
+  Recheck no longer requires other audio to be playing and silence reliably
+  indicates a denied capture tap.
+
 ## 0.2.10 - 2026-08-26
 
 ### Light Theme
