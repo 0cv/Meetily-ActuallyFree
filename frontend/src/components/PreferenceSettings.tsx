@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useRef } from "react"
 import { Switch } from "./ui/switch"
-import { FolderOpen, FolderCog } from "lucide-react"
+import { FolderCog, FolderOpen } from "lucide-react"
 import { invoke } from "@tauri-apps/api/core"
+import { toast } from "sonner"
 import Analytics from "@/lib/analytics"
 import { useConfig, NotificationSettings } from "@/contexts/ConfigContext"
 import { applyAppTheme, getSavedAppTheme } from "@/lib/app-theme"
@@ -14,18 +15,15 @@ export function PreferenceSettings() {
     storageLocations,
     isLoadingPreferences,
     loadPreferences,
-    updateNotificationSettings
+    updateNotificationSettings,
+    updateRecordingsLocation,
   } = useConfig();
+  const [isChoosingRecordingsFolder, setIsChoosingRecordingsFolder] = useState(false);
 
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [previousNotificationsEnabled, setPreviousNotificationsEnabled] = useState<boolean | null>(null);
   const hasTrackedViewRef = useRef(false);
-
-  // Configured recordings folder; overridden locally after an in-page change
-  // so the display updates without a full preferences reload.
-  const [recordingsFolderOverride, setRecordingsFolderOverride] = useState<string | null>(null);
-  const recordingsFolder = recordingsFolderOverride ?? storageLocations?.recordings;
 
   // "Your name" — used to label the user's mic transcripts as "You (Name)".
   const [userName, setUserName] = useState<string>('');
@@ -163,18 +161,29 @@ export function PreferenceSettings() {
   };
 
   const handleChangeRecordingsFolder = async () => {
-    try {
-      const selected = await invoke<string | null>('select_recording_folder');
-      if (!selected || selected === recordingsFolder) return;
+    if (isChoosingRecordingsFolder) return;
 
-      const preferences = await invoke<{ save_folder: string }>('get_recording_preferences');
+    setIsChoosingRecordingsFolder(true);
+    try {
+      const selectedFolder = await invoke<string | null>('select_recording_folder');
+      if (!selectedFolder) return;
+
+      const preferences = await invoke<Record<string, unknown> & { save_folder: string }>(
+        'get_recording_preferences',
+      );
       await invoke('set_recording_preferences', {
-        preferences: { ...preferences, save_folder: selected }
+        preferences: { ...preferences, save_folder: selectedFolder },
       });
-      setRecordingsFolderOverride(selected);
-      await Analytics.track('recordings_folder_changed', {});
+      updateRecordingsLocation(selectedFolder);
+      toast.success('Recordings folder updated');
+      Analytics.track('recordings_folder_changed', { source: 'preferences' }).catch(console.error);
     } catch (error) {
       console.error('Failed to change recordings folder:', error);
+      toast.error('Could not update recordings folder', {
+        description: String(error),
+      });
+    } finally {
+      setIsChoosingRecordingsFolder(false);
     }
   };
 
@@ -274,22 +283,23 @@ export function PreferenceSettings() {
           <div className="p-4 border rounded-lg bg-gray-50">
             <div className="font-medium mb-2">Meeting Recordings</div>
             <div className="text-sm text-gray-600 mb-3 break-all font-mono text-xs">
-              {recordingsFolder || 'Loading...'}
+              {storageLocations?.recordings || 'Loading...'}
             </div>
             <div className="flex flex-wrap gap-2">
+              <button
+                onClick={handleChangeRecordingsFolder}
+                disabled={isChoosingRecordingsFolder}
+                className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-100 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <FolderCog className="w-4 h-4" />
+                {isChoosingRecordingsFolder ? 'Choosing...' : 'Change Folder'}
+              </button>
               <button
                 onClick={() => handleOpenFolder('recordings')}
                 className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
               >
                 <FolderOpen className="w-4 h-4" />
                 Open Folder
-              </button>
-              <button
-                onClick={handleChangeRecordingsFolder}
-                className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
-              >
-                <FolderCog className="w-4 h-4" />
-                Change Folder
               </button>
             </div>
             <div className="mt-2 text-xs text-gray-500">
@@ -300,9 +310,9 @@ export function PreferenceSettings() {
 
         <div className="mt-4 p-3 bg-blue-50 rounded-md">
           <p className="text-xs text-blue-800">
-            <strong>Portable:</strong> Models, database and templates are stored together inside this
-            app&apos;s own install folder (<code>…/data</code>). Recordings are saved to the folder shown
-            above so they stay easy to find and play with normal tools.
+            <strong>Portable core data:</strong> Models, database, and templates use Meetily&apos;s app data
+            folder. Recordings stay in the user-facing folder shown above so they remain easy to find,
+            play, and back up.
           </p>
         </div>
       </div>

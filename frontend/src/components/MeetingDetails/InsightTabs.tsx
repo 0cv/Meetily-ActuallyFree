@@ -18,8 +18,6 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   Sparkles,
-  Copy,
-  RefreshCw,
   Plus,
   Circle,
   CheckCircle2,
@@ -121,6 +119,25 @@ function normalize(aiSummary: any): Record<Bucket, string[]> {
   if (typeof aiSummary.markdown === 'string') return parseMarkdownBuckets(aiSummary.markdown);
   if (Array.isArray(aiSummary.summary_json)) return parseMarkdownBuckets(blocksToMarkdown(aiSummary.summary_json));
   return bucketizeSections(aiSummary);
+}
+
+// Classification is only a convenience for shortcuts, never the source of the
+// visible summary: arbitrary headings and GFM structure must survive unchanged.
+export function completeSummaryMarkdown(summary: any): string {
+  if (!summary) return '';
+  if (typeof summary === 'string') return summary;
+  if (typeof summary.markdown === 'string') return summary.markdown;
+  if (Array.isArray(summary.summary_json)) return blocksToMarkdown(summary.summary_json);
+  const keys = [...new Set([
+    ...(Array.isArray(summary._section_order) ? summary._section_order : []),
+    ...Object.keys(summary),
+  ])];
+  return keys.flatMap((key) => {
+    if (key === 'english_cache') return [];
+    const section = summary[key];
+    if (!Array.isArray(section?.blocks)) return [];
+    return [`## ${section.title || key}\n\n${section.blocks.map((block: any) => inlineText(block.content)).join('\n\n')}`];
+  }).join('\n\n');
 }
 
 const OWNER_CHIP = [
@@ -267,27 +284,21 @@ interface QA {
 }
 
 interface InsightTabsProps {
-  aiSummary: Summary | null;
+  aiSummary: Summary | { markdown: string } | null;
   transcripts: Transcript[];
   generating?: boolean;
-  onGenerate?: () => void;
-  onCopySummary?: () => void | Promise<void>;
-  onRegenerate?: () => void | Promise<void>;
 }
 
 export function InsightTabs({
   aiSummary,
   transcripts,
   generating = false,
-  onGenerate,
-  onCopySummary,
-  onRegenerate,
 }: InsightTabsProps) {
   const [done, setDone] = useState<Set<string>>(new Set());
 
   const buckets = useMemo(() => normalize(aiSummary), [aiSummary]);
   const actions = useMemo(() => parseActionItems(buckets.actions), [buckets.actions]);
-  const summaryText = useMemo(() => buckets.summary.join('\n\n'), [buckets.summary]);
+  const summaryText = useMemo(() => completeSummaryMarkdown(aiSummary), [aiSummary]);
   const hasSummary = !!aiSummary;
 
   const toggleDone = (key: string) =>
@@ -357,26 +368,21 @@ export function InsightTabs({
               <p className="mb-4 text-sm text-[var(--af-text-2)]">
                 No summary yet. Generate an AI summary with key points, action items and topics.
               </p>
-              <button
-                onClick={() => onGenerate?.()}
-                className="inline-flex items-center gap-2 rounded-lg bg-[var(--af-accent)] px-4 py-2 text-sm font-medium text-white transition-[filter] hover:brightness-110"
-              >
-                <Sparkles size={15} /> Generate summary
-              </button>
+              <p className="text-xs text-[var(--af-text-3)]">
+                {transcripts.length > 0
+                  ? 'Use the summary toolbar above to choose a template and generate.'
+                  : 'A transcript is required before a summary can be generated.'}
+              </p>
             </div>
           ) : (
             <>
               {summaryText ? (
-                <div className="prose prose-sm max-w-none leading-relaxed text-[var(--af-text-2)] dark:prose-invert prose-strong:text-[var(--af-text)] prose-p:my-2">
+                <div className="prose prose-sm max-w-none overflow-x-auto break-words leading-relaxed text-[var(--af-text-2)] dark:prose-invert prose-strong:text-[var(--af-text)] prose-p:my-2">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{summaryText}</ReactMarkdown>
                 </div>
               ) : (
                 <p className="text-sm text-[var(--af-text-3)]">No summary text available.</p>
               )}
-              <div className="mt-4 flex items-center gap-2">
-                <ToolbarButton icon={<Copy size={14} />} onClick={() => { void onCopySummary?.(); toast.success('Summary copied'); }}>Copy</ToolbarButton>
-                <ToolbarButton icon={<RefreshCw size={14} />} onClick={() => void onRegenerate?.()}>Regenerate</ToolbarButton>
-              </div>
             </>
           )}
         </section>

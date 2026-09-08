@@ -70,6 +70,14 @@ VAD, mic loudness normalization targets -20 LUFS, limits automatic gain to
 -1 dB limiter. Do not move user gain after that limiter or restore unbounded
 normalization; retained mic tracks showed hard 0 dBFS clipping under that design.
 
+Microphone and system gain are separate persisted Rust-owned values. System
+gain is applied once before source meters, system VAD/transcription, retained
+`system.mp4`, and playback mixing. Over-range chunks are attenuated to a -1 dBFS
+peak while preserving waveform shape, sample count, and source timing. Repeated
+limiter activity is included in `recording-audio-levels` so both recording
+windows can warn that the system gain or playback volume is too high. Do not
+reimplement either gain only in the webview or in the final mixer.
+
 Note: the webview **cannot** capture system audio itself, so browser-side
 `getUserMedia` visualizers can only ever show the microphone. That is why the
 levels come from Rust.
@@ -134,6 +142,10 @@ Do not restore cross-webview stop-request events, elapsed-time reseeding, or a
 frontend close fallback. Those mechanisms caused zombie bars, frozen
 `Finishing` states, timer resets, and duplicate post-processing.
 
+Dragging uses one bubbling mouse handler that excludes buttons and their children,
+plus a minibar-only `core:window:allow-start-dragging` capability. Container-only
+`data-tauri-drag-region` attributes miss child targets in Tauri's native handler.
+
 ---
 
 ## 3. Where things are stored
@@ -173,6 +185,11 @@ discard command canonicalizes paths, rejects every allowed root itself, and only
 deletes descendants of the configured, default, or legacy portable roots. Keep
 the equality rejection separate from descendant checks because roots may be
 nested.
+
+The native folder picker persists a destination only after it can be created and
+written. On macOS, validation must reject the `.app` bundle and every descendant
+before creating anything so a writable user-installed application cannot
+invalidate its signature.
 
 Required mixed-audio failures are not allowed to fail silently. FFmpeg process
 failures, timeouts, and missing mixed outputs propagate through
@@ -327,6 +344,11 @@ exactly this confusion; it has been deleted along with `SettingTabs.tsx`,
 
 The label also has to survive the Rust side: `MeetingTranscript` must include
 `speaker`, and every place constructing it must set it.
+
+`InsightTabs` renders the complete stored Markdown as its authoritative summary.
+English-keyword action/topic shortcuts are supplemental only; never make them the
+sole visible representation, because custom and non-English headings do not map
+reliably to those buckets. Preserve Markdown whitespace, nesting, and table syntax.
 
 ### Stable speaker colors
 
@@ -575,6 +597,24 @@ hook chooses CUDA, Vulkan, or CPU, then installs the chosen variant as the
 canonical `meetily.exe`. In-app updates continue through the raw NSIS engine so
 they retain Tauri's `/P /R /UPDATE /ARGS` behavior.
 
+CUDA selection also distinguishes missing or outdated NVIDIA drivers from a PC
+with no NVIDIA display adapter. The hook checks PCI display-class metadata so a
+fresh Windows install using Microsoft Basic Display Adapter is still recognized,
+then reports the CUDA fallback reason through the run-specific progress registry
+key. The frameless setup shows that notice on its completion page, including the
+minimum NVIDIA driver and the temporary Vulkan/CPU selection. Keep this decision
+in NSIS; the bootstrapper only presents the result and removes the temporary key.
+
+The selected Whisper backend is compiled into the installed executable; closing
+and reopening a Vulkan build cannot turn it into the CUDA build. Setup Overview
+and completed-onboarding startup therefore run a fresh, timeout-bounded
+`nvidia-smi` check.
+Before a compatible driver exists it links to NVIDIA's driver page. If CUDA
+becomes available later, it replaces the stale "Vulkan selected" message with a
+prompt to rerun the latest setup, which safely installs the CUDA executable.
+That action links directly to the current version's `*-universal-setup.exe`, not
+the updater engine listed beside it on the release.
+
 Vulkan selection requires the 64-bit system loader and runs the staged x64
 `meetily-vulkan-probe.exe`, which applies GGML's device-selection policy and
 requires every selected device to provide Vulkan 1.2, a compute queue, 16-bit
@@ -684,6 +724,19 @@ release asset so installed clients can download it. Users manually launch only
   below variant compilation.
 - `setup.exe --verify-payload` extracts and verifies the embedded engine without
   installing it; use this as a release smoke test.
+- `node frontend/scripts/verify-windows-release.mjs [asset-directory]` verifies
+  manifest routing, checksums, both Minisign signatures, NSIS archive integrity,
+  packaged variant hashes, and the bootstrapper payload without installation.
+- Isolated worktrees can pass `-LlvmDir`, `-VulkanSdk`, and `-CudaToolkit` to the
+  universal builder to reuse installed toolchains without writing into another
+  checkout. Runtime staging must use that same CUDA toolkit.
+
+Native updater downloads in `app_update.rs` are owned by a frontend-generated
+request ID. Cancellation, completion cleanup, and installation must remain scoped
+to that ID; an old dialog must not discard another dialog's download. Rust reserves
+verified bytes until installation or cancellation and rejects replacement during
+installation. The dialog enters its non-cancellable phase after the download
+command resolves, not upon receipt of the progress channel's Finished event.
 
 ### Branding assets
 

@@ -10,19 +10,152 @@
   imports, manual retranscription, and automatic post-call enhancement.
 - Made vocabulary controls available for both Parakeet and Whisper.
 
-### Recordings Folder
-
-- Added a Change Folder picker for the recordings save location in Recording
-  and Preference settings; previously the folder was fixed to the platform
-  default.
-- Preferences now display the configured recordings folder instead of always
-  showing the platform default.
-
 ### macOS Audio Capture
 
 - The system-audio permission probe now plays its own short test sound, so
   Recheck no longer requires other audio to be playing and silence reliably
   indicates a denied capture tap.
+
+### Linux
+
+- Added AMD ROCm/HIP acceleration for the llama helper on Linux.
+- Fixed source builds on Linux and macOS by keeping the runtime-deps resource
+  glob satisfiable.
+
+## 0.2.13 - 2026-09-06
+
+### Bug Fixes
+
+- Display complete multilingual summary Markdown with original headings, lists,
+  tables, and code blocks; custom sections and decisions no longer disappear (#17).
+- Allow dragging the compact recording bar from any non-button surface with a
+  minibar-scoped native permission, preserving native recording lifecycle (#24).
+- Import OGG Opus and Vorbis through the existing bundled FFmpeg conversion path;
+  temporary conversion files no longer require a writable source folder (#21).
+- Use the application accent for checked settings switches in both themes (#18).
+
+### Reliability
+
+- Surface persistent summary failures and retry controls, validate selected Ollama
+  models, and prevent cancelled preflight requests from starting generation.
+- Reject empty summaries and failed transcript chunks rather than silently
+  saving incomplete summaries.
+- Keep recoverable transcription failures non-terminal and preserve IndexedDB
+  recovery writes when listener closures predate meeting initialization.
+- Cancel updater downloads natively, isolate stale cancellation by request ID,
+  and guard the non-cancellable installation phase.
+- Match Windows audio devices exactly and warn about unavailable loopback capture
+  or possible Zoom speaker-route mismatches. Zoom warnings are heuristic: endpoint
+  sound cannot be attributed to a particular application.
+
+### Windows Packaging
+
+- Fresh CPU, Vulkan, and CUDA variants are required for this release.
+- The universal setup is for manual installation; the signed universal updater
+  engine and its matching signature remain the target of `latest.json`.
+- Windows Authenticode is not configured. The Tauri updater signature is separate
+  and remains required. No macOS release is included.
+
+## 0.2.12 - 2026-08-30
+
+### Meeting Details
+
+- Preserved user-renamed meeting titles when summaries are generated or
+  regenerated, while still allowing AI names to replace recognizable default
+  and automatically assigned titles.
+- Kept sidebar and meeting-detail titles synchronized without allowing stale
+  pagination or summary responses from another meeting to overwrite the active
+  view.
+- Restored the summary template selector, custom-template management, summary
+  language, and AI model settings to the visible meeting toolbar.
+- Removed duplicate summary actions and stacked transcript and summary panels on
+  narrow screens.
+
+### Time Accuracy
+
+- Stored the native recording start as the meeting start instead of the later
+  database save time.
+- Derived transcript timestamps from the recording start plus each segment's
+  audio offset so enhancement no longer rewrites them to the current time.
+- Repaired upgraded recordings from their existing `metadata.json` start time
+  when meetings are listed, opened, or retranscribed.
+- Preserved recording-start timestamps through crash recovery and audio import.
+
+### Reliability
+
+- Added title-provenance migration and regression coverage for manual,
+  generated, imported, and legacy default titles.
+- Added request-generation guards for metadata, transcript, and summary loading,
+  and made summary completion idempotent across native events and polling.
+
+### Windows Downloads
+
+- `Meetily-ActuallyFree-0.2.12-x64-universal-setup.exe`: recommended installer;
+  automatically selects CPU, Vulkan, or CUDA.
+- `Meetily-ActuallyFree-0.2.12-x64-universal-updater.exe`: Tauri updater engine
+  used by the in-app updater.
+- `latest.json` and the matching `.sig`: updater metadata and cryptographic
+  signature.
+- `SHA256SUMS.txt`: SHA-256 checksums for release verification.
+
+Windows binaries are published without Authenticode and may show an Unknown
+Publisher warning. The updater payload remains signed with the app's Tauri
+updater key.
+
+The same `0.2.12` source can be released separately for Apple Silicon as
+`v0.2.12-macos` only after its exact candidate passes the required physical
+macOS 14.2 qualification. The macOS release will not replace Windows Latest or
+modify Windows updater metadata.
+
+## 0.2.11 - 2026-08-28
+
+### Audio Balance
+
+- Added a persisted `0.5×–3.0×` system-audio gain control alongside microphone
+  gain.
+- Applied system gain once before source meters, transcription, retained source
+  tracks, and playback mixing while preserving source alignment.
+- Added waveform-preserving peak limiting and a live warning when boosted
+  system audio repeatedly reaches the safety limiter.
+
+### CUDA Setup Recovery
+
+- Detects NVIDIA display hardware even before the vendor driver is installed
+  and explains why setup temporarily selected Vulkan or CPU.
+- Requires a compatible NVIDIA driver and compute capability before selecting
+  CUDA, with timeout-bounded checks that cannot stall setup.
+- Rechecks CUDA readiness in Setup Overview and at startup for existing users,
+  then offers the current universal setup when the installed executable needs
+  to be replaced with the CUDA build.
+
+### Recording Storage
+
+- Added native folder selection for meeting recordings in Preferences and
+  Recording Settings.
+- Kept both settings views synchronized with the persisted destination and
+  preserved the previous folder when selection or validation fails.
+- Prevented macOS recordings from being placed inside the signed application
+  bundle.
+
+### Development
+
+- Made Tauri launch the checked-in Next.js development binary directly instead
+  of relying on a package-manager script.
+
+### Windows Downloads
+
+- `Meetily-ActuallyFree-0.2.11-x64-universal-setup.exe`: recommended installer;
+  automatically selects CPU, Vulkan, or CUDA.
+- `Meetily-ActuallyFree-0.2.11-x64-universal-updater.exe`: Tauri updater engine
+  used by the in-app updater.
+- `latest.json` and the matching `.sig`: updater metadata and cryptographic
+  signature.
+- `SHA256SUMS.txt`: SHA-256 checksums for release verification.
+
+The same `0.2.11` source can be released separately for Apple Silicon as
+`v0.2.11-macos` only after its exact candidate passes the required physical
+macOS 14.2 qualification. The macOS release will not replace Windows Latest or
+modify Windows updater metadata.
 
 ## 0.2.10 - 2026-08-26
 
