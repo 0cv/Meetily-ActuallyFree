@@ -36,6 +36,8 @@ export interface ModelConfig {
   whisperModel: string;
   apiKey?: string | null;
   ollamaEndpoint?: string | null;
+  /** Cap on summary output length; null uses the provider default */
+  summaryMaxTokens?: number | null;
   // Custom OpenAI fields
   customOpenAIEndpoint?: string | null;
   customOpenAIModel?: string | null;
@@ -154,6 +156,11 @@ export function ModelSettingsModal({
   const [customTopP, setCustomTopP] = useState<string>(modelConfig.topP?.toString() || '');
   const [isCustomOpenAIAdvancedOpen, setIsCustomOpenAIAdvancedOpen] = useState<boolean>(false);
   const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
+
+  // Summary output cap, kept as a string so the field can be emptied
+  const [summaryMaxTokens, setSummaryMaxTokens] = useState<string>(
+    modelConfig.summaryMaxTokens?.toString() || ''
+  );
 
   // Combobox state
   const [modelComboboxOpen, setModelComboboxOpen] = useState<boolean>(false);
@@ -412,6 +419,14 @@ export function ModelSettingsModal({
     }
   }, [modelConfig.provider, providerApiKeys, requiresApiKey]);
 
+  // Adopt an output cap that arrived from the parent (skipInitialFetch callers
+  // own the fetch, so the field would otherwise stay on its initial value).
+  useEffect(() => {
+    if (modelConfig.summaryMaxTokens) {
+      setSummaryMaxTokens(modelConfig.summaryMaxTokens.toString());
+    }
+  }, [modelConfig.summaryMaxTokens]);
+
   // Manual fetch function for Ollama models
   const fetchOllamaModels = async (silent = false) => {
     const trimmedEndpoint = ollamaEndpoint.trim();
@@ -640,6 +655,9 @@ export function ModelSettingsModal({
       ollamaEndpoint: modelConfig.provider === 'ollama'
         ? (ollamaEndpoint.trim() || null)
         : (modelConfig.ollamaEndpoint || null),
+      summaryMaxTokens: summaryMaxTokens.trim()
+        ? parseInt(summaryMaxTokens, 10)
+        : null,
       // Include custom OpenAI fields
       customOpenAIEndpoint: modelConfig.provider === 'custom-openai' ? customOpenAIEndpoint.trim() : null,
       customOpenAIModel: modelConfig.provider === 'custom-openai' ? customOpenAIModel.trim() : null,
@@ -1111,6 +1129,30 @@ export function ModelSettingsModal({
                 </Button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* The Anthropic API requires max_tokens, so Claude is the one provider
+            where this value always has an effect. Everything else either has its
+            own field (Custom Server) or uses its own default. */}
+        {modelConfig.provider === 'claude' && (
+          <div>
+            <Label htmlFor="summary-max-tokens">Maximum summary length (optional)</Label>
+            <Input
+              id="summary-max-tokens"
+              type="number"
+              min="256"
+              step="256"
+              value={summaryMaxTokens}
+              onChange={(e) => setSummaryMaxTokens(e.target.value)}
+              placeholder="8192"
+              className="mt-1"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Output tokens the model may use for a summary. Leave empty for the
+              largest value the selected model allows. Raise it if long meeting
+              reports are getting cut off.
+            </p>
           </div>
         )}
 

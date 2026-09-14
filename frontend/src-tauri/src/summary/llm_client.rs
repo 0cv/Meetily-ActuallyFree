@@ -43,6 +43,36 @@ pub struct MessageContent {
     pub content: String,
 }
 
+/// Output-token ceiling used for Claude when nothing is configured.
+///
+/// The Anthropic API *requires* `max_tokens`, so unlike the OpenAI-compatible
+/// providers there is no "let the model decide" option — a value must be chosen
+/// here. 8192 is the cap of every Claude model from 3.5 onward and leaves room
+/// for a full templated meeting report.
+const DEFAULT_CLAUDE_MAX_TOKENS: u32 = 8192;
+
+/// Output cap for the Claude 3 models that predate the 8192 limit. Sending more
+/// than a model supports is a hard 400, so the default has to respect this.
+const LEGACY_CLAUDE_MAX_TOKENS: u32 = 4096;
+
+/// Pick a default output cap that the given Claude model actually accepts.
+///
+/// Only the original Claude 3 line is limited to 4096; `claude-3-5-*` and
+/// `claude-3-7-*` allow 8192, so the prefixes are matched with their trailing
+/// hyphen to avoid catching them.
+fn default_claude_max_tokens(model_name: &str) -> u32 {
+    let model = model_name.to_lowercase();
+    let is_legacy_claude_3 = model.starts_with("claude-3-opus")
+        || model.starts_with("claude-3-sonnet")
+        || model.starts_with("claude-3-haiku");
+
+    if is_legacy_claude_3 {
+        LEGACY_CLAUDE_MAX_TOKENS
+    } else {
+        DEFAULT_CLAUDE_MAX_TOKENS
+    }
+}
+
 // Claude-specific request structure
 #[derive(Debug, Serialize)]
 pub struct ClaudeRequest {
@@ -102,7 +132,8 @@ impl LLMProvider {
 /// * `user_prompt` - User query/content to process
 /// * `ollama_endpoint` - Optional custom Ollama endpoint (defaults to localhost:11434)
 /// * `custom_openai_endpoint` - Optional custom OpenAI-compatible endpoint
-/// * `max_tokens` - Optional max tokens (for CustomOpenAI provider)
+/// * `max_tokens` - Optional output-token cap (Claude and CustomOpenAI; other
+///   OpenAI-compatible providers keep their own defaults)
 /// * `temperature` - Optional temperature (for CustomOpenAI provider)
 /// * `top_p` - Optional top_p (for CustomOpenAI provider)
 /// * `app_data_dir` - Optional app data directory (for BuiltInAI provider)
@@ -245,7 +276,10 @@ pub async fn generate_summary(
         serde_json::json!(ClaudeRequest {
             system: system_prompt.to_string(),
             model: model_name.to_string(),
-            max_tokens: 2048,
+            // Was hardcoded to 2048, which silently truncated long meeting
+            // reports. Honour the configured cap, falling back to the largest
+            // value this model accepts.
+            max_tokens: max_tokens.unwrap_or_else(|| default_claude_max_tokens(model_name)),
             messages: vec![ChatMessage {
                 role: "user".to_string(),
                 content: user_prompt.to_string(),

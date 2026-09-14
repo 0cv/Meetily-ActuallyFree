@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+- Stop truncating long summaries on the Claude (API key) provider. `max_tokens`
+  was hardcoded to 2048, which cut off longer meeting reports mid-sentence. It
+  now defaults to the largest value the selected model accepts (8192, or 4096 on
+  the original Claude 3 models) and can be set explicitly with the new **Maximum
+  summary length** field in Model Settings.
+
 ## 0.2.13 - 2026-09-06
 
 ### Bug Fixes

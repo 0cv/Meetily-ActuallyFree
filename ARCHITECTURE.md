@@ -468,6 +468,13 @@ refetches the saved live rows and unblocks the sequence instead of trapping the
 user in a retry loop. Those rows are summarized only when Auto Summary is
 enabled or the user generates a summary manually.
 
+Output length is capped by the optional `summaryMaxTokens` setting. Most
+providers treat it as absent and use their own default, but the Anthropic API
+*requires* `max_tokens`, so `llm_client` substitutes the largest value the
+selected Claude model accepts (8192, or 4096 for the original Claude 3 line —
+exceeding a model's limit is a hard 400). Do not reinstate a single fixed
+constant here: the previous hardcoded 2048 silently truncated long reports.
+
 Summary prompts serialize every persisted transcript row with timestamp,
 speaker label, and text. This is required for a regeneration after speaker
 rename to actually expose the renamed identities to the model. Generated

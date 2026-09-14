@@ -406,6 +406,17 @@ impl SummaryService {
             None
         };
 
+        // Optional cap on summary output length. None leaves each provider on
+        // its own default; for Claude, which requires the field, llm_client
+        // substitutes the largest value the chosen model accepts.
+        let summary_max_tokens = match SettingsRepository::get_summary_max_tokens(&pool).await {
+            Ok(tokens) => tokens.and_then(|tokens| u32::try_from(tokens).ok()),
+            Err(e) => {
+                info!("Failed to read summary max tokens: {}, using provider default", e);
+                None
+            }
+        };
+
         // Get CustomOpenAI config if provider is CustomOpenAI
         let (custom_openai_endpoint, custom_openai_api_key, custom_openai_max_tokens, custom_openai_temperature, custom_openai_top_p) =
             if provider == LLMProvider::CustomOpenAI {
@@ -440,6 +451,14 @@ impl SummaryService {
             custom_openai_api_key.unwrap_or_default()
         } else {
             api_key
+        };
+
+        // A custom server's own per-endpoint limit stays authoritative; the
+        // global setting only fills in when that endpoint left it blank.
+        let final_max_tokens = if provider == LLMProvider::CustomOpenAI {
+            custom_openai_max_tokens.or(summary_max_tokens)
+        } else {
+            summary_max_tokens
         };
 
         // Dynamically fetch context size based on provider and model
@@ -524,7 +543,7 @@ impl SummaryService {
             &model_name,
             ollama_endpoint.as_deref(),
             custom_openai_endpoint.as_deref(),
-            custom_openai_max_tokens,
+            final_max_tokens,
             custom_openai_temperature,
             custom_openai_top_p,
         );
@@ -575,7 +594,7 @@ impl SummaryService {
             token_threshold,
             ollama_endpoint.as_deref(),
             custom_openai_endpoint.as_deref(),
-            custom_openai_max_tokens,
+            final_max_tokens,
             custom_openai_temperature,
             custom_openai_top_p,
             app_data_dir.as_ref(),

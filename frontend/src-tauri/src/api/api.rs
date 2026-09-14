@@ -82,6 +82,8 @@ pub struct ModelConfig {
     pub api_key: Option<String>,
     #[serde(rename = "ollamaEndpoint")]
     pub ollama_endpoint: Option<String>,
+    #[serde(rename = "summaryMaxTokens")]
+    pub summary_max_tokens: Option<i64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -545,6 +547,7 @@ pub async fn api_get_model_config<R: Runtime>(
                         whisper_model: config.whisper_model,
                         api_key,
                         ollama_endpoint: config.ollama_endpoint,
+                        summary_max_tokens: config.summary_max_tokens,
                     }))
                 }
                 Err(e) => {
@@ -577,16 +580,22 @@ pub async fn api_save_model_config<R: Runtime>(
     whisper_model: String,
     api_key: Option<String>,
     ollama_endpoint: Option<String>,
+    summary_max_tokens: Option<i64>,
     _auth_token: Option<String>,
 ) -> Result<serde_json::Value, String> {
     log_info!(
-        "💾 api_save_model_config called (native): provider='{}', model='{}', whisperModel='{}', ollamaEndpoint={:?}",
+        "💾 api_save_model_config called (native): provider='{}', model='{}', whisperModel='{}', ollamaEndpoint={:?}, summaryMaxTokens={:?}",
         &provider,
         &model,
         &whisper_model,
-        &ollama_endpoint
+        &ollama_endpoint,
+        &summary_max_tokens
     );
     let pool = state.db_manager.pool();
+
+    // Treat a non-positive value as "unset" so a cleared field falls back to the
+    // provider default rather than asking for zero output tokens.
+    let summary_max_tokens = summary_max_tokens.filter(|tokens| *tokens > 0);
 
     if let Err(e) = SettingsRepository::save_model_config(
         pool,
@@ -594,6 +603,7 @@ pub async fn api_save_model_config<R: Runtime>(
         &model,
         &whisper_model,
         ollama_endpoint.as_deref(),
+        summary_max_tokens,
     )
     .await
     {
