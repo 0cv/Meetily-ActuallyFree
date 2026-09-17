@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.2.14 - 2026-09-17
+
+### Windows Crash Fix
+
+- Correct Windows event-loop target ownership in a narrowly patched, vendored
+  Tauri runtime 2.11.4. This addresses the background reference-count race
+  associated with the reported long-recording crash.
+- Keep strong ownership and destruction on the event-loop thread, use private
+  atomic weak references in cloned contexts, and route runtime monitor queries
+  to the owning thread. Preserve teardown ordering during panic unwinding.
+- This release contains the crash fix and release metadata only, with no PR
+  feature merges or macOS release changes.
+
+### Validation
+
+- Nine native lifecycle scenarios cover thread-affine destruction, shutdown,
+  panic unwinding, monitor dispatch, and WebView2 traffic. The stress case sends
+  50,000 IPC messages through two WebViews while workers clone/drop five million
+  webview handles. Three compile-fail doctests cover ownership boundaries.
+- The reporting user said the patched test build worked fine so far. The trial
+  duration is unconfirmed; these results do not establish a completed multi-hour
+  recording/minibar soak or guarantee that all causes of crashes are resolved.
+
+### Windows Downloads
+
+- Fresh CPU, Vulkan, and CUDA variants; CUDA targets multiple GPU generations.
+- Use `Meetily-ActuallyFree-0.2.14-x64-universal-setup.exe` for manual installation.
+  In-app updates use the universal updater engine and its matching Tauri signature.
+- `latest.json` and `SHA256SUMS.txt` provide updater metadata and file checksums.
+  Windows Authenticode remains unconfigured; Tauri updater signing is separate.
+
 ## 0.2.13 - 2026-09-06
 
 ### Bug Fixes

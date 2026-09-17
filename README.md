@@ -20,10 +20,11 @@ This fork also goes beyond removing feature restrictions. It adds speaker identi
 
 ## Latest Release
 
-Meetily `v0.2.13` preserves complete multilingual summaries, fixes compact-bar
-dragging and OGG Opus imports, and improves summary failures, transcript recovery,
-update cancellation, and Windows audio-route warnings.
-[Read the v0.2.13 changelog](CHANGELOG.md).
+Meetily `v0.2.14` addresses the reported Windows long-recording crash with a
+targeted Tauri runtime ownership fix. Native lifecycle and WebView2 stress tests
+passed; the reporting user's patched-build trial has worked so far, with its
+duration unconfirmed.
+[Read the v0.2.14 changelog](CHANGELOG.md).
 
 ## Feature Comparison
 
