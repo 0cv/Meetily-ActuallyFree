@@ -292,7 +292,7 @@ if ($LASTEXITCODE -ne 0) { throw "Frameless installer signing failed" }
 $signature = (Get-Content $updaterSignatureOutput -Raw).Trim()
 $latest = [ordered]@{
   version = $appVersion
-  notes = "Windows crash-fix release: corrects event-loop target ownership in the Tauri runtime to address the reported long-recording crash. Native lifecycle and WebView2 stress tests passed; the reporting user's patched-build trial worked so far, but a multi-hour recording soak duration is not confirmed."
+  notes = "Maintenance release: accessible meeting toolbars in narrow panels, readable disconnected-device pickers and dark-mode controls, configurable Claude summary output budgets with truncation detection, and clean source-build resources. Includes the full Windows runtime crash fix from v0.2.14."
   pub_date = [DateTime]::UtcNow.ToString("o")
   platforms = [ordered]@{
     "windows-x86_64" = [ordered]@{

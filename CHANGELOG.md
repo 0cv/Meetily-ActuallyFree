@@ -1,14 +1,30 @@
 # Changelog
 
-## Unreleased
+## 0.2.15 - 2026-09-17
 
 ### Maintenance
 
+- Keep Export, Enhance, and other meeting toolbar actions accessible at narrow
+  panel widths, using responsive icon labels, wrapping, and keyboard tooltips (#25).
 - Make Claude summary output length configurable with a larger application
-  default, model-aware validation, and explicit errors for truncated responses.
+  default, model-aware validation, explicit errors for truncated responses,
+  effective-budget cache invalidation, and an LF-pinned migration (#29).
 - Preserve unavailable audio-device preferences while allowing explicit Default
-  selection, and use the active theme for native form controls.
-- Keep the runtime resource directory present in clean source checkouts.
+  selection, and use the active theme for native form controls (#23).
+- Keep the runtime resource directory present in clean source checkouts (#7).
+- Add read-only frontend PR checks: unit tests, production build, and TypeScript.
+- Retain the full Windows runtime crash fix from v0.2.14; PR #30 is superseded.
+- PR #12 remains pending macOS revisions and qualification. No macOS release.
+
+### Contributors
+
+- Thanks to @mhlas7, @cedstrom, and @0cv for the maintenance contributions.
+
+### Windows Downloads
+
+- Fresh CPU, Vulkan, and multi-architecture CUDA builds.
+- Manual installation uses the universal setup; in-app updates use the separate
+  Tauri-signed updater engine and matching signature. Authenticode is not configured.
 
 ## 0.2.14 - 2026-09-17
 

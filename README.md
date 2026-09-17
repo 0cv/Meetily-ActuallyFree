@@ -20,11 +20,11 @@ This fork also goes beyond removing feature restrictions. It adds speaker identi
 
 ## Latest Release
 
-Meetily `v0.2.14` addresses the reported Windows long-recording crash with a
-targeted Tauri runtime ownership fix. Native lifecycle and WebView2 stress tests
-passed; the reporting user's patched-build trial has worked so far, with its
-duration unconfirmed.
-[Read the v0.2.14 changelog](CHANGELOG.md).
+Meetily `v0.2.15` keeps meeting controls accessible in narrow panels, fixes
+disconnected-device pickers and native dark-mode controls, and adds configurable
+Claude summary output budgets with explicit truncation errors. It retains the
+Windows long-recording crash fix from v0.2.14.
+[Read the v0.2.15 changelog](CHANGELOG.md).
 
 ## Feature Comparison
 

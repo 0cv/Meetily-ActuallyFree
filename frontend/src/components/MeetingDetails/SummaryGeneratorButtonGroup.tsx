@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { VisuallyHidden } from "@/components/ui/visually-hidden"
-import { Button } from '@/components/ui/button';
+import { ToolbarButton as Button } from './ToolbarButton';
 import { ButtonGroup } from '@/components/ui/button-group';
 import {
   DropdownMenu,
@@ -246,7 +246,7 @@ export function SummaryGeneratorButtonGroup({
   ];
 
   return (
-    <ButtonGroup>
+    <ButtonGroup className="meeting-toolbar-group">
       {/* Generate Summary or Stop button */}
       {isGenerating ? (
         <Button
@@ -261,7 +261,7 @@ export function SummaryGeneratorButtonGroup({
           aria-label="Stop summary generation"
         >
           <Square className="xl:mr-2" size={18} fill="currentColor" />
-          <span className="hidden lg:inline xl:inline">Stop</span>
+           <span className="summary-action-label summary-primary-label">Stop</span>
         </Button>
       ) : (
         <Button
@@ -282,12 +282,12 @@ export function SummaryGeneratorButtonGroup({
           {isCheckingModels || isModelConfigLoading ? (
             <>
               <Loader2 className="animate-spin xl:mr-2" size={18} />
-              <span className="hidden xl:inline">Processing...</span>
+              <span className="summary-action-label summary-primary-label">Processing...</span>
             </>
           ) : (
             <>
               <Sparkles className="xl:mr-2" size={18} />
-              <span className="hidden lg:inline xl:inline">{hasSummary ? 'Regenerate Summary' : 'Generate Summary'}</span>
+              <span className="summary-action-label summary-primary-label">{hasSummary ? 'Regenerate Summary' : 'Generate Summary'}</span>
             </>
           )}
         </Button>
@@ -305,7 +305,7 @@ export function SummaryGeneratorButtonGroup({
             aria-label="Summary Settings"
           >
             <Settings />
-            <span className="hidden lg:inline">AI Model</span>
+            <span className="summary-action-label">AI Model</span>
           </Button>
         </DialogTrigger>
         <DialogContent
@@ -338,7 +338,7 @@ export function SummaryGeneratorButtonGroup({
               aria-label="Select summary template"
             >
               <FileText />
-              <span className="hidden lg:inline">Template</span>
+              <span className="summary-action-label">Template</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">

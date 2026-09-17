@@ -436,18 +436,18 @@ mod claude_output_tests {
 
     #[test]
     fn preserves_all_text_blocks_without_exposing_thinking() {
-        let response: ClaudeChatResponse = serde_json::from_str(r#"{
+        let response: ClaudeChatResponse = serde_json::from_str(r##"{
             "stop_reason":"end_turn", "content":[
                 {"type":"thinking", "thinking":"private reasoning", "signature":"example"},
                 {"type":"text", "text":"# Summary\nContent"},
                 {"type":"text", "text":"# Decisions\nApproved"}
-            ]}"#).unwrap();
+            ]}"##).unwrap();
         assert_eq!(response.complete_text().unwrap(), "# Summary\nContent\n# Decisions\nApproved");
     }
 
     #[tokio::test]
     async fn summary_output_setting_round_trips_and_clears() {
-        use crate::database::repositories::SettingsRepository;
+        use crate::database::repositories::setting::SettingsRepository;
         let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
         sqlx::migrate!("./migrations").run(&pool).await.unwrap();
         SettingsRepository::save_model_config(&pool, "claude", "claude-sonnet-4-5", "large-v3", None, Some(32000)).await.unwrap();
