@@ -492,6 +492,15 @@ refetches the saved live rows and unblocks the sequence instead of trapping the
 user in a retry loop. Those rows are summarized only when Auto Summary is
 enabled or the user generates a summary manually.
 
+Claude summary output uses the optional `summaryMaxTokens` setting and a shared
+Rust/UI catalog in `src/lib/claude-output-limits.json`. The application default
+is 8,192 tokens (4,096 for original Claude 3), not the model's maximum. Explicit
+values must be positive integers within the catalog/application limit. Resolve
+the effective default before cache fingerprinting; do not let this setting leak
+into Custom Server or other providers. Claude responses must report a completed
+stop reason; `max_tokens`, refusal, or missing completion must fail before an
+incomplete summary is persisted or cached.
+
 Summary prompts serialize every persisted transcript row with timestamp,
 speaker label, and text. This is required for a regeneration after speaker
 rename to actually expose the renamed identities to the model. Generated

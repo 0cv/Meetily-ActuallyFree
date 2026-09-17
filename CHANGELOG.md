@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Maintenance
+
+- Make Claude summary output length configurable with a larger application
+  default, model-aware validation, and explicit errors for truncated responses.
+- Preserve unavailable audio-device preferences while allowing explicit Default
+  selection, and use the active theme for native form controls.
+- Keep the runtime resource directory present in clean source checkouts.
+
 ## 0.2.14 - 2026-09-17
 
 ### Windows Crash Fix
