@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import Analytics from '@/lib/analytics';
 import { usePlatform } from '@/hooks/usePlatform';
+import { toDeviceOptionValue, deviceSelectValue, deviceDisplayName, UNAVAILABLE_DEVICE_VALUE } from '@/lib/audio-devices';
 
 export interface AudioDevice {
   name: string;
@@ -47,10 +48,29 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
   const [audioLevels, setAudioLevels] = useState<Map<string, AudioLevelData>>(new Map());
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [showLevels, setShowLevels] = useState(false);
+  // One-way latch: a failed *refresh* leaves the last good list in place, so
+  // trust must never be downgraded once established.
+  const [hasLoadedDevices, setHasLoadedDevices] = useState(false);
 
   // Filter devices by type
   const inputDevices = devices.filter(device => device.device_type === 'Input');
   const outputDevices = devices.filter(device => device.device_type === 'Output');
+
+  // Single source of truth for the option values, shared by the <SelectItem>s
+  // and the reconciliation below — a mismatch between the two is the bug.
+  const micOptions = inputDevices.map(toDeviceOptionValue);
+  const systemOptions = outputDevices.map(toDeviceOptionValue);
+
+  // A saved device that isn't in the current list. Guarded on the per-list
+  // length because get_audio_devices can succeed while list_pulse_sinks() failed
+  // server-side, yielding Input entries and zero Output entries — in which case
+  // we genuinely don't know whether the device is missing.
+  const micFellBack =
+    hasLoadedDevices && micOptions.length > 0 &&
+    !!selectedDevices.micDevice && !micOptions.includes(selectedDevices.micDevice);
+  const systemFellBack =
+    !isMacOS && hasLoadedDevices && systemOptions.length > 0 &&
+    !!selectedDevices.systemDevice && !systemOptions.includes(selectedDevices.systemDevice);
 
   useEffect(() => {
     if (isMacOS && selectedDevices.systemDevice !== null) {
@@ -64,6 +84,7 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
       setError(null);
       const result = await invoke<AudioDevice[]>('get_audio_devices');
       setDevices(result);
+      setHasLoadedDevices(true);
       console.log('Fetched audio devices:', result);
     } catch (err) {
       console.error('Failed to fetch audio devices:', err);
@@ -275,7 +296,7 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
             </Label>
           </div>
           <Select
-            value={selectedDevices.micDevice || 'default'}
+            value={deviceSelectValue(selectedDevices.micDevice, micOptions)}
             onValueChange={handleMicDeviceChange}
             disabled={disabled}
           >
@@ -284,10 +305,15 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="default">Default Microphone</SelectItem>
+              {selectedDevices.micDevice && !micOptions.includes(selectedDevices.micDevice) && (
+                <SelectItem value={UNAVAILABLE_DEVICE_VALUE} disabled>
+                  {deviceDisplayName(selectedDevices.micDevice)} ({micFellBack ? 'unavailable' : 'saved device'})
+                </SelectItem>
+              )}
               {inputDevices.map((device) => (
                 <SelectItem
                   key={device.name}
-                  value={`${device.name} (${device.device_type.toLowerCase()})`}
+                  value={toDeviceOptionValue(device)}
                 >
                   {device.name}
                 </SelectItem>
@@ -296,6 +322,12 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
           </Select>
           {inputDevices.length === 0 && (
             <p className="text-xs text-gray-500">No microphone devices found</p>
+          )}
+          {micFellBack && (
+            <p className="text-xs text-amber-600">
+              “{deviceDisplayName(selectedDevices.micDevice!)}” isn’t available right now — using
+              the default microphone for new recordings. Refresh after reconnecting, or select Default Microphone to clear this preference.
+            </p>
           )}
 
           {/* Audio Level Meters for Input Devices */}
@@ -344,7 +376,7 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
           </div>
 
           <Select
-            value={isMacOS ? 'default' : selectedDevices.systemDevice || 'default'}
+            value={isMacOS ? 'default' : deviceSelectValue(selectedDevices.systemDevice, systemOptions)}
             onValueChange={handleSystemDeviceChange}
             disabled={disabled || isMacOS}
           >
@@ -353,10 +385,15 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="default">Default System Audio</SelectItem>
+              {!isMacOS && selectedDevices.systemDevice && !systemOptions.includes(selectedDevices.systemDevice) && (
+                <SelectItem value={UNAVAILABLE_DEVICE_VALUE} disabled>
+                  {deviceDisplayName(selectedDevices.systemDevice)} ({systemFellBack ? 'unavailable' : 'saved device'})
+                </SelectItem>
+              )}
               {!isMacOS && outputDevices.map((device) => (
                 <SelectItem
                   key={device.name}
-                  value={`${device.name} (${device.device_type.toLowerCase()})`}
+                  value={toDeviceOptionValue(device)}
                 >
                   {device.name}
                 </SelectItem>
@@ -366,6 +403,12 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
 
           {outputDevices.length === 0 && (
             <p className="text-xs text-gray-500">No system audio devices found</p>
+          )}
+          {systemFellBack && (
+            <p className="text-xs text-amber-600">
+              “{deviceDisplayName(selectedDevices.systemDevice!)}” isn’t available right now — using
+              the system default for new recordings. Refresh after reconnecting, or select Default System Audio to clear this preference.
+            </p>
           )}
           {isMacOS && outputDevices.length > 0 && (
             <p className="text-xs text-gray-500">
