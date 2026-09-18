@@ -20,11 +20,11 @@ This fork also goes beyond removing feature restrictions. It adds speaker identi
 
 ## Latest Release
 
-Meetily `v0.2.15` keeps meeting controls accessible in narrow panels, fixes
-disconnected-device pickers and native dark-mode controls, and adds configurable
-Claude summary output budgets with explicit truncation errors. It retains the
-Windows long-recording crash fix from v0.2.14.
-[Read the v0.2.15 changelog](CHANGELOG.md).
+Meetily `v0.2.16` selectively incorporates applicable upstream v0.4.1 improvements:
+long-summary coverage, HE-AAC timing, summary progress recovery, recording device
+arguments, and safer model downloads. Windows now bundles a pinned shared ONNX
+Runtime. Existing fork fixes, including the v0.2.14 runtime crash fix, are retained.
+[Read the v0.2.16 changelog and qualification notes](CHANGELOG.md).
 
 ## Feature Comparison
 

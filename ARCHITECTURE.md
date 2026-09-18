@@ -29,6 +29,17 @@ and has been removed from this fork.
 
 ## 2. Audio pipeline
 
+Windows VAD, Parakeet, and diarization share the pinned Microsoft ONNX Runtime
+1.22 DLL initialized by `src-tauri/src/onnx_runtime.rs`. `ort/load-dynamic` is
+Windows-only; never add a second ONNX runtime dependency. `build/onnxruntime.rs`
+verifies exact archive/file hashes and stages the runtime for both packaging and
+plain cargo builds. `tauri.windows.conf.json` preserves all fork resources and
+adds `binaries/onnxruntime/*`; macOS/Linux resource lists are unchanged.
+Record must initialize both source VADs before starting any saver or exposing a
+chunk sender. Runtime failures return a distinct startup error, while recording
+destination failures remain storage errors. All three source tracks, mute
+alignment, and the 800 ms/2,000 ms live/offline policies still apply.
+
 Capture, recording, and transcription deliberately split into parallel paths in
 `src-tauri/src/audio/`:
 
@@ -563,6 +574,11 @@ Gotchas:
 
 ## 8. Windows installer, onboarding, and updates
 
+Packaging verification must include `binaries/onnxruntime/onnxruntime.dll`,
+`onnxruntime_providers_shared.dll`, and `onnxruntime-LICENSE.txt` and compare them
+with the verified build stage. Do not publish an executable-only update when
+introducing this runtime resource; use a newly built installer/updater package.
+
 There are deliberately **two Windows installer executables** in each release.
 They contain the same application, but they have different callers and must not
 be substituted for one another:
@@ -732,6 +748,10 @@ release asset so installed clients can download it. Users manually launch only
   must pass the explicit `-AllowUnsigned` build switch; Authenticode support
   remains available when `DIGICERT_KEYPAIR_ALIAS` is configured.
 - Never modify `*-universal-updater.exe` after Tauri generates its `.sig`.
+- When PDBs are generated, the universal builder preserves each EXE/PDB pair in
+  `target/release-symbols/<version>/<backend>` before packaging. Tauri may relink
+  the CPU placeholder; retain and verify the pre-packaging symbols against the
+  actual staged backend executable, not that later placeholder.
 - The outer `setup.exe` has no Tauri `.sig`; `SHA256SUMS.txt` covers it for
   manual verification.
 - Keep the updater private key and password under the ignored
