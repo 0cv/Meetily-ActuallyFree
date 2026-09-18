@@ -292,7 +292,7 @@ if ($LASTEXITCODE -ne 0) { throw "Frameless installer signing failed" }
 $signature = (Get-Content $updaterSignatureOutput -Raw).Trim()
 $latest = [ordered]@{
   version = $appVersion
-  notes = "Preserves complete multilingual summaries, fixes compact-bar dragging and OGG Opus import, restores accent switches, and improves summary failures, transcript recovery, update cancellation, and Windows audio-route warnings."
+  notes = "Maintenance release: accessible meeting toolbars in narrow panels, readable disconnected-device pickers and dark-mode controls, configurable Claude summary output budgets with truncation detection, and clean source-build resources. Includes the full Windows runtime crash fix from v0.2.14."
   pub_date = [DateTime]::UtcNow.ToString("o")
   platforms = [ordered]@{
     "windows-x86_64" = [ordered]@{

@@ -146,6 +146,30 @@ Dragging uses one bubbling mouse handler that excludes buttons and their childre
 plus a minibar-only `core:window:allow-start-dragging` capability. Container-only
 `data-tauri-drag-region` attributes miss child targets in Tauri's native handler.
 
+### Windows runtime ownership
+
+The workspace pins a vendored `tauri-runtime-wry` 2.11.4 through the root
+`Cargo.toml`. A v0.2.12 long-recording crash matched the upstream Windows
+`Rc<EventLoopRunner>` clone/drop race: ordinary background IPC traffic can
+corrupt the event-loop reference count. This is not fixed by slowing the
+minibar timer, changing transcription models, or replacing Tao's `Rc` with
+an `Arc` while ignoring thread-affine destruction.
+
+The Windows patch keeps the strong target owner inside the non-Send `Wry`
+runtime; cloned contexts hold private atomic weak references. Only UI-thread
+dispatch upgrades them, monitor queries are routed to that thread, and the
+owner expires before native-loop destruction, including panic unwinding.
+Windows display handles borrow no data. Non-Windows behavior is unchanged.
+Windows runtime `tracing` is deliberately rejected because its separate
+`ActiveTraceSpanStore` still contains another cross-thread `Rc`.
+
+See `vendor/tauri-runtime-wry/PATCH.md` for provenance, regression commands,
+scope, and removal criteria. Do not remove this override on a version bump
+without verifying an equivalent upstream ownership fix. Short native stress
+tests do not establish multi-hour recording/minibar stability. For v0.2.14 the
+reporting user approved release after a successful patched-build trial so far;
+its duration is unconfirmed and no completed multi-hour soak is claimed.
+
 ---
 
 ## 3. Where things are stored
@@ -467,6 +491,15 @@ diarization are impossible. The error state offers **Use live transcript**, whic
 refetches the saved live rows and unblocks the sequence instead of trapping the
 user in a retry loop. Those rows are summarized only when Auto Summary is
 enabled or the user generates a summary manually.
+
+Claude summary output uses the optional `summaryMaxTokens` setting and a shared
+Rust/UI catalog in `src/lib/claude-output-limits.json`. The application default
+is 8,192 tokens (4,096 for original Claude 3), not the model's maximum. Explicit
+values must be positive integers within the catalog/application limit. Resolve
+the effective default before cache fingerprinting; do not let this setting leak
+into Custom Server or other providers. Claude responses must report a completed
+stop reason; `max_tokens`, refusal, or missing completion must fail before an
+incomplete summary is persisted or cached.
 
 Summary prompts serialize every persisted transcript row with timestamp,
 speaker label, and text. This is required for a regeneration after speaker
