@@ -20,6 +20,51 @@
 
 - Added AMD ROCm/HIP acceleration for the llama helper on Linux.
 
+## 0.2.16 - 2026-09-18
+
+### Selective Upstream Integration
+
+This update selectively incorporates improvements from
+[upstream Meetily v0.4.1](https://github.com/Zackriya-Solutions/meetily/releases/tag/v0.4.1)
+into Meetily - Actually Free. Many of the fixes in that release were already
+implemented or addressed independently in our build, so we brought over the
+remaining applicable improvements and adapted them to our fork's architecture.
+We retained our existing solutions where they already covered the same issues;
+this is a selective integration rather than a full upstream merge.
+
+Existing fixes we retained include Claude thinking-block handling, preservation
+of short transcript segments, responsive toolbar controls, and much of our
+model-download resume and file-retention protection.
+
+### Newly Incorporated Improvements
+
+- Preserve transcript coverage when splitting long summaries into chunks.
+- Correct HE-AAC import timing and repair stale duration metadata during
+  explicit retranscription.
+- Pass selected audio devices and meeting names correctly to native recording.
+- Restore summary progress after navigation and improve recording-control
+  positioning.
+- Bundle a pinned Windows ONNX Runtime shared by VAD, Parakeet, and diarization,
+  with recoverable startup errors before recording storage begins.
+- Add the missing download-recovery protections: rejected-range fallback,
+  stricter range validation, and safer cancellation/retry ownership.
+
+Thanks to the upstream contributors for these improvements. Individual PRs,
+attribution, fork-specific adaptations, and verification details are recorded in
+[the upstream integration notes](docs/UPSTREAM_0_4_1_PORTS.md).
+
+### Windows Qualification
+
+- Retains the full Windows runtime ownership crash fix from v0.2.14.
+- Passed 35 frontend and 70 targeted native tests, fresh CPU/Vulkan/CUDA builds,
+  updater signature and payload checks, and an extracted ONNX DLL load test.
+- Physical non-AVX2 hardware and real fresh-install/upgrade testing remain
+  unverified. Release qualification uses native regression tests and packaged
+  payload checks; this does not establish compatibility with every older CPU.
+- Manual downloads use the universal setup; in-app updates use the separate
+  Tauri-signed updater engine. Windows Authenticode remains unconfigured.
+- No macOS release or permission-probe changes are included.
+
 ## 0.2.15 - 2026-09-17
 
 ### Maintenance

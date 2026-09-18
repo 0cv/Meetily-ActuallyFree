@@ -345,6 +345,8 @@ pub enum ParakeetError {
     OutputNotFound(String),
     #[error("Failed to get tensor shape for input: {0}")]
     TensorShape(String),
+    #[error("ONNX Runtime unavailable: {0}")]
+    RuntimeUnavailable(String),
 }
 
 pub struct ParakeetModel {
@@ -420,6 +422,8 @@ impl ParakeetModel {
         intra_threads: Option<usize>,
         try_quantized: bool,
     ) -> Result<Session, ParakeetError> {
+        crate::onnx_runtime::ensure_available()
+            .map_err(|error| ParakeetError::RuntimeUnavailable(error.to_string()))?;
         let providers = vec![CPUExecutionProvider::default().build()];
 
         // Try quantized version first if requested, fallback to regular version

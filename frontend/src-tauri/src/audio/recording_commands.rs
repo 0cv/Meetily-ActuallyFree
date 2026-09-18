@@ -121,6 +121,16 @@ fn install_fatal_error_callback<R: Runtime>(
     });
 }
 
+fn map_recording_start_error<R: Runtime>(app: &AppHandle<R>, error: anyhow::Error) -> String {
+    crate::tray::update_tray_menu(app);
+    if error.downcast_ref::<crate::onnx_runtime::InitializationError>().is_some() {
+        log::error!("Transcription runtime startup failed: {error:#}");
+        format!("{}: Speech recognition could not initialize. Restart Meetily; if it continues, repair or reinstall the app.", crate::onnx_runtime::START_ERROR_CODE)
+    } else {
+        format!("Failed to start recording: {error}")
+    }
+}
+
 #[cfg(target_os = "windows")]
 fn start_windows_audio_route_monitor<R: Runtime>(
     app: &AppHandle<R>,
@@ -205,6 +215,9 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
         return Err("Recording already in progress".to_string());
     }
 
+    crate::onnx_runtime::ensure_available().map_err(|error| {
+        map_recording_start_error(&app, crate::onnx_runtime::InitializationError(error).into())
+    })?;
     // Validate that transcription models are available before starting recording
     info!("ðŸ” Validating transcription model availability before starting recording...");
     if let Err(validation_error) = transcription::validate_transcription_model_ready(&app).await {
@@ -407,7 +420,7 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
     let transcription_receiver = manager
         .start_recording(microphone_device, system_device, auto_save, Some(level_sender))
         .await
-        .map_err(|e| format!("Failed to start recording: {}", e))?;
+        .map_err(|error| map_recording_start_error(&app, error))?;
 
     #[cfg(target_os = "windows")]
     start_windows_audio_route_monitor(&app, &manager, resolved_system_device_name);
@@ -539,6 +552,9 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
         return Err("Recording already in progress".to_string());
     }
 
+    crate::onnx_runtime::ensure_available().map_err(|error| {
+        map_recording_start_error(&app, crate::onnx_runtime::InitializationError(error).into())
+    })?;
     // Validate that transcription models are available before starting recording
     info!("ðŸ” Validating transcription model availability before starting recording...");
     if let Err(validation_error) = transcription::validate_transcription_model_ready(&app).await {
@@ -658,7 +674,7 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
     let transcription_receiver = manager
         .start_recording(mic_device, system_device, auto_save, Some(level_sender))
         .await
-        .map_err(|e| format!("Failed to start recording: {}", e))?;
+        .map_err(|error| map_recording_start_error(&app, error))?;
 
     #[cfg(target_os = "windows")]
     start_windows_audio_route_monitor(&app, &manager, resolved_system_device_name);

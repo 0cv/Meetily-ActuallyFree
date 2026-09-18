@@ -136,6 +136,7 @@ impl ContinuousVadProcessor {
                VAD_SAMPLE_RATE, redemption_time_ms, positive_speech_threshold,
                negative_speech_threshold, 250, input_sample_rate);
 
+        crate::onnx_runtime::ensure_available()?;
         let session = VadSession::new(config)
             .map_err(|e| anyhow!("Failed to create VAD session: {:?}", e))?;
 

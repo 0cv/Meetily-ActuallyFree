@@ -187,6 +187,15 @@ function Build-Variant([string]$Name, [string]$TargetDir, [string[]]$Features) {
   } finally { Pop-Location }
   $binary = Join-Path $TargetDir "release\meetily.exe"
   if (-not (Test-Path $binary)) { throw "$Name binary missing: $binary" }
+  # Tauri's packaging pass can relink the CPU placeholder with a different
+  # context. Retain each EXE/PDB pair before that pass overwrites its symbols.
+  $pdb = Join-Path $TargetDir "release\meetily.pdb"
+  if (Test-Path $pdb) {
+    $symbols = Join-Path $repo "target\release-symbols\$appVersion\$($Name.ToLowerInvariant())"
+    New-Item -ItemType Directory -Force -Path $symbols | Out-Null
+    Copy-Item $binary (Join-Path $symbols "meetily.exe") -Force
+    Copy-Item $pdb (Join-Path $symbols "meetily.pdb") -Force
+  }
   return $binary
 }
 
@@ -292,7 +301,7 @@ if ($LASTEXITCODE -ne 0) { throw "Frameless installer signing failed" }
 $signature = (Get-Content $updaterSignatureOutput -Raw).Trim()
 $latest = [ordered]@{
   version = $appVersion
-  notes = "Maintenance release: accessible meeting toolbars in narrow panels, readable disconnected-device pickers and dark-mode controls, configurable Claude summary output budgets with truncation detection, and clean source-build resources. Includes the full Windows runtime crash fix from v0.2.14."
+  notes = "Selective upstream v0.4.1 integration: improved long-summary coverage, HE-AAC timing, summary progress recovery, recording device arguments, safer model downloads, and a pinned shared Windows ONNX Runtime. Many upstream fixes were already addressed independently in Actually Free; those solutions and the v0.2.14 runtime crash fix are retained. Thanks to the upstream contributors. Physical non-AVX2 and real install/upgrade testing remain unverified."
   pub_date = [DateTime]::UtcNow.ToString("o")
   platforms = [ordered]@{
     "windows-x86_64" = [ordered]@{
