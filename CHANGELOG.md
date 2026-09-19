@@ -13,8 +13,11 @@
 ### macOS Audio Capture
 
 - The system-audio permission probe now plays its own short test sound, so
-  Recheck no longer requires other audio to be playing and silence reliably
-  indicates a denied capture tap.
+  Recheck no longer requires other audio to already be playing.
+- The probe reports whether its result can be trusted. Silence is never
+  presented as a denied capture tap on its own: a missing player, a muted or
+  unreadable output, or a tap that cannot be opened are all reported as
+  inconclusive rather than denied.
 
 ### Linux
 
