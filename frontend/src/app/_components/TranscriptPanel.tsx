@@ -162,24 +162,20 @@ export function TranscriptPanel({
 
         {/* Transcript content */}
         <div
-          className={isRecording ? 'pb-40' : 'pb-20'}
+          className={isRecording ? 'min-h-0 flex-1 pb-40' : 'min-h-0 flex-1 pb-20'}
           style={isRecording ? { scrollPaddingBottom: '10rem' } : undefined}
         >
-          <div className="flex justify-center">
-            <div className="w-2/3 max-w-[750px]">
-              <VirtualizedTranscriptView
-                segments={segments}
-                isRecording={isRecording}
-                isPaused={isPaused}
-                isProcessing={isProcessingStop}
-                isStopping={isStopping}
-                enableStreaming={isRecording && !isPaused}
-                showConfidence={true}
-                onRenameSpeaker={(speaker) => setRenameTarget(speaker)}
-                onMergeSpeaker={(speaker) => setMergeTarget(speaker)}
-              />
-            </div>
-          </div>
+          <VirtualizedTranscriptView
+            segments={segments}
+            isRecording={isRecording}
+            isPaused={isPaused}
+            isProcessing={isProcessingStop}
+            isStopping={isStopping}
+            enableStreaming={isRecording && !isPaused}
+            showConfidence={true}
+            onRenameSpeaker={(speaker) => setRenameTarget(speaker)}
+            onMergeSpeaker={(speaker) => setMergeTarget(speaker)}
+          />
         </div>
       </div>
 

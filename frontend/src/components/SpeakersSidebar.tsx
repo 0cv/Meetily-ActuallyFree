@@ -312,7 +312,7 @@ export function SpeakersSidebar({
                           <button
                             type="button"
                             onClick={() => startRename(s.name)}
-                            title="Click to rename"
+                            title="Rename"
                             className="group/name flex w-full min-w-0 items-center gap-1.5 text-left text-sm font-medium text-[var(--af-text,#111827)] hover:text-blue-600 dark:hover:text-blue-400"
                           >
                             <span className="min-w-0 flex-1 truncate">{label}</span>

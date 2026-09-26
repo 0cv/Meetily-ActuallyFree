@@ -257,7 +257,7 @@ export function TranscriptPanel({
 
       {/* Transcript content + Speakers sidebar */}
       <div className="flex flex-1 overflow-hidden min-h-0">
-        <div className="min-h-0 flex-1 overflow-hidden px-3 pb-3">
+        <div className="min-h-0 flex-1 overflow-hidden pb-2 pl-2 pr-1">
           <VirtualizedTranscriptView
             onRenameSpeaker={meetingId ? setRenameTarget : undefined}
             onMergeSpeaker={meetingId ? setMergeTarget : undefined}

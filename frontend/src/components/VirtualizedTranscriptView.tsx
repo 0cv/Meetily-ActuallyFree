@@ -28,8 +28,6 @@ import { useCallback, useRef, useReducer, startTransition, useEffect, useState, 
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAutoScroll } from "@/hooks/useAutoScroll";
 import { useTranscriptStreaming } from "@/hooks/useTranscriptStreaming";
-import { ConfidenceIndicator } from "./ConfidenceIndicator";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { motion } from "framer-motion";
 import { TranscriptSegmentData } from "@/types";
 import { Spinner } from "@/components/ui/spinner";
@@ -156,9 +154,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
     id,
     timestamp,
     text,
-    confidence,
     isStreaming,
-    showConfidence,
     speaker,
     userName,
     onRenameSpeaker,
@@ -188,9 +184,9 @@ const TranscriptSegment = memo(function TranscriptSegment({
     return (
         <div
             id={`segment-${id}`}
-            className={`relative flex pb-4 ${isYou ? 'justify-end pl-10' : 'justify-start pr-10'}`}
+            className={`relative flex pb-3 ${isYou ? 'justify-end pl-4' : 'justify-start pr-1'}`}
         >
-            <div className={`max-w-[85%] min-w-0 flex flex-col gap-1 ${isYou ? 'items-end' : 'items-start'}`}>
+            <div className={`max-w-[96%] min-w-0 flex flex-col gap-1 ${isYou ? 'items-end' : 'items-start'}`}>
                 <div className={`flex items-baseline gap-2 ${isYou ? 'flex-row-reverse' : 'flex-row'}`}>
                     <span
                         aria-hidden
@@ -202,7 +198,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
                                 <button
                                     type="button"
                                     onClick={() => onRenameSpeaker(speaker)}
-                                    title={`Click to rename "${speaker}"`}
+                                    title="Rename"
                                     className={`text-xs font-semibold ${speakerColor(speaker)} rounded hover:underline inline-flex items-center gap-1`}
                                 >
                                     <span>{label}</span>
@@ -219,7 +215,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
                                         e.stopPropagation();
                                         onMergeSpeaker(speaker);
                                     }}
-                                    title={`Merge "${speaker}" into another speaker`}
+                                    title="Merge into another speaker"
                                     className="opacity-0 group-hover/speaker:opacity-100 p-0.5 rounded text-[var(--af-text-3,#9ca3af)] hover:text-blue-600 hover:bg-blue-500/10 transition-opacity"
                                 >
                                     <GitMerge size={12} />
@@ -227,18 +223,9 @@ const TranscriptSegment = memo(function TranscriptSegment({
                             )}
                         </div>
                     )}
-                    <Tooltip>
-                        <TooltipTrigger>
-                            <span className="text-[11px] text-[var(--af-text-3)] tabular-nums">
-                                {formatRecordingTime(timestamp)}
-                            </span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            {confidence !== undefined && showConfidence && (
-                                <ConfidenceIndicator confidence={confidence} showIndicator={showConfidence} />
-                            )}
-                        </TooltipContent>
-                    </Tooltip>
+                    <span className="text-[11px] tabular-nums text-[var(--af-text-3)]">
+                        {formatRecordingTime(timestamp)}
+                    </span>
                 </div>
 
                 <div
@@ -395,7 +382,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     return (
         <div
             ref={scrollRef}
-            className="flex flex-col h-full overflow-y-auto px-4 py-2"
+            className="flex h-full flex-col overflow-y-auto py-2 pl-2 pr-1"
             style={isRecording ? { scrollPaddingBottom: '10rem' } : undefined}
         >
             {/* Content */}

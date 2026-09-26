@@ -15,6 +15,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { applyAppTheme, getSavedAppTheme } from '@/lib/app-theme'
 import { COMPACT_MIN_WIDTH } from '@/hooks/useCompactChrome'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { AppTooltipGuard } from '@/components/AppTooltipGuard'
 import { RecordingStateProvider } from '@/contexts/RecordingStateContext'
 import { OllamaDownloadProvider } from '@/contexts/OllamaDownloadContext'
 import { TranscriptProvider } from '@/contexts/TranscriptContext'
@@ -464,6 +465,7 @@ export default function RootLayout({
                     <OnboardingProvider>
                       <SidebarProvider>
                         <TooltipProvider>
+                          <AppTooltipGuard />
                           <RecordingPostProcessingProvider>
                             <UpdateCheckProvider onboardingCompleted={onboardingCompleted}>
                               {onboardingCompleted && !showOnboarding && <GlobalSearchDialog />}
