@@ -362,6 +362,25 @@ export default function RootLayout({
 
   return (
     <html lang="en" className="dark">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.addEventListener('error', function(e) {
+                var msg = (e && e.message) || '';
+                if (msg.indexOf('Loading chunk') !== -1 || msg.indexOf('ChunkLoadError') !== -1) {
+                  var last = sessionStorage.getItem('meetily_chunk_reload');
+                  var now = Date.now();
+                  if (!last || now - parseInt(last, 10) > 8000) {
+                    sessionStorage.setItem('meetily_chunk_reload', now.toString());
+                    window.location.reload();
+                  }
+                }
+              });
+            `,
+          }}
+        />
+      </head>
       <body className={`${sourceSans3.variable} font-sans antialiased`}>
         {!startupResolved ? (
           <div className="flex h-screen items-center justify-center bg-[var(--af-bg)]">

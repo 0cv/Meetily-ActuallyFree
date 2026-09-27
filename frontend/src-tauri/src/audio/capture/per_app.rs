@@ -311,6 +311,361 @@ pub mod windows_loopback {
         }
     }
 
+    fn run_single_process_loopback_session<F>(
+        target_pid: u32,
+        app_name: String,
+        stop_flag: Arc<AtomicBool>,
+        mut on_samples: F,
+    ) where
+        F: FnMut(&[f32]) + Send + 'static,
+    {
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        }
+
+        let params = AUDIOCLIENT_ACTIVATION_PARAMS {
+            ActivationType: 1, // AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK
+            ProcessLoopbackParams: AUDIOCLIENT_PROCESS_LOOPBACK_PARAMS {
+                TargetProcessId: target_pid,
+                ProcessLoopbackMode: 0, // PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE
+            },
+        };
+
+        let p_mem = unsafe {
+            windows::Win32::System::Com::CoTaskMemAlloc(std::mem::size_of::<AUDIOCLIENT_ACTIVATION_PARAMS>())
+        } as *mut AUDIOCLIENT_ACTIVATION_PARAMS;
+        if p_mem.is_null() {
+            log::error!("❌ CoTaskMemAlloc failed for process loopback parameters for app '{}' (PID {})", app_name, target_pid);
+            return;
+        }
+        unsafe {
+            std::ptr::write(p_mem, params);
+        }
+
+        let prop_blob = PropVariantBlob {
+            vt: 65, // VT_BLOB
+            w_reserved1: 0,
+            w_reserved2: 0,
+            w_reserved3: 0,
+            blob: Blob {
+                cb_size: std::mem::size_of::<AUDIOCLIENT_ACTIVATION_PARAMS>() as u32,
+                p_blob_data: p_mem as *mut u8,
+            },
+        };
+
+        let mut prop: windows::core::PROPVARIANT = unsafe { std::mem::transmute(prop_blob) };
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        let handler: IActivateAudioInterfaceCompletionHandler =
+            AudioActivationHandler { tx }.into();
+
+        log::info!("🎙️ Activating process loopback for '{}' (PID {})", app_name, target_pid);
+        let async_op = unsafe {
+            ActivateAudioInterfaceAsync(
+                w!("VAD\\Process_Loopback"),
+                &IAudioClient::IID,
+                Some(&prop),
+                &handler,
+            )
+        };
+
+        if let Err(e) = async_op {
+            log::error!("❌ ActivateAudioInterfaceAsync failed for '{}' (PID {}): {}", app_name, target_pid, e);
+            let _ = unsafe { PropVariantClear(&mut prop) };
+            return;
+        }
+
+        let audio_client_unk = match rx.recv_timeout(std::time::Duration::from_secs(5)) {
+            Ok(Ok(unk)) => unk,
+            Ok(Err(hr)) => {
+                log::error!("❌ Process loopback activation failed for '{}' (PID {}) with HRESULT 0x{:08X}", app_name, target_pid, hr.0);
+                let _ = unsafe { PropVariantClear(&mut prop) };
+                return;
+            }
+            Err(e) => {
+                log::error!("❌ Process loopback activation timed out for '{}' (PID {}): {}", app_name, target_pid, e);
+                let _ = unsafe { PropVariantClear(&mut prop) };
+                return;
+            }
+        };
+
+        let _ = unsafe { PropVariantClear(&mut prop) };
+
+        let audio_client: IAudioClient = match audio_client_unk.cast() {
+            Ok(client) => client,
+            Err(e) => {
+                log::error!("❌ Failed to cast activated interface to IAudioClient for '{}': {}", app_name, e);
+                return;
+            }
+        };
+
+        let mut fallback_wfx = WAVEFORMATEX {
+            wFormatTag: 1, // WAVE_FORMAT_PCM
+            nChannels: 2,
+            nSamplesPerSec: 48000,
+            nAvgBytesPerSec: 48000 * 4, // 192000 bytes/sec
+            nBlockAlign: 4, // 2 channels * 2 bytes/sample
+            wBitsPerSample: 16,
+            cbSize: 0,
+        };
+
+        let (p_wfx_to_use, channels, sample_rate, bits_per_sample, auto_convert_flags) = unsafe {
+            match audio_client.GetMixFormat() {
+                Ok(p) if !p.is_null() => {
+                    let w = *p;
+                    let sr = w.nSamplesPerSec;
+                    let ch = w.nChannels;
+                    let bits = w.wBitsPerSample;
+                    log::info!(
+                        "🔊 Process loopback using native mix format for '{}': {} Hz, {} channels, {} bits/sample",
+                        app_name, sr, ch, bits
+                    );
+                    (p, ch, sr, bits, 0u32)
+                }
+                res => {
+                    log::info!(
+                        "ℹ️ audio_client.GetMixFormat() for '{}' returned {:?}. Using 48kHz 16-bit PCM with AUTOCONVERTPCM",
+                        app_name, res.err()
+                    );
+                    (
+                        &mut fallback_wfx as *mut WAVEFORMATEX,
+                        2u16,
+                        48000u32,
+                        16u16,
+                        0x80000000u32 /* AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM */
+                            | 0x08000000u32 /* AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY */,
+                    )
+                }
+            }
+        };
+
+        log::info!(
+            "🔊 Process loopback format configured for '{}': {} Hz, {} channels, {} bits/sample",
+            app_name, sample_rate, channels, bits_per_sample
+        );
+
+        let event = match unsafe { CreateEventW(None, false, false, None) } {
+            Ok(e) => e,
+            Err(e) => {
+                log::error!("❌ Failed to create event for '{}': {}", app_name, e);
+                return;
+            }
+        };
+
+        let stream_flags = AUDCLNT_STREAMFLAGS_LOOPBACK
+            | AUDCLNT_STREAMFLAGS_EVENTCALLBACK
+            | auto_convert_flags;
+
+        let init_res = unsafe {
+            audio_client.Initialize(
+                AUDCLNT_SHAREMODE_SHARED,
+                stream_flags,
+                10_000_000, // 1 second buffer
+                0,
+                p_wfx_to_use,
+                None,
+            )
+        };
+
+        if let Err(e) = init_res {
+            log::error!("❌ Failed to initialize audio client for '{}': {}", app_name, e);
+            let _ = unsafe { CloseHandle(event) };
+            return;
+        }
+
+        if let Err(e) = unsafe { audio_client.SetEventHandle(event) } {
+            log::error!("❌ Failed to set event handle for '{}': {}", app_name, e);
+            let _ = unsafe { CloseHandle(event) };
+            return;
+        }
+
+        let capture_client: IAudioCaptureClient = match unsafe { audio_client.GetService() } {
+            Ok(client) => client,
+            Err(e) => {
+                log::error!("❌ Failed to get IAudioCaptureClient for '{}': {}", app_name, e);
+                let _ = unsafe { CloseHandle(event) };
+                return;
+            }
+        };
+
+        if let Err(e) = unsafe { audio_client.Start() } {
+            log::error!("❌ Failed to start audio client for '{}': {}", app_name, e);
+            let _ = unsafe { CloseHandle(event) };
+            return;
+        }
+
+        log::info!("✅ Process loopback started successfully for '{}' (PID {})", app_name, target_pid);
+
+        let mut f32_buffer = Vec::new();
+
+        while !stop_flag.load(Ordering::Relaxed) {
+            let wait_res = unsafe { WaitForSingleObject(event, 200) };
+            if wait_res == WAIT_OBJECT_0 {
+                loop {
+                    let mut p_data = std::ptr::null_mut();
+                    let mut num_frames = 0u32;
+                    let mut flags = 0u32;
+
+                    let get_res = unsafe {
+                        capture_client.GetBuffer(
+                            &mut p_data,
+                            &mut num_frames,
+                            &mut flags,
+                            None,
+                            None,
+                        )
+                    };
+
+                    if get_res.is_err() || num_frames == 0 || p_data.is_null() {
+                        break;
+                    }
+
+                    let is_silent = (flags & AUDCLNT_BUFFERFLAGS_SILENT.0 as u32) != 0;
+                    let total_samples = (num_frames * channels as u32) as usize;
+
+                    f32_buffer.clear();
+                    f32_buffer.resize(total_samples, 0.0);
+
+                    if !is_silent {
+                        if bits_per_sample == 32 {
+                            let float_slice = unsafe {
+                                std::slice::from_raw_parts(p_data as *const f32, total_samples)
+                            };
+                            f32_buffer.copy_from_slice(float_slice);
+                        } else if bits_per_sample == 16 {
+                            let i16_slice = unsafe {
+                                std::slice::from_raw_parts(p_data as *const i16, total_samples)
+                            };
+                            for (i, &s) in i16_slice.iter().enumerate() {
+                                f32_buffer[i] = s as f32 / 32768.0;
+                            }
+                        }
+                    }
+
+                    on_samples(&f32_buffer);
+
+                    let _ = unsafe { capture_client.ReleaseBuffer(num_frames) };
+                }
+            } else if wait_res == WAIT_TIMEOUT {
+                continue;
+            } else {
+                break;
+            }
+        }
+
+        let _ = unsafe { audio_client.Stop() };
+        let _ = unsafe { CloseHandle(event) };
+        log::info!("🛑 Process loopback stopped for '{}' (PID {})", app_name, target_pid);
+    }
+
+    pub fn start_multi_process_loopback(
+        device: Arc<crate::audio::devices::AudioDevice>,
+        state: Arc<crate::audio::recording_state::RecordingState>,
+        recording_sender: Option<mpsc::UnboundedSender<crate::audio::recording_state::AudioChunk>>,
+        target_pids: Vec<(String, u32)>,
+        stop_flag: Arc<AtomicBool>,
+    ) -> Result<Vec<std::thread::JoinHandle<()>>> {
+        let processor = Arc::new(crate::audio::pipeline::AudioCapture::new(
+            device,
+            state,
+            48000,
+            2,
+            crate::audio::recording_state::DeviceType::System,
+            recording_sender,
+        ));
+
+        if target_pids.len() == 1 {
+            let (app_name, pid) = target_pids.into_iter().next().unwrap();
+            let stop_flag_clone = stop_flag.clone();
+            let proc = processor.clone();
+            let handle = std::thread::spawn(move || {
+                run_single_process_loopback_session(pid, app_name, stop_flag_clone, move |data| {
+                    proc.process_audio_data(data);
+                });
+            });
+            return Ok(vec![handle]);
+        }
+
+        // Multiple target apps: create queues and mixer thread
+        let queues: Arc<Vec<std::sync::Mutex<std::collections::VecDeque<f32>>>> = Arc::new(
+            (0..target_pids.len())
+                .map(|_| std::sync::Mutex::new(std::collections::VecDeque::with_capacity(9600)))
+                .collect(),
+        );
+
+        let mut handles = Vec::new();
+
+        for (idx, (app_name, pid)) in target_pids.into_iter().enumerate() {
+            let stop_flag_worker = stop_flag.clone();
+            let queues_clone = queues.clone();
+            let handle = std::thread::spawn(move || {
+                run_single_process_loopback_session(pid, app_name, stop_flag_worker, move |data| {
+                    if let Ok(mut q) = queues_clone[idx].lock() {
+                        let q_len = q.len();
+                        if q_len + data.len() > 19200 {
+                            let drop_count = (q_len + data.len()) - 19200;
+                            q.drain(0..drop_count.min(q_len));
+                        }
+                        q.extend(data.iter().copied());
+                    }
+                });
+            });
+            handles.push(handle);
+        }
+
+        // Mixer thread
+        let stop_flag_mixer = stop_flag.clone();
+        let queues_mixer = queues.clone();
+        let proc_mixer = processor.clone();
+
+        let mixer_handle = std::thread::spawn(move || {
+            const CHANNELS: usize = 2;
+            const CHUNK_DURATION_MS: u64 = 10;
+            const FRAMES_PER_CHUNK: usize = 480; // 10ms @ 48kHz
+            const SAMPLES_PER_CHUNK: usize = FRAMES_PER_CHUNK * CHANNELS; // 960
+
+            let mut mixed_buffer = vec![0.0f32; SAMPLES_PER_CHUNK];
+            let mut next_tick = std::time::Instant::now();
+
+            while !stop_flag_mixer.load(Ordering::Relaxed) {
+                next_tick += std::time::Duration::from_millis(CHUNK_DURATION_MS);
+                let now = std::time::Instant::now();
+                if next_tick > now {
+                    std::thread::sleep(next_tick - now);
+                } else {
+                    next_tick = now;
+                }
+
+                mixed_buffer.fill(0.0);
+
+                for queue_mutex in queues_mixer.iter() {
+                    if let Ok(mut queue) = queue_mutex.lock() {
+                        let count = queue.len().min(SAMPLES_PER_CHUNK);
+                        if count > 0 {
+                            for j in 0..count {
+                                if let Some(s) = queue.pop_front() {
+                                    mixed_buffer[j] += s;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Prevent clipping distortion
+                for sample in mixed_buffer.iter_mut() {
+                    *sample = sample.clamp(-1.0, 1.0);
+                }
+
+                proc_mixer.process_audio_data(&mixed_buffer);
+            }
+
+            log::info!("🛑 Multi-app audio mixer thread stopped");
+        });
+
+        handles.push(mixer_handle);
+        Ok(handles)
+    }
+
     pub fn start_process_loopback(
         device: Arc<crate::audio::devices::AudioDevice>,
         state: Arc<crate::audio::recording_state::RecordingState>,
@@ -318,257 +673,13 @@ pub mod windows_loopback {
         target_pid: u32,
         stop_flag: Arc<AtomicBool>,
     ) -> Result<std::thread::JoinHandle<()>> {
-        let handle = std::thread::spawn(move || {
-            unsafe {
-                let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-            }
-
-            let params = AUDIOCLIENT_ACTIVATION_PARAMS {
-                ActivationType: 1, // AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK
-                ProcessLoopbackParams: AUDIOCLIENT_PROCESS_LOOPBACK_PARAMS {
-                    TargetProcessId: target_pid,
-                    ProcessLoopbackMode: 0, // PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE
-                },
-            };
-
-            let p_mem = unsafe {
-                windows::Win32::System::Com::CoTaskMemAlloc(std::mem::size_of::<AUDIOCLIENT_ACTIVATION_PARAMS>())
-            } as *mut AUDIOCLIENT_ACTIVATION_PARAMS;
-            if p_mem.is_null() {
-                log::error!("❌ CoTaskMemAlloc failed for process loopback parameters");
-                return;
-            }
-            unsafe {
-                std::ptr::write(p_mem, params);
-            }
-
-            let prop_blob = PropVariantBlob {
-                vt: 65, // VT_BLOB
-                w_reserved1: 0,
-                w_reserved2: 0,
-                w_reserved3: 0,
-                blob: Blob {
-                    cb_size: std::mem::size_of::<AUDIOCLIENT_ACTIVATION_PARAMS>() as u32,
-                    p_blob_data: p_mem as *mut u8,
-                },
-            };
-
-            let mut prop: windows::core::PROPVARIANT = unsafe { std::mem::transmute(prop_blob) };
-
-            let (tx, rx) = std::sync::mpsc::channel();
-            let handler: IActivateAudioInterfaceCompletionHandler =
-                AudioActivationHandler { tx }.into();
-
-            log::info!("🎙️ Activating process loopback for PID {}", target_pid);
-            let async_op = unsafe {
-                ActivateAudioInterfaceAsync(
-                    w!("VAD\\Process_Loopback"),
-                    &IAudioClient::IID,
-                    Some(&prop),
-                    &handler,
-                )
-            };
-
-            if let Err(e) = async_op {
-                log::error!("❌ ActivateAudioInterfaceAsync failed: {}", e);
-                let _ = unsafe { PropVariantClear(&mut prop) };
-                return;
-            }
-
-            let audio_client_unk = match rx.recv_timeout(std::time::Duration::from_secs(5)) {
-                Ok(Ok(unk)) => unk,
-                Ok(Err(hr)) => {
-                    log::error!("❌ Process loopback activation failed with HRESULT 0x{:08X}", hr.0);
-                    let _ = unsafe { PropVariantClear(&mut prop) };
-                    return;
-                }
-                Err(e) => {
-                    log::error!("❌ Process loopback activation timed out: {}", e);
-                    let _ = unsafe { PropVariantClear(&mut prop) };
-                    return;
-                }
-            };
-
-            // Clear activation parameters now that async activation is finished
-            let _ = unsafe { PropVariantClear(&mut prop) };
-
-
-            let audio_client: IAudioClient = match audio_client_unk.cast() {
-                Ok(client) => client,
-                Err(e) => {
-                    log::error!("❌ Failed to cast activated interface to IAudioClient: {}", e);
-                    return;
-                }
-            };
-
-            let mut fallback_wfx = WAVEFORMATEX {
-                wFormatTag: 1, // WAVE_FORMAT_PCM
-                nChannels: 2,
-                nSamplesPerSec: 48000,
-                nAvgBytesPerSec: 48000 * 4, // 192000 bytes/sec
-                nBlockAlign: 4, // 2 channels * 2 bytes/sample
-                wBitsPerSample: 16,
-                cbSize: 0,
-            };
-
-            let (p_wfx_to_use, channels, sample_rate, bits_per_sample, auto_convert_flags) = unsafe {
-                match audio_client.GetMixFormat() {
-                    Ok(p) if !p.is_null() => {
-                        let w = *p;
-                        let sr = w.nSamplesPerSec;
-                        let ch = w.nChannels;
-                        let bits = w.wBitsPerSample;
-                        log::info!(
-                            "🔊 Process loopback using native mix format: {} Hz, {} channels, {} bits/sample",
-                            sr, ch, bits
-                        );
-                        (p, ch, sr, bits, 0u32)
-                    }
-                    res => {
-                        log::info!(
-                            "ℹ️ audio_client.GetMixFormat() returned {:?} (expected for process loopback virtual audio device). Using 48kHz 16-bit PCM with AUTOCONVERTPCM",
-                            res.err()
-                        );
-                        (
-                            &mut fallback_wfx as *mut WAVEFORMATEX,
-                            2u16,
-                            48000u32,
-                            16u16,
-                            0x80000000u32 /* AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM */
-                                | 0x08000000u32 /* AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY */,
-                        )
-                    }
-                }
-            };
-
-            log::info!(
-                "🔊 Process loopback format configured: {} Hz, {} channels, {} bits/sample",
-                sample_rate, channels, bits_per_sample
-            );
-
-            let processor = crate::audio::pipeline::AudioCapture::new(
-                device,
-                state,
-                sample_rate,
-                channels,
-                crate::audio::recording_state::DeviceType::System,
-                recording_sender,
-            );
-
-            let event = match unsafe { CreateEventW(None, false, false, None) } {
-                Ok(e) => e,
-                Err(e) => {
-                    log::error!("❌ Failed to create event: {}", e);
-                    return;
-                }
-            };
-
-            let stream_flags = AUDCLNT_STREAMFLAGS_LOOPBACK
-                | AUDCLNT_STREAMFLAGS_EVENTCALLBACK
-                | auto_convert_flags;
-
-            let init_res = unsafe {
-                audio_client.Initialize(
-                    AUDCLNT_SHAREMODE_SHARED,
-                    stream_flags,
-                    10_000_000, // 1 second buffer
-                    0,
-                    p_wfx_to_use,
-                    None,
-                )
-            };
-
-            if let Err(e) = init_res {
-                log::error!("❌ Failed to initialize audio client: {}", e);
-                let _ = unsafe { CloseHandle(event) };
-                return;
-            }
-
-            if let Err(e) = unsafe { audio_client.SetEventHandle(event) } {
-                log::error!("❌ Failed to set event handle: {}", e);
-                let _ = unsafe { CloseHandle(event) };
-                return;
-            }
-
-            let capture_client: IAudioCaptureClient = match unsafe { audio_client.GetService() } {
-                Ok(client) => client,
-                Err(e) => {
-                    log::error!("❌ Failed to get IAudioCaptureClient: {}", e);
-                    let _ = unsafe { CloseHandle(event) };
-                    return;
-                }
-            };
-
-            if let Err(e) = unsafe { audio_client.Start() } {
-                log::error!("❌ Failed to start audio client: {}", e);
-                let _ = unsafe { CloseHandle(event) };
-                return;
-            }
-
-            log::info!("✅ Process loopback started successfully for PID {}", target_pid);
-
-            let mut f32_buffer = Vec::new();
-
-            while !stop_flag.load(Ordering::Relaxed) {
-                let wait_res = unsafe { WaitForSingleObject(event, 200) };
-                if wait_res == WAIT_OBJECT_0 {
-                    loop {
-                        let mut p_data = std::ptr::null_mut();
-                        let mut num_frames = 0u32;
-                        let mut flags = 0u32;
-
-                        let get_res = unsafe {
-                            capture_client.GetBuffer(
-                                &mut p_data,
-                                &mut num_frames,
-                                &mut flags,
-                                None,
-                                None,
-                            )
-                        };
-
-                        if get_res.is_err() || num_frames == 0 || p_data.is_null() {
-                            break;
-                        }
-
-                        let is_silent = (flags & AUDCLNT_BUFFERFLAGS_SILENT.0 as u32) != 0;
-                        let total_samples = (num_frames * channels as u32) as usize;
-
-                        f32_buffer.clear();
-                        f32_buffer.resize(total_samples, 0.0);
-
-                        if !is_silent {
-                            if bits_per_sample == 32 {
-                                let float_slice = unsafe {
-                                    std::slice::from_raw_parts(p_data as *const f32, total_samples)
-                                };
-                                f32_buffer.copy_from_slice(float_slice);
-                            } else if bits_per_sample == 16 {
-                                let i16_slice = unsafe {
-                                    std::slice::from_raw_parts(p_data as *const i16, total_samples)
-                                };
-                                for (i, &s) in i16_slice.iter().enumerate() {
-                                    f32_buffer[i] = s as f32 / 32768.0;
-                                }
-                            }
-                        }
-
-                        processor.process_audio_data(&f32_buffer);
-
-                        let _ = unsafe { capture_client.ReleaseBuffer(num_frames) };
-                    }
-                } else if wait_res == WAIT_TIMEOUT {
-                    continue;
-                } else {
-                    break;
-                }
-            }
-
-            let _ = unsafe { audio_client.Stop() };
-            let _ = unsafe { CloseHandle(event) };
-            log::info!("🛑 Process loopback stopped for PID {}", target_pid);
-        });
-
-        Ok(handle)
+        let mut handles = start_multi_process_loopback(
+            device,
+            state,
+            recording_sender,
+            vec![("Target".to_string(), target_pid)],
+            stop_flag,
+        )?;
+        Ok(handles.remove(0))
     }
 }

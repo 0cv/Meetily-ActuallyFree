@@ -254,19 +254,18 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
     let mut manager = RecordingManager::new();
 
     // Load recording preferences to get auto_save AND device preferences
-    let (auto_save, preferred_mic_name, preferred_system_name, recordings_folder, per_app_enabled, per_app_target, per_app_name) =
+    let (auto_save, preferred_mic_name, preferred_system_name, recordings_folder, per_app_enabled, per_app_targets) =
         match super::recording_preferences::load_recording_preferences(&app).await {
             Ok(prefs) => {
-                info!("📋 Loaded recording preferences: auto_save={}, preferred_mic={:?}, preferred_system={:?}, per_app={}",
-                      prefs.auto_save, prefs.preferred_mic_device, prefs.preferred_system_device, prefs.per_app_recording_enabled);
+                info!("📋 Loaded recording preferences: auto_save={}, preferred_mic={:?}, preferred_system={:?}, per_app={}, targets={}",
+                      prefs.auto_save, prefs.preferred_mic_device, prefs.preferred_system_device, prefs.per_app_recording_enabled, prefs.per_app_targets.len());
                 (
                     prefs.auto_save,
                     prefs.preferred_mic_device,
                     prefs.preferred_system_device,
                     prefs.save_folder,
                     prefs.per_app_recording_enabled,
-                    prefs.per_app_target_app,
-                    prefs.per_app_target_name,
+                    prefs.per_app_targets,
                 )
             }
             Err(e) => {
@@ -277,13 +276,12 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
                     None,
                     super::recording_preferences::get_default_recordings_folder(),
                     false,
-                    None,
-                    None,
+                    Vec::new(),
                 )
             }
         };
     manager.set_recordings_folder(recordings_folder);
-    manager.set_per_app_config(per_app_enabled, per_app_target, per_app_name);
+    manager.set_per_app_config(per_app_enabled, per_app_targets);
 
     // ============================================================================
     // MICROPHONE DEVICE RESOLUTION: Preference â†’ Default â†’ Error
@@ -673,8 +671,7 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
     manager.set_recordings_folder(preferences.save_folder);
     manager.set_per_app_config(
         preferences.per_app_recording_enabled,
-        preferences.per_app_target_app.clone(),
-        preferences.per_app_target_name.clone(),
+        preferences.per_app_targets.clone(),
     );
 
     // Always ensure a meeting name is set so incremental saver initializes

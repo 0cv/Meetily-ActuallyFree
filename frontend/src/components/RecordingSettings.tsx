@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Switch } from '@/components/ui/switch';
-import { FolderCog, FolderOpen, AppWindow, Volume2, RefreshCw, Check } from 'lucide-react';
+import { FolderCog, FolderOpen, AppWindow, Volume2, RefreshCw, Check, Plus, Trash2 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { DeviceSelection, SelectedDevices } from '@/components/DeviceSelection';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -18,6 +18,13 @@ export interface RecordableApp {
   icon: string | null;
 }
 
+export interface PerAppTarget {
+  id: string;
+  name: string;
+  executable: string;
+  icon?: string | null;
+}
+
 export interface RecordingPreferences {
   save_folder: string;
   auto_save: boolean;
@@ -31,6 +38,7 @@ export interface RecordingPreferences {
   per_app_recording_enabled?: boolean;
   per_app_target_app?: string | null;
   per_app_target_name?: string | null;
+  per_app_targets?: PerAppTarget[];
 }
 
 interface RecordingSettingsProps {
@@ -50,7 +58,9 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
     per_app_recording_enabled: false,
     per_app_target_app: null,
     per_app_target_name: null,
+    per_app_targets: [],
   });
+  const [selectedAppToPick, setSelectedAppToPick] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isChoosingFolder, setIsChoosingFolder] = useState(false);
@@ -126,16 +136,51 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
     }
   };
 
-  const handleAppSelect = async (executable: string) => {
-    const selected = recordableApps.find(a => a.executable === executable);
-    const targetName = selected ? selected.name : executable;
-    const newPreferences = {
+  const addTargetToWhitelist = async (target: PerAppTarget) => {
+    const currentTargets = preferences.per_app_targets || [];
+    if (currentTargets.some(t => t.executable.toLowerCase() === target.executable.toLowerCase())) {
+      toast.info(`${target.name} is already in the whitelist`);
+      return;
+    }
+    const updatedTargets = [...currentTargets, target];
+    const newPreferences: RecordingPreferences = {
       ...preferences,
-      per_app_target_app: executable,
-      per_app_target_name: targetName,
+      per_app_targets: updatedTargets,
+      per_app_target_app: updatedTargets[0]?.executable || null,
+      per_app_target_name: updatedTargets[0]?.name || null,
     };
     setPreferences(newPreferences);
     await savePreferences(newPreferences);
+    toast.success(`Added ${target.name} to recording whitelist`);
+  };
+
+  const handleAddSelectedApp = async () => {
+    if (!selectedAppToPick) return;
+    const selected = recordableApps.find(a => a.executable === selectedAppToPick);
+    const targetName = selected ? selected.name : selectedAppToPick;
+    await addTargetToWhitelist({
+      id: selectedAppToPick,
+      name: targetName,
+      executable: selectedAppToPick,
+      icon: selected?.icon,
+    });
+    setSelectedAppToPick('');
+  };
+
+  const handleRemoveTarget = async (executable: string) => {
+    const currentTargets = preferences.per_app_targets || [];
+    const updatedTargets = currentTargets.filter(
+      t => t.executable.toLowerCase() !== executable.toLowerCase()
+    );
+    const newPreferences: RecordingPreferences = {
+      ...preferences,
+      per_app_targets: updatedTargets,
+      per_app_target_app: updatedTargets[0]?.executable || null,
+      per_app_target_name: updatedTargets[0]?.name || null,
+    };
+    setPreferences(newPreferences);
+    await savePreferences(newPreferences);
+    toast.success('Removed application from whitelist');
   };
 
   const handleBrowseExecutable = async () => {
@@ -148,14 +193,12 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
           }
           return prev;
         });
-        const newPreferences = {
-          ...preferences,
-          per_app_target_app: app.executable,
-          per_app_target_name: app.name,
-        };
-        setPreferences(newPreferences);
-        await savePreferences(newPreferences);
-        toast.success(`Selected application: ${app.name}`);
+        await addTargetToWhitelist({
+          id: app.executable,
+          name: app.name,
+          executable: app.executable,
+          icon: app.icon,
+        });
       }
     } catch (err) {
       console.error('Failed to select custom app executable:', err);
@@ -468,11 +511,16 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
               onDeviceChange={handleDeviceChange}
               disabled={saving}
             />
-            {preferences.per_app_recording_enabled && preferences.per_app_target_app && (
+            {preferences.per_app_recording_enabled && ((preferences.per_app_targets && preferences.per_app_targets.length > 0) || preferences.per_app_target_app) && (
               <div className="mt-3 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50/80 px-3 py-2 text-xs text-blue-700">
                 <AppWindow className="h-3.5 w-3.5 shrink-0 text-blue-600" />
                 <span>
-                  Per-app recording is active for <strong>{preferences.per_app_target_name || preferences.per_app_target_app}</strong>. System audio will capture this app only.
+                  Per-app recording is active for{' '}
+                  <strong>
+                    {preferences.per_app_targets && preferences.per_app_targets.length > 0
+                      ? preferences.per_app_targets.map(t => t.name).join(', ')
+                      : (preferences.per_app_target_name || preferences.per_app_target_app)}
+                  </strong>. System audio will capture {preferences.per_app_targets && preferences.per_app_targets.length > 1 ? 'these applications only' : 'this application only'}.
                 </span>
               </div>
             )}
@@ -490,7 +538,7 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
                 <span>Per-App Audio Recording</span>
               </div>
               <div className="text-sm text-gray-600">
-                Only record audio from a specific application or executable (e.g. Zoom, Microsoft Teams, Slack, Chrome) instead of capturing all system sound.
+                Only record audio from selected applications or executables (e.g. Zoom, Google Chrome, Microsoft Teams) instead of capturing all system sound.
               </div>
             </div>
             <Switch
@@ -503,10 +551,10 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
 
           {preferences.per_app_recording_enabled && (
             <div className="mt-4 space-y-4 rounded-lg border bg-gray-50 p-4">
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="per-app-select" className="text-sm font-medium text-gray-700">
-                    Target Application
+                    Add Program to Whitelist
                   </Label>
                   <button
                     type="button"
@@ -519,15 +567,15 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
                   </button>
                 </div>
 
-                <div className="flex flex-col gap-2 sm:flex-row">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <div className="flex-1">
                     <Select
-                      value={preferences.per_app_target_app || ''}
-                      onValueChange={handleAppSelect}
+                      value={selectedAppToPick}
+                      onValueChange={setSelectedAppToPick}
                       disabled={loadingApps || saving}
                     >
                       <SelectTrigger id="per-app-select" className="w-full bg-white">
-                        <SelectValue placeholder={loadingApps ? "Scanning running apps..." : "Select an application..."} />
+                        <SelectValue placeholder={loadingApps ? "Scanning running apps..." : "Select an application to add..."} />
                       </SelectTrigger>
                       <SelectContent className="max-h-72">
                         {recordableApps.length === 0 && !loadingApps && (
@@ -535,32 +583,52 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
                             No active applications found
                           </SelectItem>
                         )}
-                        {recordableApps.map((app) => (
-                          <SelectItem key={`${app.id}-${app.pid || ''}`} value={app.executable}>
-                            <div className="flex items-center justify-between gap-3 w-full">
-                              <span className="font-medium">{app.name}</span>
-                              <div className="flex items-center gap-2">
-                                {app.has_audio && (
-                                  <span className="inline-flex items-center gap-1 rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-800">
-                                    <Volume2 className="h-2.5 w-2.5" /> Sound Active
-                                  </span>
-                                )}
-                                <span className="text-xs text-gray-400 font-mono">
-                                  {app.executable}
+                        {recordableApps.map((app) => {
+                          const isAlreadyAdded = (preferences.per_app_targets || []).some(
+                            t => t.executable.toLowerCase() === app.executable.toLowerCase()
+                          );
+                          return (
+                            <SelectItem key={`${app.id}-${app.pid || ''}`} value={app.executable}>
+                              <div className="flex items-center justify-between gap-3 w-full">
+                                <span className="font-medium">
+                                  {app.name} {isAlreadyAdded ? "(Added)" : ""}
                                 </span>
+                                <div className="flex items-center gap-2">
+                                  {app.has_audio && (
+                                    <span className="inline-flex items-center gap-1 rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-800">
+                                      <Volume2 className="h-2.5 w-2.5" /> Sound Active
+                                    </span>
+                                  )}
+                                  <span className="text-xs text-gray-400 font-mono">
+                                    {app.executable}
+                                  </span>
+                                </div>
                               </div>
-                            </div>
-                          </SelectItem>
-                        ))}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
 
+                  {/* Add button to the right of the program selector */}
+                  <button
+                    type="button"
+                    onClick={handleAddSelectedApp}
+                    disabled={!selectedAppToPick || saving}
+                    className="flex items-center justify-center gap-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50 transition-colors shrink-0"
+                    title="Add selected application to whitelist"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Add</span>
+                  </button>
+
+                  {/* Browse button */}
                   <button
                     type="button"
                     onClick={handleBrowseExecutable}
                     disabled={saving}
-                    className="flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50 transition-colors shrink-0"
                     title="Browse for custom executable"
                   >
                     <FolderOpen className="h-4 w-4" />
@@ -568,24 +636,86 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
                   </button>
                 </div>
 
-                {preferences.per_app_target_app && (
-                  <div className="mt-2 flex items-center gap-2 rounded-md border border-blue-100 bg-blue-50 p-2.5 text-xs text-blue-800">
-                    <Check className="h-4 w-4 text-blue-600 shrink-0" />
-                    <div>
-                      Recording isolated audio from{' '}
-                      <span className="font-semibold">
-                        {preferences.per_app_target_name || preferences.per_app_target_app}
-                      </span>{' '}
-                      (<span className="font-mono">{preferences.per_app_target_app}</span>). All other background music, notification sounds, and apps will be excluded.
-                    </div>
+                {/* Whitelist list below */}
+                <div className="space-y-2 pt-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                      Recording Whitelist ({preferences.per_app_targets?.length || 0})
+                    </span>
+                    {preferences.per_app_targets && preferences.per_app_targets.length > 1 && (
+                      <span className="text-xs text-gray-400">
+                        All apps will be recorded and mixed together
+                      </span>
+                    )}
                   </div>
-                )}
 
-                {!preferences.per_app_target_app && (
-                  <p className="text-xs text-amber-600">
-                    Please select an application or browse for an executable to isolate its audio.
-                  </p>
-                )}
+                  {(!preferences.per_app_targets || preferences.per_app_targets.length === 0) ? (
+                    <div className="rounded-md border border-dashed border-gray-300 bg-white/60 p-4 text-center text-xs text-gray-500">
+                      No applications in whitelist yet. Select a program above and click <strong>Add</strong>, or click <strong>Browse...</strong> to add an application.
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                      {preferences.per_app_targets.map((target) => {
+                        const runningInfo = recordableApps.find(
+                          a => a.executable.toLowerCase() === target.executable.toLowerCase()
+                        );
+                        return (
+                          <div
+                            key={target.executable}
+                            className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition hover:border-blue-200"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-600">
+                                <AppWindow className="h-4 w-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium text-gray-900 truncate">
+                                    {target.name}
+                                  </span>
+                                  {runningInfo?.has_audio && (
+                                    <span className="inline-flex items-center gap-1 rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-800">
+                                      <Volume2 className="h-2.5 w-2.5" /> Playing Sound
+                                    </span>
+                                  )}
+                                  {runningInfo && !runningInfo.has_audio && (
+                                    <span className="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600">
+                                      Running
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-xs text-gray-400 font-mono truncate block">
+                                  {target.executable}
+                                </span>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTarget(target.executable)}
+                              disabled={saving}
+                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                              title={`Remove ${target.name} from whitelist`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {preferences.per_app_targets && preferences.per_app_targets.length > 0 && (
+                    <div className="mt-3 flex items-center gap-2 rounded-md border border-blue-100 bg-blue-50 p-2.5 text-xs text-blue-800">
+                      <Check className="h-4 w-4 text-blue-600 shrink-0" />
+                      <div>
+                        Recording audio only from{' '}
+                        <strong>{preferences.per_app_targets.length} application{preferences.per_app_targets.length > 1 ? 's' : ''}</strong>{' '}
+                        in the whitelist. All other background music, browser tabs, notification chimes, and other applications will be completely excluded.
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}

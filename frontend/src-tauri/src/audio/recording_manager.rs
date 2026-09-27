@@ -30,8 +30,7 @@ pub struct RecordingManager {
     device_monitor: Option<AudioDeviceMonitor>,
     device_event_receiver: Option<mpsc::UnboundedReceiver<DeviceEvent>>,
     per_app_enabled: bool,
-    per_app_target_app: Option<String>,
-    per_app_target_name: Option<String>,
+    per_app_targets: Vec<crate::audio::recording_preferences::PerAppTarget>,
 }
 
 // SAFETY: RecordingManager contains types that we've marked as Send
@@ -53,8 +52,7 @@ impl RecordingManager {
             device_monitor: Some(device_monitor),
             device_event_receiver: Some(device_event_receiver),
             per_app_enabled: false,
-            per_app_target_app: None,
-            per_app_target_name: None,
+            per_app_targets: Vec::new(),
         }
     }
 
@@ -92,11 +90,14 @@ impl RecordingManager {
             ("No Microphone".to_string(), super::device_detection::InputDeviceKind::Unknown)
         };
 
-        let (sys_name, sys_kind) = if self.per_app_enabled && self.per_app_target_app.is_some() {
-            let app_name = self.per_app_target_name.as_deref()
-                .or(self.per_app_target_app.as_deref())
-                .unwrap_or("App");
-            (format!("App Audio ({})", app_name), super::device_detection::InputDeviceKind::Wired)
+        let (sys_name, sys_kind) = if self.per_app_enabled && !self.per_app_targets.is_empty() {
+            let names: Vec<String> = self.per_app_targets.iter().map(|t| t.name.clone()).collect();
+            let display = if names.len() == 1 {
+                names[0].clone()
+            } else {
+                format!("{} apps ({})", names.len(), names.join(", "))
+            };
+            (format!("App Audio ({})", display), super::device_detection::InputDeviceKind::Wired)
         } else if let Some(ref sys) = system_device {
             let device_kind = super::device_detection::InputDeviceKind::detect(&sys.name, 512, 48000);
             (sys.name.clone(), device_kind)
@@ -134,8 +135,8 @@ impl RecordingManager {
 
         // Start audio streams - they send RAW unmixed chunks to pipeline for mixing
         // Pipeline handles mixing and distribution to both recording and transcription
-        let per_app_opt = if self.per_app_enabled {
-            self.per_app_target_app.as_ref().map(|app| (app.clone(), self.per_app_target_name.clone()))
+        let per_app_opt = if self.per_app_enabled && !self.per_app_targets.is_empty() {
+            Some(self.per_app_targets.clone())
         } else {
             None
         };
@@ -462,12 +463,10 @@ impl RecordingManager {
     pub fn set_per_app_config(
         &mut self,
         enabled: bool,
-        target_app: Option<String>,
-        target_name: Option<String>,
+        targets: Vec<crate::audio::recording_preferences::PerAppTarget>,
     ) {
         self.per_app_enabled = enabled;
-        self.per_app_target_app = target_app;
-        self.per_app_target_name = target_name;
+        self.per_app_targets = targets;
     }
 
     pub fn set_recordings_folder(&mut self, path: std::path::PathBuf) {

@@ -28,7 +28,7 @@ pub enum StreamBackend {
     #[cfg(windows)]
     ProcessLoopback {
         stop_flag: Arc<std::sync::atomic::AtomicBool>,
-        thread_handle: Option<std::thread::JoinHandle<()>>,
+        thread_handles: Vec<std::thread::JoinHandle<()>>,
     },
 }
 
@@ -288,40 +288,47 @@ impl AudioStream {
         })
     }
 
-    /// Create a per-application audio stream targeting a specific application
+    /// Create a per-application audio stream targeting multiple or single applications
     pub async fn create_per_app_stream(
-        target_app: String,
-        app_friendly_name: Option<String>,
+        targets: Vec<crate::audio::recording_preferences::PerAppTarget>,
         state: Arc<RecordingState>,
         _device_type: DeviceType,
         recording_sender: Option<mpsc::UnboundedSender<super::recording_state::AudioChunk>>,
     ) -> Result<Self> {
-        let display_name = app_friendly_name.unwrap_or_else(|| target_app.clone());
-        info!("🎯 Creating per-app stream for '{}' ({})", display_name, target_app);
+        info!("🎯 Creating per-app audio stream for {} target(s)", targets.len());
 
-        let target_pid = crate::audio::capture::per_app::find_pid_for_app(&target_app);
-        if target_pid.is_none() {
+        let mut running_targets = Vec::new();
+        for target in &targets {
+            if let Some(pid) = crate::audio::capture::per_app::find_pid_for_app(&target.executable) {
+                info!("🎯 Found active PID {} for target app '{}' ({})", pid, target.name, target.executable);
+                running_targets.push((target.name.clone(), pid));
+            } else {
+                warn!("⚠️ Target app '{}' ({}) is not currently running", target.name, target.executable);
+            }
+        }
+
+        if running_targets.is_empty() {
+            let target_summary: Vec<String> = targets.iter().map(|t| format!("{} ({})", t.name, t.executable)).collect();
             return Err(anyhow::anyhow!(
-                "Application '{}' is not currently running. Please launch the application before recording.",
-                display_name
+                "None of the target applications are currently running: {}. Please launch at least one application before recording.",
+                target_summary.join(", ")
             ));
         }
-        let pid = target_pid.unwrap();
-        info!("🎯 Found PID {} for target app '{}'", pid, target_app);
 
+        let display_names: Vec<String> = running_targets.iter().map(|(name, _)| name.clone()).collect();
         let device = Arc::new(AudioDevice {
-            name: format!("App Audio: {}", display_name),
+            name: format!("App Audio: {}", display_names.join(", ")),
             device_type: super::devices::DeviceType::Output,
         });
 
         #[cfg(windows)]
         {
             let stop_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
-            let handle = crate::audio::capture::per_app::windows_loopback::start_process_loopback(
+            let thread_handles = crate::audio::capture::per_app::windows_loopback::start_multi_process_loopback(
                 device.clone(),
                 state.clone(),
                 recording_sender,
-                pid,
+                running_targets,
                 stop_flag.clone(),
             )?;
 
@@ -329,25 +336,26 @@ impl AudioStream {
                 device,
                 backend: StreamBackend::ProcessLoopback {
                     stop_flag,
-                    thread_handle: Some(handle),
+                    thread_handles,
                 },
             })
         }
 
         #[cfg(target_os = "macos")]
         {
+            let first_pid = running_targets[0].1;
             Self::create_core_audio_stream_with_process(
                 device,
                 state,
-                device_type,
+                _device_type,
                 recording_sender,
-                Some(pid),
+                Some(first_pid),
             ).await
         }
 
         #[cfg(not(any(windows, target_os = "macos")))]
         {
-            let _ = (state, device_type, recording_sender);
+            let _ = (state, _device_type, recording_sender);
             Err(anyhow::anyhow!("Per-app audio recording is only supported on Windows and macOS."))
         }
     }
@@ -463,13 +471,13 @@ impl AudioStream {
                 }
             }
             #[cfg(windows)]
-            StreamBackend::ProcessLoopback { stop_flag, thread_handle } => {
-                info!("Stopping Windows process loopback stream...");
+            StreamBackend::ProcessLoopback { stop_flag, thread_handles } => {
+                info!("Stopping Windows process loopback stream(s)...");
                 stop_flag.store(true, std::sync::atomic::Ordering::Relaxed);
-                if let Some(handle) = thread_handle {
+                for handle in thread_handles {
                     let _ = handle.join();
                 }
-                info!("Windows process loopback stream stopped");
+                info!("Windows process loopback stream(s) stopped");
             }
         }
 
@@ -504,12 +512,12 @@ impl AudioStreamManager {
         &mut self,
         microphone_device: Option<Arc<AudioDevice>>,
         system_device: Option<Arc<AudioDevice>>,
-        per_app_target: Option<(String, Option<String>)>,
+        per_app_targets: Option<Vec<crate::audio::recording_preferences::PerAppTarget>>,
         recording_sender: Option<mpsc::UnboundedSender<super::recording_state::AudioChunk>>,
     ) -> Result<()> {
         use super::capture::get_current_backend;
         let backend = get_current_backend();
-        info!("🎙️ Starting audio streams with backend: {:?}, per-app: {:?}", backend, per_app_target.is_some());
+        info!("🎙️ Starting audio streams with backend: {:?}, per-app: {:?}", backend, per_app_targets.is_some());
 
         // Start microphone stream
         if let Some(mic_device) = microphone_device {
@@ -532,11 +540,10 @@ impl AudioStreamManager {
         }
 
         // Start system audio stream or per-app stream
-        if let Some((target_app, friendly_name)) = per_app_target {
-            info!("🎯 Creating per-app audio stream for target: {}", target_app);
+        if let Some(targets) = per_app_targets {
+            info!("🎯 Creating per-app audio stream for {} target(s)", targets.len());
             match AudioStream::create_per_app_stream(
-                target_app.clone(),
-                friendly_name,
+                targets,
                 self.state.clone(),
                 DeviceType::System,
                 recording_sender.clone(),
@@ -545,7 +552,7 @@ impl AudioStreamManager {
                     self.state.set_system_device(stream.device().clone().into());
                     self.state.set_capture_active(DeviceType::System, true);
                     self.system_stream = Some(stream);
-                    info!("✅ Per-app audio stream created for: {}", target_app);
+                    info!("✅ Per-app audio stream created for targets");
                 }
                 Err(e) => {
                     warn!("⚠️ Failed to create per-app audio stream: {}", e);
