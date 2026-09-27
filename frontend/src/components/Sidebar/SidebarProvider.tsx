@@ -22,6 +22,7 @@ export interface CurrentMeeting {
   created_at?: string;
   /** Approx length in seconds (from transcript timings). */
   duration_seconds?: number;
+  summary_preview?: string;
 }
 
 interface SidebarContextType {
@@ -31,6 +32,8 @@ interface SidebarContextType {
   isCollapsed: boolean;
   toggleCollapse: () => void;
   meetings: CurrentMeeting[];
+  meetingsLoading: boolean;
+  meetingsError: string | null;
   setMeetings: (meetings: CurrentMeeting[]) => void;
   isMeetingActive: boolean;
   setIsMeetingActive: (active: boolean) => void;
@@ -62,6 +65,8 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const [currentMeeting, setCurrentMeeting] = useState<CurrentMeeting | null>({ id: 'intro-call', title: '+ New Call' });
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [meetings, setMeetings] = useState<CurrentMeeting[]>([]);
+  const [meetingsLoading, setMeetingsLoading] = useState(true);
+  const [meetingsError, setMeetingsError] = useState<string | null>(null);
   const [sidebarItems, setSidebarItems] = useState<SidebarItem[]>([]);
   const [isMeetingActive, setIsMeetingActive] = useState(false);
   const [serverAddress, setServerAddress] = useState('');
@@ -84,25 +89,32 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   // Extract fetchMeetings as a reusable function
   const fetchMeetings = React.useCallback(async () => {
     if (serverAddress) {
+      setMeetingsLoading(true);
+      setMeetingsError(null);
       try {
         const meetings = await invoke('api_get_meetings') as Array<{
           id: string;
           title: string;
           created_at?: string;
           duration_seconds?: number;
+          summary_preview?: string;
         }>;
         const transformedMeetings = meetings.map((meeting) => ({
           id: meeting.id,
           title: meeting.title,
           created_at: meeting.created_at ?? (meeting as any).createdAt ?? (meeting as any).updated_at,
           duration_seconds: meeting.duration_seconds,
+          summary_preview: meeting.summary_preview,
         }));
         setMeetings(transformedMeetings);
         Analytics.trackBackendConnection(true);
       } catch (error) {
         console.error('Error fetching meetings:', error);
         setMeetings([]);
+        setMeetingsError(error instanceof Error ? error.message : String(error));
         Analytics.trackBackendConnection(false, error instanceof Error ? error.message : 'Unknown error');
+      } finally {
+        setMeetingsLoading(false);
       }
     }
   }, [serverAddress]);
@@ -302,6 +314,8 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
       isCollapsed,
       toggleCollapse,
       meetings,
+      meetingsLoading,
+      meetingsError,
       setMeetings,
       isMeetingActive,
       setIsMeetingActive,

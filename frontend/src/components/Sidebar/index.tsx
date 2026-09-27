@@ -20,7 +20,7 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { ChevronDown, ChevronRight, FileText, AudioLines, ArrowRight, Settings, ChevronLeftCircle, ChevronRightCircle, Calendar, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, Upload } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileText, AudioLines, ArrowRight, Settings, ChevronLeftCircle, ChevronRightCircle, Calendar, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, Upload, House } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSidebar } from './SidebarProvider';
 import type { CurrentMeeting } from '@/components/Sidebar/SidebarProvider';
@@ -543,6 +543,20 @@ const Sidebar: React.FC = () => {
               </TooltipContent>
             </Tooltip>
 
+            {/* Home */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => router.push('/home')}
+                  className={`rounded-lg p-2 transition-colors duration-150 ${pathname === '/home' ? 'bg-[var(--af-panel-2)] text-[var(--af-accent)]' : 'text-gray-600 hover:bg-gray-100'}`}
+                  aria-label="Home"
+                >
+                  <House className="h-5 w-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right"><p>Home</p></TooltipContent>
+            </Tooltip>
+
             {/* Meetings */}
             <Tooltip>
               <TooltipTrigger asChild>
@@ -780,6 +794,13 @@ const Sidebar: React.FC = () => {
                     <span>New Recording</span>
                   </>
                 )}
+              </button>
+              <button
+                onClick={() => router.push('/home')}
+                aria-current={pathname === '/home' ? 'page' : undefined}
+                className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${pathname === '/home' ? 'bg-[var(--af-panel-2)] text-[var(--af-accent)]' : 'text-[var(--af-text-2)] hover:bg-[var(--af-hover)] hover:text-[var(--af-text)]'}`}
+              >
+                <House className="h-4 w-4" /> Home
               </button>
             </div>
           )}

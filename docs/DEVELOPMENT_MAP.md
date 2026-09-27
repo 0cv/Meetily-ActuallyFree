@@ -156,6 +156,22 @@ variants; the runtime payload must match the one validated in tests. Validate wi
 
 ## 6. Tests, qualification, and historical notes
 
+### Home meeting library
+
+`frontend/src/app/home/page.tsx` renders the date-sorted meeting library. The
+recording-ready screen remains `/`; the sidebar's New Recording action opens it,
+and Home opens `/home` above Recent Meetings. `SidebarProvider` owns the shared
+meeting list and refresh/error state. `api_get_meetings` in `api/api.rs` reads saved
+summary results in one query, converts the supported legacy/Markdown/BlockNote
+formats with `visible_summary_text`, and returns `summary_preview` alongside each
+meeting's date and duration. The Home page shortens this text for display; it does
+not generate a summary. Cards link to the existing meeting detail route. A summary
+saved while that route is open appears after Home refreshes its list. Meetings with
+no generated summary show an explicit empty state. Startup still opens `/` so its
+transcript recovery flow runs as before. Verification covers the frontend build,
+native build, and Windows installer payload; local installer creation does not
+publish a release.
+
 Labs roadmap features 1, 3, 7, 8, and 12 are mapped in
 [LABS_MACWHISPER_FEATURES.md](LABS_MACWHISPER_FEATURES.md). Read it before
 changing meeting detection, recorded audio seeking, named voice enrollment,

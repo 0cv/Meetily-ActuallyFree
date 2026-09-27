@@ -36,6 +36,9 @@ pub struct Meeting {
     /// Approx length of the meeting in seconds (from last transcript end time).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duration_seconds: Option<f64>,
+    /// Plain text extracted from the saved AI summary for library previews.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summary_preview: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -367,6 +370,18 @@ pub async fn api_get_meetings<R: Runtime>(
         Ok(meeting_models) => {
             log_info!("Successfully got {} meetings", meeting_models.len());
 
+            // Fetch summaries once for the library rather than issuing a native
+            // command for every Home card. A missing summary stays distinct from
+            // a generated one so the UI can explain how to add it.
+            let summaries: HashMap<String, String> = sqlx::query_as::<_, (String, String)>(
+                "SELECT meeting_id, result FROM summary_processes WHERE result IS NOT NULL",
+            )
+            .fetch_all(pool)
+            .await
+            .map_err(|e| format!("Failed to load meeting summaries: {}", e))?
+            .into_iter()
+            .collect();
+
             // Duration = furthest audio_end_time on any transcript for that meeting.
             let mut result: Vec<Meeting> = Vec::with_capacity(meeting_models.len());
             for m in meeting_models {
@@ -393,6 +408,9 @@ pub async fn api_get_meetings<R: Runtime>(
                 .flatten();
 
                 result.push(Meeting {
+                    summary_preview: summaries
+                        .get(&m.id)
+                        .and_then(|raw| crate::database::repositories::person::visible_summary_text(raw)),
                     id: m.id,
                     title: m.title,
                     created_at: Some(created_at.to_rfc3339()),
