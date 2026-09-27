@@ -101,10 +101,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
         } catch (e) {
             console.error('Failed to update real-time transcription preference:', e);
             toast.error('Failed to update streaming preference');
-        }
     };
-
->>>>>>> myfork/feat/macwhisper-speaker-recognition
     const refreshInstalledModels = useCallback(async () => {
         const [whisperModels, parakeetModels] = await Promise.all([
             invoke<RawModelInfo[]>('whisper_get_available_models').catch(() => []),
