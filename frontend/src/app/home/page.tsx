@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Clock3, RefreshCw, Search, Users } from 'lucide-react';
 import { useSidebar, type CurrentMeeting } from '@/components/Sidebar/SidebarProvider';
-import { normalizeSummary } from '@/lib/summary-buckets';
+import { normalizeSummary, shortTopicLabel } from '@/lib/summary-buckets';
 
 function meetingDate(meeting: CurrentMeeting): Date | null {
   if (meeting.created_at) {
@@ -62,7 +62,7 @@ export default function MeetingsHome() {
         meeting,
         date: meetingDate(meeting),
         excerpt: summaryExcerpt(buckets.summary.join(' ') || meeting.summary_preview),
-        topics: buckets.topics.map(topic => topic.replace(/^[\s\-*•]+/, '').trim()).filter(Boolean),
+        topics: buckets.topics.map(shortTopicLabel).filter(Boolean).slice(0, 3),
       };
     }).filter(card => !search || [card.meeting.title, card.excerpt ?? '', ...(card.meeting.named_participants ?? []), ...card.topics]
       .some(value => value.toLocaleLowerCase().includes(search)));
@@ -134,8 +134,7 @@ export default function MeetingsHome() {
                         <div className="mt-3">
                           <p className="mb-1.5 text-xs font-semibold text-[var(--af-text-3)]">Key Topics</p>
                           <div className="flex flex-wrap gap-1.5">
-                            {topics.slice(0, 4).map((topic, index) => <span key={index} className="max-w-full truncate rounded-md border border-[var(--af-border)] bg-[var(--af-panel-2)] px-2 py-1 text-xs text-[var(--af-text-2)]" title={topic}>{topic.length > 44 ? `${topic.slice(0, 42).trim()}…` : topic}</span>)}
-                            {topics.length > 4 && <span className="px-1 py-1 text-xs text-[var(--af-text-3)]">+{topics.length - 4}</span>}
+                            {topics.map((topic, index) => <span key={index} className="max-w-full truncate rounded-md border border-[var(--af-border)] bg-[var(--af-panel-2)] px-2 py-1 text-xs text-[var(--af-text-2)]" title={topic}>{topic}</span>)}
                           </div>
                         </div>
                       )}

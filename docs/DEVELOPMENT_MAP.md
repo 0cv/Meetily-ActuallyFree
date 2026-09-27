@@ -170,7 +170,8 @@ details share the legacy/Markdown/BlockNote topic classifier in
 `frontend/src/lib/summary-buckets.ts`. Home groups full-width meeting cards by
 local date, connects each day's cards with a timeline, and filters title, named
 participants, summary, and topics with the search field. Cards show a short
-summary paragraph and up to four Key Topics chips with an overflow count.
+summary paragraph and at most three short Key Topics labels. Topic bullets with
+label/explanation markup display only the label; the full summary is retained.
 Missing summaries remain an explicit empty state. Cards link to the existing meeting detail route; Home
 refreshes its list on entry after a summary is saved. `StartupTranscriptRecovery`
 now mounts in the shared layout so IndexedDB recovery checks still run when Home

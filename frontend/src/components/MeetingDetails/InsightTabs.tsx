@@ -27,7 +27,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { Summary, Transcript } from '@/types';
-import { blocksToMarkdown, inlineText, normalizeSummary } from '@/lib/summary-buckets';
+import { blocksToMarkdown, inlineText, normalizeSummary, shortTopicLabel } from '@/lib/summary-buckets';
 
 // Classification is only a convenience for shortcuts, never the source of the
 // visible summary: arbitrary headings and GFM structure must survive unchanged.
@@ -173,13 +173,6 @@ function parseActionItems(lines: string[]): ParsedAction[] {
     if (a.text) items.push(a);
   }
   return items;
-}
-
-function topicLabel(raw: string): string {
-  const t = raw.replace(/^[\s\-*•]+/, '').trim();
-  const colon = t.indexOf(':');
-  if (colon > 0 && colon <= 40) return t.slice(0, colon).trim();
-  return t.length > 40 ? t.slice(0, 38).trim() + '…' : t;
 }
 
 const MAX_CONTEXT_CHARS = 6000;
@@ -378,7 +371,7 @@ export function InsightTabs({
                   title={t}
                   className="rounded-lg border border-[var(--af-border-strong)] bg-[var(--af-panel-2)] px-3 py-1.5 text-sm text-[var(--af-text-2)]"
                 >
-                  {topicLabel(t)}
+                  {shortTopicLabel(t)}
                 </span>
               ))}
             </div>

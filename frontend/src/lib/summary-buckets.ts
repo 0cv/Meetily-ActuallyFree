@@ -98,3 +98,14 @@ export function normalizeSummary(aiSummary: any): Record<Bucket, string[]> {
   if (Array.isArray(aiSummary.summary_json)) return parseMarkdownBuckets(blocksToMarkdown(aiSummary.summary_json));
   return bucketizeSections(aiSummary);
 }
+
+/** Topic bullets often contain a bold short label followed by an explanation. */
+export function shortTopicLabel(raw: string): string {
+  const topic = raw.replace(/^\s*(?:[-*+•]\s+)?/, '').trim();
+  const boldLabel = topic.match(/^\*\*(.{1,60}?)\*\*\s*[:\-–—]?/);
+  if (boldLabel) return boldLabel[1].replace(/[:\s]+$/, '').trim();
+  const colon = topic.indexOf(':');
+  if (colon > 0 && colon <= 40) return topic.slice(0, colon).replace(/[*_`]/g, '').trim();
+  const plain = topic.replace(/[*_`]/g, '').trim();
+  return plain.length > 40 ? `${plain.slice(0, 38).trim()}…` : plain;
+}
