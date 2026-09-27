@@ -23,6 +23,8 @@ export interface CurrentMeeting {
   /** Approx length in seconds (from transcript timings). */
   duration_seconds?: number;
   summary_preview?: string;
+  summary_data?: string;
+  named_participants?: string[];
 }
 
 interface SidebarContextType {
@@ -98,6 +100,8 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
           created_at?: string;
           duration_seconds?: number;
           summary_preview?: string;
+          summary_data?: string;
+          named_participants?: string[];
         }>;
         const transformedMeetings = meetings.map((meeting) => ({
           id: meeting.id,
@@ -105,6 +109,8 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
           created_at: meeting.created_at ?? (meeting as any).createdAt ?? (meeting as any).updated_at,
           duration_seconds: meeting.duration_seconds,
           summary_preview: meeting.summary_preview,
+          summary_data: meeting.summary_data,
+          named_participants: meeting.named_participants,
         }));
         setMeetings(transformedMeetings);
         Analytics.trackBackendConnection(true);
@@ -184,6 +190,18 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     }
     Analytics.trackButtonClick('new_recording_ready', 'sidebar');
   };
+
+  // Tray and notification starts can arrive while Home is mounted. The
+  // recording hook only exists on `/`, so carry the start intent across routing.
+  useEffect(() => {
+    if (pathname === '/') return;
+    const onDirectStart = () => {
+      sessionStorage.setItem('autoStartRecording', 'true');
+      router.push('/');
+    };
+    window.addEventListener('start-recording-from-sidebar', onDirectStart);
+    return () => window.removeEventListener('start-recording-from-sidebar', onDirectStart);
+  }, [pathname, router]);
 
   // Summary polling management
   const clearPoll = useCallback((meetingId: string) => {

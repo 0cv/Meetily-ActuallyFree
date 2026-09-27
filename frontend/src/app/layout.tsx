@@ -4,6 +4,7 @@ import './globals.css'
 import dynamic from 'next/dynamic'
 import { Source_Sans_3 } from 'next/font/google'
 import { SidebarProvider } from '@/components/Sidebar/SidebarProvider'
+import { StartupTranscriptRecovery } from '@/components/StartupTranscriptRecovery'
 import AnalyticsProvider from '@/components/AnalyticsProvider'
 import { Toaster, toast } from 'sonner'
 import "sonner/dist/styles.css"
@@ -506,6 +507,7 @@ export default function RootLayout({
                             <UpdateCheckProvider onboardingCompleted={onboardingCompleted}>
                               {onboardingCompleted && !showOnboarding && <GlobalSearchDialog />}
                               <ImportDialogProvider onOpen={handleOpenImportDialog}>
+                                {!showOnboarding && <StartupTranscriptRecovery />}
                                 {/* Download progress toast provider - listens for background downloads */}
                                 <DownloadProgressToastProvider />
 

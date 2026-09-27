@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, AudioLines, CalendarDays, Clock3, FileText, House, RefreshCw } from 'lucide-react';
+import { ArrowRight, Clock3, RefreshCw, Search, Users } from 'lucide-react';
 import { useSidebar, type CurrentMeeting } from '@/components/Sidebar/SidebarProvider';
+import { normalizeSummary } from '@/lib/summary-buckets';
 
 function meetingDate(meeting: CurrentMeeting): Date | null {
   if (meeting.created_at) {
@@ -18,18 +19,15 @@ function meetingDate(meeting: CurrentMeeting): Date | null {
 
 function summaryExcerpt(raw?: string): string | null {
   if (!raw) return null;
-  const text = raw
-    .split(/\r?\n/)
-    .map(line => line.trim())
+  const text = raw.split(/\r?\n/).map(line => line.trim())
     .filter(line => line && !/^#{1,6}\s*(AI Generated Summary|Date:)/i.test(line))
     .join(' ')
     .replace(/!?\[([^\]]+)\]\([^)]+\)/g, '$1')
     .replace(/<[^>]+>/g, '')
+    .replace(/^\*{0,2}Summary\*{0,2}\s*:?\s*/i, '')
     .replace(/(?:^|\s)[#>*_`~-]+(?=\S)/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!text) return null;
-  return text.length > 300 ? `${text.slice(0, 300).trimEnd()}…` : text;
+    .replace(/\s+/g, ' ').trim();
+  return text ? text.length > 360 ? `${text.slice(0, 360).trimEnd()}…` : text : null;
 }
 
 function durationLabel(seconds?: number): string | null {
@@ -38,56 +36,55 @@ function durationLabel(seconds?: number): string | null {
   if (minutes < 1) return '< 1 min';
   if (minutes < 60) return `${minutes} min`;
   const hours = Math.floor(minutes / 60);
-  const remaining = minutes % 60;
-  return remaining ? `${hours} hr ${remaining} min` : `${hours} hr`;
+  return minutes % 60 ? `${hours} hr ${minutes % 60} min` : `${hours} hr`;
+}
+
+interface Card {
+  meeting: CurrentMeeting;
+  date: Date | null;
+  excerpt: string | null;
+  topics: string[];
 }
 
 export default function MeetingsHome() {
   const router = useRouter();
+  const [query, setQuery] = useState('');
   const { meetings, meetingsLoading, meetingsError, refetchMeetings, setCurrentMeeting, handleRecordingToggle } = useSidebar();
 
-  // A summary may have been generated or edited on the details page since the
-  // library was last visible. Refresh on entry to show the saved version.
+  // Summaries and speaker names may have changed while meeting details was open.
   useEffect(() => { void refetchMeetings(); }, [refetchMeetings]);
 
-  const sortedMeetings = useMemo(() => [...meetings].sort((a, b) =>
-    (meetingDate(b)?.getTime() ?? 0) - (meetingDate(a)?.getTime() ?? 0)
-  ), [meetings]);
+  const groups = useMemo(() => {
+    const search = query.trim().toLocaleLowerCase();
+    const cards: Card[] = meetings.map(meeting => {
+      const buckets = normalizeSummary(meeting.summary_data ?? meeting.summary_preview);
+      return {
+        meeting,
+        date: meetingDate(meeting),
+        excerpt: summaryExcerpt(buckets.summary.join(' ') || meeting.summary_preview),
+        topics: buckets.topics.map(topic => topic.replace(/^[\s\-*•]+/, '').trim()).filter(Boolean),
+      };
+    }).filter(card => !search || [card.meeting.title, card.excerpt ?? '', ...(card.meeting.named_participants ?? []), ...card.topics]
+      .some(value => value.toLocaleLowerCase().includes(search)));
+    cards.sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0));
+    const byDay = new Map<string, { date: Date | null; cards: Card[] }>();
+    for (const card of cards) {
+      const key = card.date ? `${card.date.getFullYear()}-${card.date.getMonth()}-${card.date.getDate()}` : 'unknown';
+      if (!byDay.has(key)) byDay.set(key, { date: card.date, cards: [] });
+      byDay.get(key)!.cards.push(card);
+    }
+    return [...byDay.values()];
+  }, [meetings, query]);
 
   return (
     <div className="h-full overflow-y-auto bg-[var(--af-bg)] text-[var(--af-text)]">
-      <div className="mx-auto max-w-6xl px-5 pb-16 pt-10 sm:px-8 lg:px-12 lg:pt-14">
-        <header className="mb-10 flex flex-wrap items-end justify-between gap-5">
-          <div>
-            <div className="mb-3 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--af-accent)]">
-              <House className="h-4 w-4" /> Home
-            </div>
-            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Your meetings</h1>
-            <p className="mt-3 max-w-xl text-sm leading-relaxed text-[var(--af-text-3)] sm:text-base">
-              Recent conversations and their key takeaways, ready when you need them.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleRecordingToggle}
-            className="inline-flex items-center gap-2 rounded-xl bg-[var(--af-accent)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-[filter] hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--af-accent)] focus-visible:ring-offset-2"
-          >
-            <AudioLines className="h-4 w-4" /> New recording
-          </button>
-        </header>
-
-        <div className="mb-5 flex items-center justify-between gap-4 border-b border-[var(--af-border)] pb-4">
-          <div>
-            <h2 className="text-lg font-semibold">Recent meetings</h2>
-            <p className="mt-0.5 text-xs text-[var(--af-text-3)]">Newest first · {sortedMeetings.length} {sortedMeetings.length === 1 ? 'meeting' : 'meetings'}</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => { void refetchMeetings(); }}
-            className="rounded-lg p-2 text-[var(--af-text-3)] hover:bg-[var(--af-hover)] hover:text-[var(--af-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--af-accent)]"
-            aria-label="Refresh meetings"
-            title="Refresh meetings"
-          >
+      <div className="mx-auto max-w-5xl px-5 pb-20 pt-8 sm:px-8 lg:px-12">
+        <div className="sticky top-0 z-10 mb-9 flex items-center gap-3 bg-[var(--af-bg)] py-3">
+          <label className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-[var(--af-border)] bg-[var(--af-panel)] px-4 py-3 text-[var(--af-text-3)] shadow-sm focus-within:border-[var(--af-accent)] focus-within:ring-1 focus-within:ring-[var(--af-accent)]">
+            <Search className="h-4 w-4 shrink-0" />
+            <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search meetings, participants, or topics" aria-label="Search meetings" className="w-full bg-transparent text-sm text-[var(--af-text)] outline-none placeholder:text-[var(--af-text-3)]" />
+          </label>
+          <button type="button" onClick={() => { void refetchMeetings(); }} aria-label="Refresh meetings" title="Refresh meetings" className="rounded-xl border border-[var(--af-border)] bg-[var(--af-panel)] p-3 text-[var(--af-text-3)] hover:text-[var(--af-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--af-accent)]">
             <RefreshCw className={`h-4 w-4 ${meetingsLoading ? 'animate-spin' : ''}`} />
           </button>
         </div>
@@ -98,47 +95,58 @@ export default function MeetingsHome() {
             <p className="mt-2 text-sm text-[var(--af-text-3)]">{meetingsError}</p>
             <button onClick={() => { void refetchMeetings(); }} className="mt-5 text-sm font-semibold text-[var(--af-accent)] hover:underline">Try again</button>
           </div>
-        ) : meetingsLoading && sortedMeetings.length === 0 ? (
+        ) : meetingsLoading && meetings.length === 0 ? (
           <p className="py-12 text-center text-sm text-[var(--af-text-3)]">Loading your meetings…</p>
-        ) : sortedMeetings.length === 0 ? (
+        ) : meetings.length === 0 ? (
           <div className="rounded-2xl border border-[var(--af-border)] bg-[var(--af-panel)] px-8 py-16 text-center shadow-sm">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--af-panel-2)] text-[var(--af-accent)]"><AudioLines className="h-6 w-6" /></div>
-            <h3 className="text-lg font-semibold">Your first meeting starts here</h3>
-            <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-[var(--af-text-3)]">Record a conversation to see its transcript and AI summary in your library.</p>
+            <h1 className="text-lg font-semibold">Your first meeting starts here</h1>
+            <p className="mx-auto mt-2 max-w-sm text-sm text-[var(--af-text-3)]">Record a conversation to see its transcript and AI summary here.</p>
             <button onClick={handleRecordingToggle} className="mt-5 text-sm font-semibold text-[var(--af-accent)] hover:underline">Start a recording <ArrowRight className="inline h-4 w-4" /></button>
           </div>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:gap-5">
-            {sortedMeetings.map(meeting => {
-              const date = meetingDate(meeting);
-              const excerpt = summaryExcerpt(meeting.summary_preview);
-              const duration = durationLabel(meeting.duration_seconds);
-              return (
-                <button
-                  key={meeting.id}
-                  type="button"
-                  onClick={() => {
-                    setCurrentMeeting(meeting);
-                    router.push(`/meeting-details?id=${encodeURIComponent(meeting.id)}`);
-                  }}
-                  className="group flex min-h-52 flex-col rounded-2xl border border-[var(--af-border)] bg-[var(--af-panel)] p-5 text-left shadow-sm transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-[var(--af-border-strong)] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--af-accent)] sm:p-6"
-                >
-                  <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--af-text-3)]">
-                    {date && <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" />{date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })} · {date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</span>}
-                    {duration && <span className="inline-flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5" />{duration}</span>}
+        ) : groups.length === 0 ? (
+          <p className="py-12 text-center text-sm text-[var(--af-text-3)]">No meetings match “{query}”.</p>
+        ) : groups.map(({ date, cards }) => (
+          <section key={date?.toDateString() ?? 'unknown'} className="mb-10">
+            <h2 className="mb-4 pl-6 text-sm font-semibold text-[var(--af-text-2)]">{date ? date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'Date unknown'}</h2>
+            <div className="relative ml-2 space-y-3 border-l border-[var(--af-border-strong)] pl-6">
+              {cards.map(({ meeting, date: started, excerpt, topics }) => {
+                const duration = durationLabel(meeting.duration_seconds);
+                return (
+                  <div key={meeting.id} className="relative">
+                    <span aria-hidden="true" className="absolute -left-[31px] top-7 h-2.5 w-2.5 rounded-full border-2 border-[var(--af-accent)] bg-[var(--af-bg)]" />
+                    <button type="button" onClick={() => { setCurrentMeeting(meeting); router.push(`/meeting-details?id=${encodeURIComponent(meeting.id)}`); }} className="group w-full rounded-2xl border border-[var(--af-border)] bg-[var(--af-panel)] px-5 py-4 text-left shadow-sm transition-[border-color,box-shadow] hover:border-[var(--af-border-strong)] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--af-accent)] sm:px-6">
+                      <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-5 gap-y-2">
+                        <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1">
+                          <h3 className="min-w-0 text-base font-bold leading-snug group-hover:text-[var(--af-accent)]">{meeting.title}</h3>
+                          <span className="inline-flex shrink-0 items-center gap-1 text-xs text-[var(--af-text-3)]">
+                            {started?.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) ?? 'Time unknown'}
+                            {duration && <><span aria-hidden="true">·</span><Clock3 className="h-3 w-3" />{duration}</>}
+                          </span>
+                        </div>
+                        {!!meeting.named_participants?.length && (
+                          <span className="flex max-w-full items-center gap-1.5 text-xs text-[var(--af-text-3)] sm:max-w-[42%]" title={meeting.named_participants.join(', ')}>
+                            <Users className="h-3.5 w-3.5 shrink-0" /><span className="truncate whitespace-nowrap">{meeting.named_participants.join(' · ')}</span>
+                          </span>
+                        )}
+                      </div>
+                      <p className={`mt-3 line-clamp-3 text-sm leading-relaxed ${excerpt ? 'text-[var(--af-text-2)]' : 'text-[var(--af-text-3)]'}`}>{excerpt ?? 'No AI summary yet. Open this meeting to generate one.'}</p>
+                      {topics.length > 0 && (
+                        <div className="mt-3">
+                          <p className="mb-1.5 text-xs font-semibold text-[var(--af-text-3)]">Key Topics</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {topics.slice(0, 4).map((topic, index) => <span key={index} className="max-w-full truncate rounded-md border border-[var(--af-border)] bg-[var(--af-panel-2)] px-2 py-1 text-xs text-[var(--af-text-2)]" title={topic}>{topic.length > 44 ? `${topic.slice(0, 42).trim()}…` : topic}</span>)}
+                            {topics.length > 4 && <span className="px-1 py-1 text-xs text-[var(--af-text-3)]">+{topics.length - 4}</span>}
+                          </div>
+                        </div>
+                      )}
+                      <span className="mt-3 flex items-center gap-1 text-xs font-semibold text-[var(--af-accent)]">Open meeting <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" /></span>
+                    </button>
                   </div>
-                  <h3 className="line-clamp-2 text-lg font-semibold leading-snug group-hover:text-[var(--af-accent)]">{meeting.title}</h3>
-                  <p className={`mt-3 line-clamp-3 text-sm leading-relaxed ${excerpt ? 'text-[var(--af-text-2)]' : 'text-[var(--af-text-3)]'}`}>
-                    {excerpt ?? 'No AI summary yet. Open this meeting to generate one.'}
-                  </p>
-                  <span className="mt-auto flex items-center gap-1.5 pt-5 text-xs font-semibold text-[var(--af-accent)]">
-                    <FileText className="h-3.5 w-3.5" /> Open meeting <ArrowRight className="ml-auto h-4 w-4 transition-transform group-hover:translate-x-1" />
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          </section>
+        ))}
       </div>
     </div>
   );

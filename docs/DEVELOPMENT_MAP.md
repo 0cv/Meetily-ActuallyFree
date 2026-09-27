@@ -158,19 +158,27 @@ variants; the runtime payload must match the one validated in tests. Validate wi
 
 ### Home meeting library
 
-`frontend/src/app/home/page.tsx` renders the date-sorted meeting library. The
-recording-ready screen remains `/`; the sidebar's New Recording action opens it,
-and Home opens `/home` above Recent Meetings. `SidebarProvider` owns the shared
-meeting list and refresh/error state. `api_get_meetings` in `api/api.rs` reads saved
-summary results in one query, converts the supported legacy/Markdown/BlockNote
-formats with `visible_summary_text`, and returns `summary_preview` alongside each
-meeting's date and duration. The Home page shortens this text for display; it does
-not generate a summary. Cards link to the existing meeting detail route. A summary
-saved while that route is open appears after Home refreshes its list. Meetings with
-no generated summary show an explicit empty state. Startup still opens `/` so its
-transcript recovery flow runs as before. Verification covers the frontend build,
-native build, and Windows installer payload; local installer creation does not
-publish a release.
+`frontend/src/app/home/page.tsx` renders the date-sorted meeting library and is
+the Tauri startup route (`/home`). The recording-ready screen remains `/`; the
+sidebar's New Recording action opens it. `SidebarProvider` owns the shared meeting
+list and refresh/error state. `api_get_meetings` in `api/api.rs` batches saved
+summaries and transcript labels, returning raw summary data, a plain-text preview,
+and distinct custom speaker names in first-spoken order alongside date/duration.
+Generated/source labels are excluded using `is_person_name`; these names are only
+meeting display snapshots, not inferred cross-meeting identities. Home and meeting
+details share the legacy/Markdown/BlockNote topic classifier in
+`frontend/src/lib/summary-buckets.ts`. Home groups full-width meeting cards by
+local date, connects each day's cards with a timeline, and filters title, named
+participants, summary, and topics with the search field. Cards show a short
+summary paragraph and up to four Key Topics chips with an overflow count.
+Missing summaries remain an explicit empty state. Cards link to the existing meeting detail route; Home
+refreshes its list on entry after a summary is saved. `StartupTranscriptRecovery`
+now mounts in the shared layout so IndexedDB recovery checks still run when Home
+opens first. Tray/notification start events from Home route to `/` with the
+auto-start flag for the recording hook. Topic extraction remains heuristic and
+depends on a recognizable Key Topics heading or legacy section. Verification
+covers frontend/native builds and the Windows installer payload; a local installer
+is not a published release.
 
 Labs roadmap features 1, 3, 7, 8, and 12 are mapped in
 [LABS_MACWHISPER_FEATURES.md](LABS_MACWHISPER_FEATURES.md). Read it before
