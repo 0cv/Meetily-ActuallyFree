@@ -7,7 +7,7 @@ import { useRecordingState } from './RecordingStateContext';
 import { transcriptService } from '@/services/transcriptService';
 import { recordingService } from '@/services/recordingService';
 import { indexedDBService } from '@/services/indexedDBService';
-import { resolveSpeaker, isUserSpeaker, speakerPaletteIndex } from '@/utils/speakerUtils';
+import { resolveSpeaker, isUserSpeaker, speakerColorIndexMap, speakerKey } from '@/utils/speakerUtils';
 
 interface TranscriptContextType {
   transcripts: Transcript[];
@@ -595,13 +595,14 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    const colorIndices = speakerColorIndexMap(map.keys());
     return Array.from(map.entries()).map(([name, data]) => ({
       id: name,
       name,
       isUser: isUserSpeaker(name),
       segmentCount: data.count,
       lastSpokeAt: data.lastTime,
-      colorIndex: speakerPaletteIndex(name),
+      colorIndex: colorIndices.get(speakerKey(name)) ?? 0,
     }));
   }, [transcripts]);
 

@@ -24,7 +24,7 @@ import { SpeakersSidebar } from '@/components/SpeakersSidebar';
 import { MergeSpeakerDialog } from '@/components/MergeSpeakerDialog';
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
-import { isUserSpeaker, speakerPaletteIndex } from '@/utils/speakerUtils';
+import { isUserSpeaker, speakerColorIndexMap, speakerKey } from '@/utils/speakerUtils';
 import { useConfig } from '@/contexts/ConfigContext';
 import { defaultLabsPreferences, loadLabsPreferences } from '@/lib/labs';
 
@@ -202,13 +202,14 @@ export function TranscriptPanel({
         });
       }
     }
+    const colorIndices = speakerColorIndexMap(map.keys());
     return Array.from(map.entries()).map(([name, data]) => ({
       id: name,
       name,
       isUser: isUserSpeaker(name),
       segmentCount: data.count,
       lastSpokeAt: data.lastTime,
-      colorIndex: speakerPaletteIndex(name),
+      colorIndex: colorIndices.get(speakerKey(name)) ?? 0,
     }));
   }, [convertedSegments]);
 

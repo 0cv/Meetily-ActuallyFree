@@ -40,6 +40,7 @@ import {
   speakerKey,
   speakerDot,
   speakerColor,
+  speakerColorIndexMap,
 } from "@/utils/speakerUtils";
 
 export interface VirtualizedTranscriptViewProps {
@@ -151,6 +152,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
     isStreaming,
     showConfidence,
     speaker,
+    colorIndex,
     userName,
     onRenameSpeaker,
     onMergeSpeaker,
@@ -166,6 +168,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
     isStreaming: boolean;
     showConfidence: boolean;
     speaker?: string;
+    colorIndex?: number;
     userName: string;
     /** When provided, speaker labels become clickable for renaming. */
     onRenameSpeaker?: (speaker: string) => void;
@@ -192,7 +195,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
                 <div className={`flex items-baseline gap-2 ${isYou ? 'flex-row-reverse' : 'flex-row'}`}>
                     <span
                         aria-hidden
-                        className={`h-2 w-2 rounded-full shrink-0 ${speakerDot(speaker)}`}
+                        className={`h-2 w-2 rounded-full shrink-0 ${speakerDot(speaker, colorIndex)}`}
                     />
                     {speaker && (
                         <div className="flex items-center gap-1.5 group/speaker">
@@ -201,12 +204,12 @@ const TranscriptSegment = memo(function TranscriptSegment({
                                     type="button"
                                     onClick={() => onRenameSpeaker(speaker)}
                                     title={`Click to rename "${speaker}"`}
-                                    className={`text-xs font-semibold ${speakerColor(speaker)} rounded hover:underline inline-flex items-center gap-1`}
+                                    className={`text-xs font-semibold ${speakerColor(speaker, colorIndex)} rounded hover:underline inline-flex items-center gap-1`}
                                 >
                                     <span>{label}</span>
                                 </button>
                             ) : (
-                                <span className={`text-xs font-semibold ${speakerColor(speaker)}`}>
+                                <span className={`text-xs font-semibold ${speakerColor(speaker, colorIndex)}`}>
                                     {label}
                                 </span>
                             )}
@@ -291,6 +294,10 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     const displaySegments = useMemo(
         () => onSeekAudio ? segments : mergeAdjacentSameSpeaker(segments),
         [segments, onSeekAudio],
+    );
+    const colorIndices = useMemo(
+        () => speakerColorIndexMap(segments.map(segment => segment.speaker).filter((speaker): speaker is string => !!speaker)),
+        [segments],
     );
 
     // Create scroll ref first - shared between virtualizer and auto-scroll hook
@@ -466,6 +473,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         isStreaming={isStreaming}
                                         showConfidence={showConfidence}
                                         speaker={segment.speaker}
+                                        colorIndex={colorIndices.get(speakerKey(segment.speaker))}
                                         userName={userName}
                                         onRenameSpeaker={onRenameSpeaker}
                                         onMergeSpeaker={onMergeSpeaker}
@@ -533,6 +541,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         isStreaming={isStreaming}
                                         showConfidence={showConfidence}
                                         speaker={segment.speaker}
+                                        colorIndex={colorIndices.get(speakerKey(segment.speaker))}
                                         userName={userName}
                                         onRenameSpeaker={onRenameSpeaker}
                                         onMergeSpeaker={onMergeSpeaker}

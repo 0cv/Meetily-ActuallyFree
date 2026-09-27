@@ -150,7 +150,7 @@ export function SpeakersSidebar({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <span className={`h-3 w-3 rounded-full shrink-0 ${speakerDot(s.name)}`} />
+                      <span className={`h-3 w-3 rounded-full shrink-0 ${speakerDot(s.name, s.colorIndex)}`} />
 
                       {isEditing ? (
                         <div className="flex items-center gap-1.5 flex-1 min-w-0">

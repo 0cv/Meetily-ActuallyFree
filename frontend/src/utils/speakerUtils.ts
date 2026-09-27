@@ -70,18 +70,32 @@ export function speakerPaletteIndex(speaker: string): number {
   return hash % speakerDotPalette.length;
 }
 
+/** Assign one palette slot per meeting speaker in first-spoken order. This
+ * preserves the slot when a displayed label is renamed in place. */
+export function speakerColorIndexMap(labels: Iterable<string>): Map<string, number> {
+  const indices = new Map<string, number>();
+  for (const label of labels) {
+    if (isUserSpeaker(label)) continue;
+    const key = speakerKey(label);
+    if (!indices.has(key)) indices.set(key, indices.size % speakerDotPalette.length);
+  }
+  return indices;
+}
+
 /** Dot colour on the timeline rail — same mapping as the text colour. */
-export function speakerDot(speaker?: string | null): string {
+export function speakerDot(speaker?: string | null, colorIndex?: number): string {
   if (!speaker) return 'bg-gray-400';
   if (isUserSpeaker(speaker)) return 'bg-blue-500';
+  if (colorIndex !== undefined) return speakerDotPalette[colorIndex % speakerDotPalette.length];
   if (/^guest\b/i.test(speaker)) return 'bg-purple-500';
   return speakerDotPalette[speakerPaletteIndex(speaker)];
 }
 
 /** Stable colour per speaker label so each speaker reads consistently. */
-export function speakerColor(speaker?: string | null): string {
+export function speakerColor(speaker?: string | null, colorIndex?: number): string {
   if (!speaker) return 'text-gray-500';
   if (isUserSpeaker(speaker)) return 'text-blue-500';
+  if (colorIndex !== undefined) return speakerTextPalette[colorIndex % speakerTextPalette.length];
   if (/^guest\b/i.test(speaker)) return 'text-purple-500';
   return speakerTextPalette[speakerPaletteIndex(speaker)];
 }

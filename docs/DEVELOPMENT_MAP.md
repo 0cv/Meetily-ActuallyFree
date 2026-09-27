@@ -181,6 +181,18 @@ depends on a recognizable Key Topics heading or legacy section. Verification
 covers frontend/native builds and the Windows installer payload; a local installer
 is not a published release.
 
+### Speaker colors in transcripts
+
+`speakerUtils.ts` supplies the shared dot/text palette for the live and post-call
+virtualized transcript and the detected-speakers sidebar. The Tailwind scan must
+include `src/utils`, where the palette class names are declared, or named speakers
+can render without a dot or text color in production. Both transcript views
+assign palette slots by first-spoken meeting order. A rename changes the display
+label in place and retains its slot; `You` stays blue. The palette has eight
+remote slots, so meetings with more than eight remote speakers reuse colors.
+The focused `tests/lib/speaker-colors.test.mjs` checks slot continuity on rename;
+the Next production CSS output must also contain every dot palette class.
+
 Labs roadmap features 1, 3, 7, 8, and 12 are mapped in
 [LABS_MACWHISPER_FEATURES.md](LABS_MACWHISPER_FEATURES.md). Read it before
 changing meeting detection, recorded audio seeking, named voice enrollment,
