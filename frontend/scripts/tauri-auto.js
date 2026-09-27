@@ -40,6 +40,11 @@ console.log(''); // Empty line for spacing
 const platform = os.platform();
 const env = { ...process.env };
 
+// Ensure local node_modules/.bin is in PATH so tauri binary is always found
+const binDir = path.resolve(__dirname, '../node_modules/.bin');
+const pathKey = Object.keys(process.env).find(k => k.toLowerCase() === 'path') || 'PATH';
+env[pathKey] = `${binDir}${path.delimiter}${process.env[pathKey] || ''}`;
+
 if (platform === 'linux' && feature === 'cuda') {
   console.log('🐧 Linux/CUDA detected: Setting CMAKE flags for NVIDIA GPU');
   env.CMAKE_CUDA_ARCHITECTURES = '75';
@@ -60,11 +65,14 @@ if (platform === 'win32' && feature === 'cuda') {
 
 // Build the tauri command
 let tauriCmd = `tauri ${command}`;
+const extraArgs = process.argv.slice(3).join(' ');
 if (feature && feature !== 'none') {
   tauriCmd += ` -- --features ${feature}`;
-  console.log(`🚀 Running: tauri ${command} with features: ${feature}`);
+  if (extraArgs) tauriCmd += ` ${extraArgs}`;
+  console.log(`🚀 Running: ${tauriCmd}`);
 } else {
-  console.log(`🚀 Running: tauri ${command} (CPU-only mode)`);
+  if (extraArgs) tauriCmd += ` ${extraArgs}`;
+  console.log(`🚀 Running: ${tauriCmd} (CPU-only mode)`);
 }
 console.log('');
 

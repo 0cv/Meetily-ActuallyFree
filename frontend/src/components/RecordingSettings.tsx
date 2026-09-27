@@ -39,6 +39,8 @@ export interface RecordingPreferences {
   per_app_target_app?: string | null;
   per_app_target_name?: string | null;
   per_app_targets?: PerAppTarget[];
+  /** Faster real-time streaming mode: cuts audio segments frequently (~3.5s) with fast pause detection (350ms). */
+  real_time_transcription?: boolean;
 }
 
 interface RecordingSettingsProps {
@@ -59,6 +61,7 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
     per_app_target_app: null,
     per_app_target_name: null,
     per_app_targets: [],
+    real_time_transcription: false,
   });
   const [selectedAppToPick, setSelectedAppToPick] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -217,6 +220,7 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
     });
   };
 
+
   const handleMicGainChange = async (value: number) => {
     const mic_gain = Math.min(3, Math.max(0.5, value));
     const newPreferences = { ...preferences, mic_gain };
@@ -356,6 +360,7 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
           className="shrink-0"
         />
       </div>
+
 
       {/* Mic gain — boost local voice after loudness normalize */}
       <div className="min-w-0 space-y-3 rounded-lg border p-4">

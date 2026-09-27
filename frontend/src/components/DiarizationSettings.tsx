@@ -15,8 +15,11 @@ import {
   Sliders,
   ExternalLink,
   Check,
+  PanelRight,
 } from "lucide-react"
 import { Button } from "./ui/button"
+import { Switch } from "./ui/switch"
+import { useConfig } from "@/contexts/ConfigContext"
 import { OPTIONAL_MODEL_PREFERENCES_CHANGED } from '@/lib/optional-model-activation';
 
 interface DownloadProgress {
@@ -54,6 +57,7 @@ function formatMB(bytes: number): string {
  * Fully themed for both light and dark mode using Meetily semantic variables.
  */
 export function DiarizationSettings() {
+  const { showSpeakersPanel, toggleShowSpeakersPanel } = useConfig();
   const [status, setStatus] = useState<DiarizationEngineStatus | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [progress, setProgress] = useState<DownloadProgress | null>(null);
@@ -435,6 +439,24 @@ export function DiarizationSettings() {
           </div>
         </div>
       )}
+
+      {/* Option to also show the speakers panel */}
+      <div className="mt-4 pt-4 border-t border-[var(--af-border)] flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium text-[var(--af-text)] flex items-center gap-2">
+            <PanelRight className="w-4 h-4 text-blue-500" />
+            Show speakers panel
+          </div>
+          <p className="mt-0.5 text-xs text-[var(--af-text-2)]">
+            Automatically show the detected speakers sidebar when viewing transcripts.
+          </p>
+        </div>
+        <Switch
+          checked={showSpeakersPanel}
+          onCheckedChange={toggleShowSpeakersPanel}
+          className="shrink-0"
+        />
+      </div>
 
       {/* Live Download Progress */}
       {isDownloading && (

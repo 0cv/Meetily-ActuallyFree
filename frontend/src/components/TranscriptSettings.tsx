@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { Textarea } from './ui/textarea';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
+import { Switch } from './ui/switch';
+import { RecordingPreferences } from './RecordingSettings';
 import { ModelManager } from './WhisperModelManager';
 import { ParakeetModelManager } from './ParakeetModelManager';
 import type { RawModelInfo } from '@/hooks/useTranscriptionModels';
@@ -57,6 +59,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
     const [isSavingVocabulary, setIsSavingVocabulary] = useState(false);
     const [vocabularySaved, setVocabularySaved] = useState(false);
     const [vocabularyError, setVocabularyError] = useState<string | null>(null);
+    const [realTimeTranscription, setRealTimeTranscription] = useState(false);
     const vocabularyRevisionRef = useRef(0);
     const liveSaveInFlightRef = useRef(false);
     const postCallSaveInFlightRef = useRef(false);
@@ -79,6 +82,29 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
         return () => { disposed = true; window.removeEventListener(OPTIONAL_MODEL_PREFERENCES_CHANGED, refreshPostCall); };
     }, []);
 
+    useEffect(() => {
+        invoke<RecordingPreferences>('get_recording_preferences')
+            .then((p) => setRealTimeTranscription(p.real_time_transcription ?? false))
+            .catch(() => {});
+    }, []);
+
+    const handleToggleRealTime = async (checked: boolean) => {
+        setRealTimeTranscription(checked);
+        try {
+            const prefs = await invoke<RecordingPreferences>('get_recording_preferences');
+            await invoke('set_recording_preferences', { preferences: { ...prefs, real_time_transcription: checked } });
+            toast.success(checked ? 'Faster transcription enabled' : 'Standard transcription enabled', {
+                description: checked
+                    ? 'Audio chunks will be streamed ~3.5s with rapid pause detection.'
+                    : 'Audio chunks will use standard pause detection.'
+            });
+        } catch (e) {
+            console.error('Failed to update real-time transcription preference:', e);
+            toast.error('Failed to update streaming preference');
+        }
+    };
+
+>>>>>>> myfork/feat/macwhisper-speaker-recognition
     const refreshInstalledModels = useCallback(async () => {
         const [whisperModels, parakeetModels] = await Promise.all([
             invoke<RawModelInfo[]>('whisper_get_available_models').catch(() => []),
@@ -400,6 +426,27 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                             </Button>
                         )}
                     </div>
+                </div>
+
+                {/* Faster Transcription Toggle */}
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--af-border-strong)] bg-[var(--af-panel)] p-4">
+                    <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 font-semibold">
+                            <Zap className="h-4 w-4 text-amber-400" />
+                            Faster transcription
+                        </div>
+                        <p className="mt-1 text-xs text-[var(--af-text-2)]">
+                            Streams transcript chunks frequently (~3.5s with rapid 350ms pause detection) for lower latency.
+                        </p>
+                        <p className="mt-1.5 text-xs text-amber-500/90 font-medium">
+                            Disclaimer: This may cause additional speakers to show up when using diarization.
+                        </p>
+                    </div>
+                    <Switch
+                        checked={realTimeTranscription}
+                        onCheckedChange={handleToggleRealTime}
+                        className="shrink-0"
+                    />
                 </div>
             </section>
 
