@@ -18,7 +18,7 @@ import {
 type StackStatus = TranscriptionAccelerationStatus & {
   recording: boolean;
   whisper: { loaded: boolean; model: string | null };
-  parakeet: { loaded: boolean; model: string | null };
+  parakeet: { loaded: boolean; model: string | null; backend: 'CPU' | 'DirectML' };
   sttIdleUnloadSecs: number;
   llmIdleUnloadSecs: number;
   sttLastUnloadSecs?: number;
@@ -69,6 +69,7 @@ export function LocalStackStatus() {
   const whisperBackendLabel = whisperBackend
     ? formatWhisperBackend(whisperBackend)
     : 'Detecting...';
+  const parakeetBackend = status?.parakeet.backend ?? 'CPU';
 
   const refresh = useCallback(async () => {
     try {
@@ -132,7 +133,7 @@ export function LocalStackStatus() {
               ok={!!status?.parakeet.loaded}
               label={status?.parakeet.loaded ? 'Loaded' : 'Unloaded'}
             />
-            <Pill ok={false} label="CPU" />
+            <Pill ok={parakeetBackend === 'DirectML'} label={parakeetBackend === 'DirectML' ? 'DirectML encoder' : 'CPU'} />
             {status?.parakeet.model && (
               <span className="text-xs text-[var(--af-text-2)]">{status.parakeet.model}</span>
             )}
@@ -185,13 +186,16 @@ export function LocalStackStatus() {
             </div>
             <div className="flex items-center justify-between gap-3">
               <span>Parakeet</span>
-              <Pill ok={false} label="CPU" />
+              <Pill ok={parakeetBackend === 'DirectML'} label={parakeetBackend === 'DirectML' ? 'DirectML encoder' : 'CPU'} />
             </div>
           </div>
           <p className="mt-2 text-[11px] text-[var(--af-text-3)]">
             Whisper acceleration was auto-selected for this installation. Estimated STT model
             memory loaded: ~{status?.vramHintMb ?? 0} MB.
           </p>
+          {parakeetBackend === 'DirectML' && <p className="mt-1 text-[11px] text-[var(--af-text-3)]">
+            Parakeet sends supported encoder operations to DirectML. Its decoder and preprocessor use CPU.
+          </p>}
         </div>
 
         <div className="rounded-xl border border-[var(--af-border)] bg-[var(--af-panel)] p-4">

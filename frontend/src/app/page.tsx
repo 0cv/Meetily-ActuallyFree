@@ -49,6 +49,18 @@ export default function Home() {
     setIsRecordingDisabled
   );
 
+  useEffect(() => {
+    const stop = () => {
+      if (sessionStorage.getItem('labsAutoStopPending') === 'true' && recordingState.isRecording) {
+        sessionStorage.removeItem('labsAutoStopPending');
+        void handleRecordingStop(true);
+      }
+    };
+    stop();
+    window.addEventListener('stop-recording-from-labs', stop);
+    return () => window.removeEventListener('stop-recording-from-labs', stop);
+  }, [handleRecordingStop, recordingState.isRecording]);
+
   // Recovery hook
   const {
     recoverableMeetings,

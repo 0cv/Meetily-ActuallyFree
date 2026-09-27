@@ -139,12 +139,32 @@ Whisper's CUDA/Vulkan/CPU backend selection. Read `onnx_runtime.rs`,
 `frontend/src-tauri/build/onnxruntime.rs`, and the Sortformer session builder before
 changing runtime loading or execution-provider settings.
 
+Labs Parakeet GPU acceleration is a separate native preference in
+`parakeet_engine/labs.rs`. It reloads the selected Parakeet model and places the
+encoder session on DirectML device 0; the decoder and preprocessor remain on
+CPU. Provider initialization errors are reported to Settings and the prior
+preference/model is restored. This does not change Nemotron or Whisper's
+backend. `get_local_stack_status` reports the native preference to the Local
+stack UI; its previous Parakeet CPU pill was fixed text. An ignored test with
+the installed v3 INT8 model and synthetic silence confirms encoder nodes run
+on both DirectML and CPU; real speech performance remains unqualified.
+
 The universal Windows build script is
 `frontend/scripts/build-universal-windows.ps1`. It packages CPU/Vulkan/CUDA app
 variants; the runtime payload must match the one validated in tests. Validate with
 `node frontend/scripts/verify-windows-release.mjs`.
 
 ## 6. Tests, qualification, and historical notes
+
+Labs roadmap features 1, 3, 7, 8, and 12 are mapped in
+[LABS_MACWHISPER_FEATURES.md](LABS_MACWHISPER_FEATURES.md). Read it before
+changing meeting detection, recorded audio seeking, named voice enrollment,
+Whisper silence thresholds, or the clean transcript display. The Labs settings
+page stores frontend preferences; the Whisper and voice-profile switches also
+persist in native app data so they survive a WebView reload. Named profiles use
+WeSpeaker embeddings in Pyannote live sessions and as a separate identity
+matcher for Nemotron live and both post-call paths. Nemotron remains the selected
+diarizer; its channel numbers never establish persistent identity.
 
 From `frontend/`, run mock-heavy groups separately:
 

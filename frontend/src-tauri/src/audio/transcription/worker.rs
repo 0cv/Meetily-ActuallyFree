@@ -199,6 +199,7 @@ pub fn start_transcription_task<R: Runtime>(
                             crate::audio::common::mark_stt_activity();
                         let nemotron_remote = matches!(chunk.device_type, crate::audio::recording_state::DeviceType::System)
                             && crate::diarization::live_nemotron::active();
+                        let profile_samples = nemotron_remote.then(|| chunk.data.clone());
                         let mut chunk_source = match &chunk.device_type {
                                 crate::audio::recording_state::DeviceType::Microphone => {
                                     // Still feed the online diarizer so it learns the
@@ -218,7 +219,7 @@ pub fn start_transcription_task<R: Runtime>(
                                             // System path shouldn't be the user; keep a speaker id.
                                             format!("Speaker {}", s.index + 1)
                                         }
-                                        Some(s) => format!("Speaker {}", s.index + 1),
+                                        Some(s) => s.profile_name.unwrap_or_else(|| format!("Speaker {}", s.index + 1)),
                                         None => "Guest".to_string(),
                                     }
                                 }
@@ -242,7 +243,10 @@ pub fn start_transcription_task<R: Runtime>(
                                     // Inference runs concurrently with ASR. Wait only for bounded
                                     // lookahead here, never on the capture or Tokio worker thread.
                                     chunk_source = tokio::task::spawn_blocking(move || {
-                                        crate::diarization::live_nemotron::label(chunk_timestamp, chunk_duration)
+                                        let label = crate::diarization::live_nemotron::label(chunk_timestamp, chunk_duration)?;
+                                        let name = profile_samples.as_deref()
+                                            .and_then(|samples| crate::diarization::voice_profiles::name_live_nemotron_turn(&label, samples));
+                                        Some(name.unwrap_or(label))
                                     }).await.ok().flatten().unwrap_or_else(|| "Guest".into());
                                 }
                                     let confidence_str = match confidence_opt {

@@ -22,6 +22,7 @@ pub mod nemotron;
 pub mod online;
 pub mod live_nemotron;
 pub mod voiceprint;
+pub mod voice_profiles;
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -957,7 +958,7 @@ pub async fn diarize_meeting(
 
     let voiceprint_source = meeting_id.clone();
     let engine_for_blocking = selected_engine.clone();
-    let (result, used_source_tracks) = tokio::task::spawn_blocking(move || -> Result<(DiarizationResult, bool)> {
+    let (result, used_source_tracks, profile_names) = tokio::task::spawn_blocking(move || -> Result<(DiarizationResult, bool, std::collections::HashMap<usize, String>)> {
         let parent = source.parent().map(Path::to_path_buf);
         let mic_source = parent.as_ref().map(|p| p.join("mic.mp4"));
         let system_source = parent.as_ref().map(|p| p.join("system.mp4"));
@@ -1121,13 +1122,24 @@ pub async fn diarize_meeting(
                     })
                 })();
 
+                let profile_names = match &dual_result {
+                    Ok(result) => match voice_profiles::match_offline_speakers(&system_wav, &result.segments.iter()
+                        .filter(|segment| segment.speaker != 0).cloned().collect::<Vec<_>>()) {
+                        Ok(names) => names,
+                        Err(error) => {
+                            log::warn!("Named voice matching unavailable for offline diarization: {error}");
+                            std::collections::HashMap::new()
+                        }
+                    },
+                    Err(_) => std::collections::HashMap::new(),
+                };
                 if mic_temp {
                     let _ = std::fs::remove_file(&mic_wav);
                 }
                 if system_temp {
                     let _ = std::fs::remove_file(&system_wav);
                 }
-                return dual_result.map(|result| (result, true));
+                return dual_result.map(|result| (result, true, profile_names));
             }
         }
 
@@ -1136,7 +1148,7 @@ pub async fn diarize_meeting(
         if is_temp {
             let _ = std::fs::remove_file(&wav);
         }
-        out.map(|result| (result, false))
+        out.map(|result| (result, false, std::collections::HashMap::new()))
     })
     .await
     .map_err(|e| format!("Diarization task failed: {}", e))?
@@ -1201,6 +1213,9 @@ pub async fn diarize_meeting(
     let speaker_label = |spk: usize| -> String {
         if Some(spk) == user_speaker {
             return "You".to_string();
+        }
+        if let Some(name) = profile_names.get(&spk) {
+            return name.clone();
         }
         let display = match user_speaker {
             Some(user) if spk > user => spk,
@@ -1303,6 +1318,14 @@ pub async fn diarize_meeting(
     }
 
     persist_speaker_labels(pool, &meeting_id, updates).await.map_err(|e| format!("Failed to save speaker labels: {e}"))?;
+    let used_names: std::collections::HashSet<&str> = assignments.iter().map(|(_, label)| label.as_str()).collect();
+    for (name, person_id) in voice_profiles::active_person_links() {
+        if used_names.contains(name.as_str()) {
+            sqlx::query("INSERT OR IGNORE INTO person_speakers (person_id, meeting_id, speaker_label) VALUES (?, ?, ?)")
+                .bind(person_id).bind(&meeting_id).bind(name).execute(pool).await
+                .map_err(|error| format!("Failed to link matched voice: {error}"))?;
+        }
+    }
     if preserved > 0 {
         log::info!(
             "🧑‍🤝‍🧑 Preserved {} live speaker label(s); offline only filled gaps",

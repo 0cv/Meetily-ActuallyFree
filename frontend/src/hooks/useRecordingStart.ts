@@ -282,6 +282,9 @@ export function useRecordingStart(
             clearTranscripts();
             setIsMeetingActive(true);
             markRecordingStarted(recordingStartedAt);
+            const labsProcess = sessionStorage.getItem('labsAutoStartPending');
+            if (labsProcess) sessionStorage.setItem('labsAutoRecordingProcess', labsProcess);
+            sessionStorage.removeItem('labsAutoStartPending');
             Analytics.trackButtonClick('start_recording', 'sidebar_auto');
 
             // Show recording notification if enabled
@@ -298,6 +301,7 @@ export function useRecordingStart(
             alert('Failed to start recording. Check console for details.');
             Analytics.trackButtonClick('start_recording_error', 'sidebar_auto');
           } finally {
+            sessionStorage.removeItem('labsAutoStartPending');
             setIsAutoStarting(false);
           }
         }
@@ -381,6 +385,9 @@ export function useRecordingStart(
         clearTranscripts();
         setIsMeetingActive(true);
         markRecordingStarted(recordingStartedAt);
+        const labsProcess = sessionStorage.getItem('labsAutoStartPending');
+        if (labsProcess) sessionStorage.setItem('labsAutoRecordingProcess', labsProcess);
+        sessionStorage.removeItem('labsAutoStartPending');
         Analytics.trackButtonClick('start_recording', 'sidebar_direct');
 
         // Show recording notification if enabled
@@ -397,6 +404,7 @@ export function useRecordingStart(
         alert('Failed to start recording. Check console for details.');
         Analytics.trackButtonClick('start_recording_error', 'sidebar_direct');
       } finally {
+        sessionStorage.removeItem('labsAutoStartPending');
         setIsAutoStarting(false);
       }
     };

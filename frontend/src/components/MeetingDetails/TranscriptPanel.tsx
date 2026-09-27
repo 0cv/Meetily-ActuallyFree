@@ -14,7 +14,7 @@
  *   - otherwise  → converted inline from `transcripts` below
  */
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { Transcript, TranscriptSegmentData, DetectedSpeaker } from '@/types';
 import { Calendar, Clock, Users } from 'lucide-react';
 import { SpeakerRenameDialog } from './SpeakerRenameDialog';
@@ -22,10 +22,11 @@ import { VirtualizedTranscriptView } from '@/components/VirtualizedTranscriptVie
 import { TranscriptButtonGroup } from './TranscriptButtonGroup';
 import { SpeakersSidebar } from '@/components/SpeakersSidebar';
 import { MergeSpeakerDialog } from '@/components/MergeSpeakerDialog';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { isUserSpeaker, speakerPaletteIndex } from '@/utils/speakerUtils';
 import { useConfig } from '@/contexts/ConfigContext';
+import { defaultLabsPreferences, loadLabsPreferences } from '@/lib/labs';
 
 interface TranscriptPanelProps {
   transcripts: Transcript[];
@@ -90,6 +91,60 @@ export function TranscriptPanel({
   const [mergeTarget, setMergeTarget] = useState<string | null>(null);
   const [showSpeakersSidebar, setShowSpeakersSidebar] = useState<boolean>(showSpeakersPanel);
   const [userName, setUserName] = useState<string>('');
+  const [labs, setLabs] = useState(defaultLabsPreferences);
+  const [cleanView, setCleanView] = useState(false);
+  const [audioPath, setAudioPath] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [audioTime, setAudioTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [audioPlaying, setAudioPlaying] = useState(false);
+  const [audioSpeed, setAudioSpeed] = useState(1);
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const [peaks, setPeaks] = useState<number[]>([]);
+  const audioUrl = useMemo(() => audioPath ? convertFileSrc(audioPath) : undefined, [audioPath]);
+  const waveform = useMemo(() => {
+    const bins = Math.min(128, peaks.length);
+    if (!bins) return [];
+    return Array.from({ length: bins }, (_, index) => {
+      const start = Math.floor(index * peaks.length / bins);
+      const end = Math.max(start + 1, Math.floor((index + 1) * peaks.length / bins));
+      return Math.max(...peaks.slice(start, end));
+    });
+  }, [peaks]);
+  const seekAudio = useCallback((seconds: number) => {
+    const audio = audioRef.current;
+    if (!audio || !Number.isFinite(seconds)) return;
+    audio.currentTime = Math.min(Math.max(0, seconds), audio.duration || seconds);
+    setAudioTime(audio.currentTime);
+    void audio.play().catch((error) => setAudioError(String(error)));
+  }, []);
+
+  useEffect(() => {
+    if (!labs.transcriptScrubbing || !meetingId) { setAudioPath(null); return; }
+    let active = true;
+    invoke<string | null>('get_meeting_playback_audio', { meetingId })
+      .then((path) => { if (active) setAudioPath(path); })
+      .catch((error) => { if (active) { setAudioPath(null); console.error('Could not find meeting audio:', error); } });
+    return () => { active = false; };
+  }, [labs.transcriptScrubbing, meetingId]);
+  useEffect(() => {
+    setPeaks([]);
+    setAudioError(null);
+    if (!audioPath) return;
+    let active = true;
+    invoke<number[]>('get_waveform_peaks', { filePath: audioPath })
+      .then((result) => { if (active) setPeaks(result); })
+      .catch((error) => console.warn('Waveform unavailable:', error));
+    return () => { active = false; };
+  }, [audioPath]);
+
+  useEffect(() => {
+    const refresh = () => setLabs(loadLabsPreferences());
+    refresh();
+    window.addEventListener('meetily-labs-changed', refresh);
+    return () => window.removeEventListener('meetily-labs-changed', refresh);
+  }, []);
+  useEffect(() => setCleanView(labs.cleanTranscript), [labs.cleanTranscript]);
 
   useEffect(() => {
     setShowSpeakersSidebar(showSpeakersPanel);
@@ -241,6 +296,23 @@ export function TranscriptPanel({
         </div>
       </div>
 
+      {(labs.transcriptScrubbing || labs.cleanTranscript) && <div className="flex flex-wrap items-center gap-3 border-b border-[var(--af-border)] px-4 py-2 text-xs sm:px-6">
+        {labs.transcriptScrubbing && <>
+          <audio ref={audioRef} src={audioUrl} preload="metadata" onLoadedMetadata={(event) => setAudioDuration(event.currentTarget.duration)} onTimeUpdate={(event) => setAudioTime(event.currentTarget.currentTime)} onPlay={() => setAudioPlaying(true)} onPause={() => setAudioPlaying(false)} onEnded={() => setAudioPlaying(false)} onError={() => setAudioError('Audio could not be played.')} />
+          <button type="button" onClick={() => { const audio = audioRef.current; if (!audio) return; if (audio.paused) void audio.play().catch((error) => setAudioError(String(error))); else audio.pause(); }} disabled={!audioPath || !!audioError} className="rounded border border-[var(--af-border)] px-2 py-1 disabled:opacity-50">{audioPlaying ? 'Pause' : 'Play'} audio</button>
+          <input aria-label="Audio position" type="range" min={0} max={Math.max(audioDuration, 1)} step={0.1} value={Math.min(audioTime, Math.max(audioDuration, 1))} onChange={(event) => { const seconds = Number(event.target.value); if (audioRef.current) audioRef.current.currentTime = seconds; setAudioTime(seconds); }} className="min-w-24 flex-1" />
+          <span className="tabular-nums">{Math.floor(audioTime / 60)}:{String(Math.floor(audioTime % 60)).padStart(2, '0')}</span>
+          <select aria-label="Playback speed" value={audioSpeed} onChange={(event) => { const speed = Number(event.target.value); setAudioSpeed(speed); if (audioRef.current) audioRef.current.playbackRate = speed; }} className="rounded border border-[var(--af-border)] bg-[var(--af-panel)] px-1 py-1">
+            {[0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => <option key={speed} value={speed}>{speed}×</option>)}
+          </select>
+          {audioError && <span className="text-red-500">{audioError}</span>}
+        </>}
+        {labs.cleanTranscript && <button type="button" onClick={() => setCleanView((value) => !value)} className="rounded border border-[var(--af-border)] px-2 py-1">{cleanView ? 'Clean view' : 'Verbatim view'}</button>}
+      </div>}
+      {labs.transcriptScrubbing && waveform.length > 0 && <div role="group" aria-label="Audio waveform" className="flex h-10 items-center gap-px border-b border-[var(--af-border)] px-4 sm:px-6">
+        {waveform.map((peak, index) => <button key={index} type="button" aria-label={`Seek to ${Math.round(index / waveform.length * audioDuration)} seconds`} onClick={() => seekAudio(index / waveform.length * audioDuration)} className={`min-w-0 flex-1 rounded-sm ${index / waveform.length * audioDuration <= audioTime ? 'bg-blue-500' : 'bg-[var(--af-text-3)]'}`} style={{ height: `${Math.max(3, peak * 32)}px` }} />)}
+      </div>}
+
       <SpeakerRenameDialog
         open={renameTarget !== null}
         speaker={renameTarget}
@@ -294,6 +366,9 @@ export function TranscriptPanel({
             totalCount={totalCount}
             loadedCount={loadedCount}
             onLoadMore={onLoadMore}
+            onSeekAudio={labs.transcriptScrubbing && !audioError && audioPath ? seekAudio : undefined}
+            activeAudioTime={labs.transcriptScrubbing && audioPlaying ? audioTime : undefined}
+            cleanView={cleanView}
           />
         </div>
 
@@ -302,6 +377,14 @@ export function TranscriptPanel({
           userName={userName}
           isOpen={showSpeakersSidebar}
           onClose={() => setShowSpeakersSidebar(false)}
+          onEnrollVoice={labs.voiceProfiles && meetingId ? async (speaker) => {
+            try {
+              const enrolled = await invoke<{ name: string; samples: number }>('enroll_voice_profile', { meetingId, speaker });
+              toast.success(`${enrolled.name} enrolled from ${enrolled.samples} turns`);
+            } catch (error) {
+              toast.error(`Voice enrollment failed: ${error}`);
+            }
+          } : undefined}
           onRenameSpeaker={async (from, to) => {
             if (!meetingId) return;
             try {

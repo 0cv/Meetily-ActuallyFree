@@ -1134,6 +1134,22 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn same_name_rename_repairs_live_saved_speaker_link() {
+        let pool = sqlx::SqlitePool::connect(":memory:").await.unwrap();
+        sqlx::raw_sql(
+            "CREATE TABLE people (id TEXT PRIMARY KEY, display_name TEXT NOT NULL, normalized_name TEXT NOT NULL UNIQUE, notes TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); \
+             CREATE TABLE person_speakers (person_id TEXT NOT NULL, meeting_id TEXT NOT NULL, speaker_label TEXT NOT NULL, UNIQUE(meeting_id, speaker_label)); \
+             CREATE TABLE transcripts (id TEXT PRIMARY KEY, meeting_id TEXT NOT NULL, speaker TEXT); \
+             INSERT INTO transcripts VALUES ('turn', 'meeting', 'Alice');"
+        ).execute(&pool).await.unwrap();
+        PeopleRepository::rename_meeting_speaker(&pool, "meeting", "Alice", "Alice").await.unwrap();
+        let linked: String = sqlx::query_scalar(
+            "SELECT p.display_name FROM person_speakers ps JOIN people p ON p.id = ps.person_id WHERE ps.meeting_id = 'meeting'"
+        ).fetch_one(&pool).await.unwrap();
+        assert_eq!(linked, "Alice");
+    }
+
+    #[tokio::test]
     async fn rename_splits_when_old_person_has_another_label_in_same_meeting() {
         let pool = sqlx::SqlitePool::connect(":memory:").await.unwrap();
         sqlx::raw_sql(

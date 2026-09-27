@@ -91,6 +91,19 @@ impl TranscriptsRepository {
             meeting_id
         );
 
+        // Live UI renames are saved as transcript labels before this transaction.
+        // Link every actual person name now, so enrollment works immediately
+        // after stopping without forcing a second rename in meeting details.
+        let named_speakers: std::collections::HashSet<&str> = transcripts.iter()
+            .filter_map(|segment| segment.speaker.as_deref())
+            .filter(|name| crate::database::repositories::person::is_person_name(name))
+            .collect();
+        for name in named_speakers {
+            crate::database::repositories::person::PeopleRepository::reconcile_speaker_identity(
+                &mut transaction, &meeting_id, name, name,
+            ).await?;
+        }
+
         // Commit the transaction
         transaction.commit().await?;
 
@@ -290,6 +303,27 @@ fn matches_timestamp_shape(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn save_links_live_named_speaker_for_enrollment() {
+        let pool = SqlitePool::connect(":memory:").await.unwrap();
+        sqlx::raw_sql(
+            "CREATE TABLE meetings (id TEXT PRIMARY KEY, title TEXT, created_at TEXT, updated_at TEXT, folder_path TEXT, title_is_manual INTEGER); \
+             CREATE TABLE transcripts (id TEXT PRIMARY KEY, meeting_id TEXT, transcript TEXT, timestamp TEXT, audio_start_time REAL, audio_end_time REAL, duration REAL, speaker TEXT); \
+             CREATE TABLE people (id TEXT PRIMARY KEY, display_name TEXT NOT NULL, normalized_name TEXT NOT NULL UNIQUE, notes TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); \
+             CREATE TABLE person_speakers (person_id TEXT NOT NULL, meeting_id TEXT NOT NULL, speaker_label TEXT NOT NULL, UNIQUE(meeting_id, speaker_label));"
+        ).execute(&pool).await.unwrap();
+        let make_turn = |speaker: &str| TranscriptSegment {
+            id: "unused".into(), text: "Hello".into(), timestamp: "2026-09-27T00:00:00Z".into(),
+            audio_start_time: Some(0.0), audio_end_time: Some(2.0), duration: Some(2.0),
+            speaker: Some(speaker.into()),
+        };
+        let meeting = TranscriptsRepository::save_transcript(&pool, "Test", &[make_turn("Alice"), make_turn("Speaker 2")], None, None)
+            .await.unwrap();
+        let linked: Vec<String> = sqlx::query_scalar("SELECT speaker_label FROM person_speakers WHERE meeting_id = ?")
+            .bind(meeting).fetch_all(&pool).await.unwrap();
+        assert_eq!(linked, vec!["Alice"]);
+    }
 
     #[test]
     fn timestamp_uses_recording_start_and_fractional_offset() {

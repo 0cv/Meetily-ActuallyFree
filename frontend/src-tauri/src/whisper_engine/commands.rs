@@ -495,6 +495,7 @@ pub async fn get_local_stack_status() -> Result<serde_json::Value, String> {
         "parakeet": {
             "loaded": parakeet_loaded,
             "model": parakeet_model,
+            "backend": if crate::parakeet_engine::labs::enabled() { "DirectML" } else { "CPU" },
         },
         "sttIdleUnloadSecs": crate::audio::common::STT_IDLE_UNLOAD_SECS,
         "llmIdleUnloadSecs": crate::summary::summary_engine::DEFAULT_IDLE_TIMEOUT_SECS,

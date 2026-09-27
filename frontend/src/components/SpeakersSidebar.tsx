@@ -32,6 +32,7 @@ interface SpeakersSidebarProps {
   onClose: () => void;
   onRenameSpeaker: (fromSpeaker: string, toSpeaker: string) => Promise<void> | void;
   onMergeSpeaker: (sourceSpeaker: string, targetSpeaker: string) => Promise<void> | void;
+  onEnrollVoice?: (speaker: string) => Promise<void> | void;
   isRecording?: boolean;
 }
 
@@ -42,6 +43,7 @@ export function SpeakersSidebar({
   onClose,
   onRenameSpeaker,
   onMergeSpeaker,
+  onEnrollVoice,
   isRecording,
 }: SpeakersSidebarProps) {
   // Editing state for inline rename
@@ -210,6 +212,7 @@ export function SpeakersSidebar({
                     {/* Action buttons */}
                     {!isEditing && (
                       <div className="flex items-center gap-1 shrink-0">
+                        {onEnrollVoice && !isYou && !/^Speaker \d+$/i.test(s.name) && s.name !== 'Guest' && <button type="button" onClick={() => void onEnrollVoice(s.name)} className="rounded px-1.5 py-1 text-[11px] text-blue-600 hover:bg-blue-500/10" title="Enroll this named voice for future meetings">Enroll voice</button>}
                         {/* Merge button */}
                         <Tooltip>
                           <TooltipTrigger asChild>

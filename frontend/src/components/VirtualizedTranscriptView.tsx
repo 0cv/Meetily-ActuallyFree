@@ -32,6 +32,7 @@ import { ConfidenceIndicator } from "./ConfidenceIndicator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { motion } from "framer-motion";
 import { TranscriptSegmentData } from "@/types";
+import { cleanTranscriptText } from '@/lib/labs';
 import { GitMerge } from "lucide-react";
 import {
   isUserSpeaker,
@@ -74,6 +75,9 @@ export interface VirtualizedTranscriptViewProps {
      * Called when merge action is triggered on a speaker.
      */
     onMergeSpeaker?: (speaker: string) => void;
+    onSeekAudio?: (seconds: number) => void;
+    activeAudioTime?: number;
+    cleanView?: boolean;
 }
 
 // Threshold for enabling virtualization (below this, use simple rendering)
@@ -89,19 +93,6 @@ function formatRecordingTime(seconds: number | undefined): string {
     const secs = totalSeconds % 60;
 
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-}
-
-// Helper function to remove filler words and repetitions
-function cleanStopWords(text: string): string {
-    const stopWords = ['uh', 'um', 'er', 'ah', 'hmm', 'hm', 'eh', 'oh'];
-
-    let cleanedText = text;
-    stopWords.forEach(word => {
-        const pattern = new RegExp(`\\b${word}\\b[,\\s]*`, 'gi');
-        cleanedText = cleanedText.replace(pattern, ' ');
-    });
-
-    return cleanedText.replace(/\s+/g, ' ').trim();
 }
 
 // Memoized transcript segment component
@@ -154,6 +145,7 @@ function mergeAdjacentSameSpeaker(
 const TranscriptSegment = memo(function TranscriptSegment({
     id,
     timestamp,
+    endTime,
     text,
     confidence,
     isStreaming,
@@ -162,9 +154,13 @@ const TranscriptSegment = memo(function TranscriptSegment({
     userName,
     onRenameSpeaker,
     onMergeSpeaker,
+    onSeekAudio,
+    activeAudioTime,
+    cleanView = false,
 }: {
     id: string;
     timestamp: number;
+    endTime?: number;
     text: string;
     confidence?: number;
     isStreaming: boolean;
@@ -175,8 +171,11 @@ const TranscriptSegment = memo(function TranscriptSegment({
     onRenameSpeaker?: (speaker: string) => void;
     /** When provided, speaker can be merged into another speaker. */
     onMergeSpeaker?: (speaker: string) => void;
+    onSeekAudio?: (seconds: number) => void;
+    activeAudioTime?: number;
+    cleanView?: boolean;
 }) {
-    const displayText = cleanStopWords(text) || (text.trim() === '' ? '[Silence]' : text);
+    const displayText = cleanView ? cleanTranscriptText(text) : text;
 
     // Split conversation: local user ("You" + their name) on the right in blue,
     // everyone else on the left in purple/hashed colors. Timestamps stay shared
@@ -187,7 +186,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
     return (
         <div
             id={`segment-${id}`}
-            className={`relative flex pb-4 ${isYou ? 'justify-end pl-10' : 'justify-start pr-10'}`}
+            className={`relative flex pb-4 ${isYou ? 'justify-end pl-10' : 'justify-start pr-10'} ${activeAudioTime !== undefined && activeAudioTime >= timestamp && activeAudioTime < (endTime ?? timestamp + 1) ? 'rounded-lg bg-blue-500/10' : ''}`}
         >
             <div className={`max-w-[85%] min-w-0 flex flex-col gap-1 ${isYou ? 'items-end' : 'items-start'}`}>
                 <div className={`flex items-baseline gap-2 ${isYou ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -228,9 +227,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
                     )}
                     <Tooltip>
                         <TooltipTrigger>
-                            <span className="text-[11px] text-[var(--af-text-3)] tabular-nums">
-                                {formatRecordingTime(timestamp)}
-                            </span>
+                            {onSeekAudio ? <button type="button" onClick={() => onSeekAudio(timestamp)} title="Play from this turn" className="text-[11px] text-[var(--af-accent)] tabular-nums hover:underline">{formatRecordingTime(timestamp)}</button> : <span className="text-[11px] text-[var(--af-text-3)] tabular-nums">{formatRecordingTime(timestamp)}</span>}
                         </TooltipTrigger>
                         <TooltipContent>
                             {confidence !== undefined && showConfidence && (
@@ -276,6 +273,9 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     onLoadMore,
     onRenameSpeaker,
     onMergeSpeaker,
+    onSeekAudio,
+    activeAudioTime,
+    cleanView = false,
 }) => {
     // Greet the user by name when they've set one (Settings → General → Your
     // Name). Read on mount rather than at module scope so it picks up changes
@@ -289,8 +289,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
 
     // One bubble per speaking turn instead of dozens of VAD fragments.
     const displaySegments = useMemo(
-        () => mergeAdjacentSameSpeaker(segments),
-        [segments],
+        () => onSeekAudio ? segments : mergeAdjacentSameSpeaker(segments),
+        [segments, onSeekAudio],
     );
 
     // Create scroll ref first - shared between virtualizer and auto-scroll hook
@@ -457,7 +457,11 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                     <TranscriptSegment
                                         id={segment.id}
                                         timestamp={segment.timestamp}
+                                        endTime={segment.endTime}
                                         text={getDisplayText(segment)}
+                                        onSeekAudio={onSeekAudio}
+                                        activeAudioTime={activeAudioTime}
+                                        cleanView={cleanView}
                                         confidence={segment.confidence}
                                         isStreaming={isStreaming}
                                         showConfidence={showConfidence}
@@ -520,7 +524,11 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                     <TranscriptSegment
                                         id={segment.id}
                                         timestamp={segment.timestamp}
+                                        endTime={segment.endTime}
                                         text={getDisplayText(segment)}
+                                        onSeekAudio={onSeekAudio}
+                                        activeAudioTime={activeAudioTime}
+                                        cleanView={cleanView}
                                         confidence={segment.confidence}
                                         isStreaming={isStreaming}
                                         showConfidence={showConfidence}

@@ -1,7 +1,7 @@
 ﻿"use client";
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Summary, SummaryResponse } from '@/types';
+import { Summary, SummaryResponse, Transcript } from '@/types';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import Analytics from '@/lib/analytics';
 import { invoke } from '@tauri-apps/api/core';
@@ -21,6 +21,7 @@ import { useConfig } from '@/contexts/ConfigContext';
 import { PostCallProcessingDialog } from '@/components/MeetingDetails/PostCallProcessingDialog';
 import { MeetingExportDialog } from '@/components/MeetingDetails/MeetingExportDialog';
 import { SummaryRegenerationDialog } from '@/components/MeetingDetails/SummaryRegenerationDialog';
+import { cleanTranscriptText, loadLabsPreferences } from '@/lib/labs';
 
 // Page remounts join the same backend-start attempt. Only accepted attempts are
 // persisted in sessionStorage below; failed preflight attempts remain retryable.
@@ -68,6 +69,12 @@ export default function PageContent({
 
   // State
   const [customPrompt, setCustomPrompt] = useState<string>('');
+  const [cleanForSummary, setCleanForSummary] = useState(false);
+  const [labsReady, setLabsReady] = useState(false);
+  useEffect(() => {
+    setCleanForSummary(loadLabsPreferences().cleanTranscript);
+    setLabsReady(true);
+  }, []);
   const [templateEditorOpen, setTemplateEditorOpen] = useState(false);
   const [isRecording] = useState(false);
   const [summaryResponse] = useState<SummaryResponse | null>(null);
@@ -90,6 +97,9 @@ export default function PageContent({
 
   // Custom hooks
   const meetingData = useMeetingData({ meeting, summaryData, onMeetingUpdated });
+  const summaryTranscripts = useMemo(() => cleanForSummary
+    ? meetingData.transcripts.map((turn: Transcript) => ({ ...turn, text: cleanTranscriptText(turn.text) }))
+    : meetingData.transcripts, [cleanForSummary, meetingData.transcripts]);
   const templates = useTemplates();
 
   // Callback to register the modal open function
@@ -144,7 +154,7 @@ export default function PageContent({
 
   const summaryGeneration = useSummaryGeneration({
     meeting,
-    transcripts: meetingData.transcripts,
+    transcripts: summaryTranscripts,
     modelConfig: modelConfig,
     isModelConfigLoading: false, // ConfigContext loads on mount
     selectedTemplate: templates.selectedTemplate,
@@ -173,6 +183,7 @@ export default function PageContent({
   // Auto-generate summary when flag is set
   useEffect(() => {
     const autoGenerate = async () => {
+      if (!labsReady) return;
       if (
         shouldAutoGenerate &&
         meetingData.transcripts.length > 0 &&
@@ -216,6 +227,7 @@ export default function PageContent({
 
     void autoGenerate();
   }, [
+    labsReady,
     shouldAutoGenerate,
     meeting.id,
     meetingData.transcripts.length,
