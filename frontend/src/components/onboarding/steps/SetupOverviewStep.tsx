@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { AlertTriangle, Cpu, Info, RefreshCw, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   formatWhisperBackend,
   getWhisperBackend,
@@ -228,21 +229,21 @@ export function SetupOverviewStep() {
           </div>
         )}
 
-        <div className="w-full max-w-md space-y-3 rounded-lg border border-gray-200 bg-white p-4 text-gray-900">
-          <h3 className="font-medium">Optional upgrades</h3>
-          <label className="flex items-start gap-3 text-sm">
-            <input type="checkbox" checked={installWhisper} onChange={e => setInstallWhisper(e.target.checked)} className="mt-1" />
-            <span>Whisper for retranscription <span className="rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700">Recommended</span> <span className="text-gray-500">{jobs.whisper.status === 'ready' ? '· Installed; enable it' : '· ~547 MB'}</span>
-              <span className="block text-xs text-gray-500">Large v3 Turbo Q5 for post-call enhancement and retranscribing recordings. Parakeet remains the live transcription engine.</span>
+        <div className="w-full max-w-md space-y-3 rounded-lg border border-af-border bg-af-panel p-4 text-af-text">
+          <h3 className="text-sm font-medium">Optional upgrades</h3>
+          <label className="flex cursor-pointer items-start gap-3 text-sm">
+            <Checkbox checked={installWhisper} onCheckedChange={checked => setInstallWhisper(checked === true)} className="mt-0.5" />
+            <span>Whisper for retranscription <span className="rounded-full bg-af-accent/10 px-1.5 py-0.5 text-[11px] font-medium text-af-accent">Recommended</span> <span className="text-af-text-3">{jobs.whisper.status === 'ready' ? '· Installed; enable it' : '· ~547 MB'}</span>
+              <span className="mt-0.5 block text-xs leading-5 text-af-text-2">Large v3 Turbo Q5 for post-call enhancement and retranscribing recordings. Parakeet remains the live transcription engine.</span>
             </span>
           </label>
-          <label className="flex items-start gap-3 text-sm">
-            <input type="checkbox" checked={installNemotron} onChange={e => setInstallNemotron(e.target.checked)} className="mt-1" />
-            <span>Nemotron for speaker identification <span className="rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700">Recommended</span> <span className="text-gray-500">{jobs.nemotron.status === 'ready' ? '· Installed; enable it' : '· ~382 MB'}</span>
-              <span className="block text-xs text-gray-500">Auto-detect speakers after recording. Windows supports DirectML GPU acceleration with CPU fallback.</span>
+          <label className="flex cursor-pointer items-start gap-3 text-sm">
+            <Checkbox checked={installNemotron} onCheckedChange={checked => setInstallNemotron(checked === true)} className="mt-0.5" />
+            <span>Nemotron for speaker identification <span className="rounded-full bg-af-accent/10 px-1.5 py-0.5 text-[11px] font-medium text-af-accent">Recommended</span> <span className="text-af-text-3">{jobs.nemotron.status === 'ready' ? '· Installed; enable it' : '· ~382 MB'}</span>
+              <span className="mt-0.5 block text-xs leading-5 text-af-text-2">Auto-detect speakers after recording. Windows supports DirectML GPU acceleration with CPU fallback.</span>
             </span>
           </label>
-          <p className="text-xs text-gray-500">Selected models download in the background and enable automatically when ready. You can finish setup immediately and track progress or retry in Settings.</p>
+          <p className="text-xs leading-5 text-af-text-3">Selected models download in the background and enable automatically when ready. You can finish setup immediately and track progress or retry in Settings.</p>
         </div>
 
         {/* CTA Section */}

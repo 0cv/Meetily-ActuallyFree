@@ -43,6 +43,13 @@ const state = {
   actionItems: [] as ActionItemRow[],
   actionSynced: new Set<string>(),
   transcripts: new Map<string, fx.PreviewTranscript[]>(),
+  diarization: {
+    active_engine: 'pyannote',
+    nemotron_available: false,
+    nemotron_max_speakers: 8,
+    nemotron_threshold: 0.5,
+    pyannote_threshold: 0.7,
+  },
 };
 
 let idCounter = 0;
@@ -332,6 +339,32 @@ function handle(cmd: string, args: Args): unknown {
       ];
     case 'diarization_models_available':
       return true;
+    case 'diarization_get_status': {
+      const engine = state.diarization;
+      return {
+        ...engine,
+        pyannote_available: true,
+        current_available: engine.active_engine === 'pyannote' || engine.nemotron_available,
+        model_dir: 'C:\\Users\\you\\AppData\\Local\\Meetily\\models\\diarization',
+        nemotron_download_size: 382 * 1024 * 1024,
+        pyannote_download_size: 33 * 1024 * 1024,
+      };
+    }
+    case 'set_diarization_engine':
+      state.diarization.active_engine = args.engine;
+      return null;
+    case 'set_diarization_config':
+      state.diarization.nemotron_max_speakers = args.nemotronMaxSpeakers;
+      state.diarization.nemotron_threshold = args.nemotronThreshold;
+      state.diarization.pyannote_threshold = args.pyannoteThreshold;
+      return null;
+    case 'download_diarization_models':
+      return new Promise((resolve) =>
+        setTimeout(() => {
+          if (args.engine === 'nemotron') state.diarization.nemotron_available = true;
+          resolve(null);
+        }, 1200),
+      );
     case 'get_meeting_folder_path':
       return meeting(args.meetingId)?.folder_path ?? null;
     case 'api_get_meeting_summary_language':
