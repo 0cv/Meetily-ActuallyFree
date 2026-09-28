@@ -373,6 +373,7 @@ export function PostCallProcessingDialog({
 
   return (
     <PostCallHandoffCard
+      centered
       busy={isWorking}
       title={
         isWorking
@@ -387,7 +388,7 @@ export function PostCallProcessingDialog({
         isWorking
           ? message
           : isNemotron
-            ? 'Nemotron finds up to 8 speakers on its own and refines the live labels from the full recording.'
+            ? 'Automatically identify up to 8 speakers from the full recording.'
             : 'Include yourself. A real count labels speakers more accurately.'
       }
     >
@@ -405,9 +406,9 @@ export function PostCallProcessingDialog({
             <p role="status" className="text-sm text-af-text-3">Loading diarization settings…</p>
           )}
           {isNemotron && (
-            <div className={cn(choiceClass(true), 'pointer-events-none flex items-center justify-center')}>
-              Auto-detect
-            </div>
+            <Button className="w-full" onClick={() => { void start(); }}>
+              {stage === 'error' ? 'Retry auto-detect' : 'Auto-detect & continue'}
+            </Button>
           )}
           {engine && !isNemotron && (
             <>
@@ -454,13 +455,13 @@ export function PostCallProcessingDialog({
             </>
           )}
           {error && <p className="text-sm text-af-danger">{error}</p>}
-          <div className="flex items-center justify-end gap-2">
+          <div className={cn('flex items-center gap-2', isNemotron ? 'justify-center' : 'justify-end')}>
             <Button variant="ghost" onClick={() => { void (stage === 'error' ? continueWithLiveTranscript() : skipEnhancement()); }}>
               Keep live transcript
             </Button>
-            <Button disabled={!engine} onClick={() => { void start(); }}>
+            {!isNemotron && <Button disabled={!engine} onClick={() => { void start(); }}>
               {stage === 'error' ? 'Retry' : 'Continue'}
-            </Button>
+            </Button>}
           </div>
         </div>
       )}

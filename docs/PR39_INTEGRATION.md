@@ -76,6 +76,13 @@ qualification. v0.2.18 is installed locally, **not published on GitHub**.
 
 ## Installed synthetic capture qualification (2026-09-28)
 
+Post-call speaker selection now uses a compact, viewport-centered modal via the
+shared dialog portal. Nemotron's **Auto-detect & continue** is the primary action
+and starts the existing ordered enhancement/diarization workflow directly;
+there is no separate Continue step. Keep live transcript remains a secondary
+action. Pyannote retains its count selection and Continue action. Native pipeline
+ordering and engine/count semantics are unchanged by this presentation update.
+
 The actual installed CUDA build was exercised with a dedicated Windows test audio
 process and the existing synthetic two-voice WAV. Both microphone endpoints were
 muted for the tests and restored afterward. Test capture was restricted to that

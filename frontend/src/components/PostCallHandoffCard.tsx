@@ -4,11 +4,11 @@ import type { ReactNode } from 'react';
 import { Users } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { RecordingCardSlot } from '@/components/RecordingCardSlot';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 
 /**
- * The record card's successor. Stopping, saving, and the speaker question all
- * use this same bottom card, styled like the record card, so the handoff never
- * jumps between popups.
+ * Stopping and saving use the recording dock. Speaker choices opt into a
+ * compact modal portaled to the viewport, independent of sidebar/panel offsets.
  */
 export function PostCallHandoffCard({
   title,
@@ -16,13 +16,39 @@ export function PostCallHandoffCard({
   busy = false,
   icon,
   children,
+  centered = false,
 }: {
   title: string;
   detail?: string;
   busy?: boolean;
   icon?: ReactNode;
   children?: ReactNode;
+  /** Speaker choices use a viewport-centered modal rather than the recording dock. */
+  centered?: boolean;
 }) {
+  if (centered) {
+    return (
+      <Dialog open>
+        <DialogContent
+          className="max-w-sm gap-4 p-5"
+          showCloseButton={false}
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => event.preventDefault()}
+        >
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-af-accent/[0.12] text-af-accent">
+              {busy ? <Spinner size={18} /> : icon ?? <Users size={18} strokeWidth={1.75} />}
+            </span>
+            <div className="min-w-0">
+              <DialogTitle className="text-sm">{title}</DialogTitle>
+              {detail && <DialogDescription className="mt-1 text-xs">{detail}</DialogDescription>}
+            </div>
+          </div>
+          {children}
+        </DialogContent>
+      </Dialog>
+    );
+  }
   return (
     <RecordingCardSlot>
       <div className="pointer-events-auto w-full max-w-[36rem] animate-af-rise rounded-[26px] border border-af-border-strong bg-af-elevated/95 px-5 py-4 text-af-text shadow-2xl backdrop-blur-xl">
