@@ -2,7 +2,31 @@
 
 ## Unreleased
 
-### Features
+### Interface overhaul and workspace
+
+- Three themes (Midnight, Vanilla and Charcoal) built on shared colour tokens, one
+  component kit across every screen, and on Windows a title bar drawn inside the app
+  with its own window buttons. Icons make a small, meaningful motion on hover.
+- A home screen around the record card, with what is up next and open action items.
+  During a call: an editable title, the group, people heard so far, the live
+  transcript and a Speakers | Notes | Ask AI panel. The rest of the app stays usable
+  while recording.
+- A rebuilt meeting page: one row of people, a chat-style transcript with playback,
+  and one document with your notes, action items and the editable summary.
+- Groups (schedules, open items across meetings, Ask AI), contacts and person pages,
+  and action items stored as records with owners, due dates and source moments.
+- A Ctrl+K command bar that searches people, groups, meetings, transcripts, summaries
+  and action items; an All meetings page; and export of any number of meetings to
+  PDF, Word, Markdown, text or JSON.
+- Contacts are kept when a speaker's lines are unlinked; only deleting or merging
+  removes them. Meetings keep their day-and-time title, and summaries no longer
+  rename them.
+
+### Claude Code CLI summaries
+
+Thanks to **[@cedstrom](https://github.com/cedstrom)** for
+[PR #28](https://github.com/TylerBuza/Meetily-ActuallyFree/pull/28), which provides
+this provider.
 
 - Add a **Claude Code CLI** summary provider. Summaries and the live assistant can
   now run through the `claude` command installed on your computer, so they draw on
@@ -10,6 +34,8 @@
   the executable, shows the signed-in account and plan, warns when
   `ANTHROPIC_API_KEY` would override the subscription, and can send a test call.
   Nothing is bundled and no key is stored — the CLI owns sign-in.
+- Runs on current Claude Code releases. The system prompt is passed as a file rather
+  than on the command line, and a signed-out or outdated CLI reports the step to take.
 
 ## 0.2.17 - 2026-09-25
 
