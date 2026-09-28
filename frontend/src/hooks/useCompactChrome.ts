@@ -23,6 +23,12 @@ function speakersAreOpen() {
   return raw !== '' && raw !== '0' && raw !== '0px';
 }
 
+/** Window width that fits this rail plus the recording card and open speakers. */
+export function windowWidthForRail(railWidth: number) {
+  const reserved = speakersAreOpen() ? SPEAKERS_CONDENSED : 0;
+  return Math.ceil(railWidth + GAP + CARD + GAP + reserved);
+}
+
 /** Largest rail that still leaves the recording card clear. Speakers, if open, stay at the condensed width. */
 export function maxSidebarFit(windowWidth: number) {
   const reserved = speakersAreOpen() ? SPEAKERS_CONDENSED : 0;

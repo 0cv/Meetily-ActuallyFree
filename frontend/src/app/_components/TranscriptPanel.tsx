@@ -53,6 +53,7 @@ export function TranscriptPanel({
     copyTranscript,
     detectedSpeakers,
     renameSpeaker,
+    reassignSegment,
     mergeSpeakers,
   } = useTranscripts();
   const { transcriptModelConfig, showSpeakersPanel } = useConfig();
@@ -62,7 +63,7 @@ export function TranscriptPanel({
 
   // Sidebar and dialog states
   const [showSpeakersSidebar, setShowSpeakersSidebar] = useState(showSpeakersPanel);
-  const [renameTarget, setRenameTarget] = useState<string | null>(null);
+  const [renameTarget, setRenameTarget] = useState<{ speaker: string; transcriptId: string } | null>(null);
   const [mergeTarget, setMergeTarget] = useState<string | null>(null);
   const [userName, setUserName] = useState('');
 
@@ -173,7 +174,7 @@ export function TranscriptPanel({
             isStopping={isStopping}
             enableStreaming={isRecording && !isPaused}
             showConfidence={true}
-            onRenameSpeaker={(speaker) => setRenameTarget(speaker)}
+            onRenameSpeaker={(speaker, transcriptId) => setRenameTarget({ speaker, transcriptId })}
             onMergeSpeaker={(speaker) => setMergeTarget(speaker)}
           />
         </div>
@@ -185,6 +186,7 @@ export function TranscriptPanel({
         userName={userName}
         isOpen={showSpeakersSidebar}
         onClose={() => setShowSpeakersSidebar(false)}
+        onRequestRename={(speaker) => setRenameTarget({ speaker, transcriptId: '' })}
         onRenameSpeaker={renameSpeaker}
         onMergeSpeaker={mergeSpeakers}
         isRecording={isRecording}
@@ -193,18 +195,13 @@ export function TranscriptPanel({
       {/* Inline Quick Rename Modal */}
       <SpeakerRenameDialog
         open={renameTarget !== null}
-        speaker={renameTarget}
+        speaker={renameTarget?.speaker ?? null}
+        transcriptId={renameTarget?.transcriptId || undefined}
         onOpenChange={(open) => !open && setRenameTarget(null)}
         onRenameLive={async (from, to) => {
-          renameSpeaker(from, to);
+          if (renameTarget?.transcriptId) reassignSegment(renameTarget.transcriptId, to);
+          else renameSpeaker(from, to);
           setRenameTarget(null);
-        }}
-        onMergeClick={() => {
-          if (renameTarget) {
-            const target = renameTarget;
-            setRenameTarget(null);
-            setMergeTarget(target);
-          }
         }}
       />
 

@@ -32,6 +32,8 @@ interface SpeakersSidebarProps {
   isOpen: boolean;
   onClose: () => void;
   onRenameSpeaker: (fromSpeaker: string, toSpeaker: string) => Promise<void> | void;
+  /** Opens the rename dialog for every line from this speaker. */
+  onRequestRename?: (speaker: string) => void;
   onMergeSpeaker: (sourceSpeaker: string, targetSpeaker: string) => Promise<void> | void;
   isRecording?: boolean;
 }
@@ -42,6 +44,7 @@ export function SpeakersSidebar({
   isOpen,
   onClose,
   onRenameSpeaker,
+  onRequestRename,
   onMergeSpeaker,
   isRecording,
 }: SpeakersSidebarProps) {
@@ -77,6 +80,11 @@ export function SpeakersSidebar({
   const startRename = (speaker: string) => {
     setEditingSpeaker(speaker);
     setEditValue(isUserSpeaker(speaker) ? (userName || 'You') : speaker);
+  };
+
+  const beginRename = (name: string) => {
+    if (onRequestRename) onRequestRename(name);
+    else startRename(name);
   };
 
   const commitRename = async () => {
@@ -229,7 +237,7 @@ export function SpeakersSidebar({
                       <div className="px-2 py-1.5">
                         <button
                           type="button"
-                          onClick={() => startRename(s.name)}
+                          onClick={() => beginRename(s.name)}
                           title="Rename"
                           className="flex w-full min-w-0 items-center gap-2 text-left text-[var(--af-text,#111827)] hover:text-blue-600 dark:hover:text-blue-400"
                         >
@@ -311,7 +319,7 @@ export function SpeakersSidebar({
                         <div className="min-w-0 flex-1">
                           <button
                             type="button"
-                            onClick={() => startRename(s.name)}
+                            onClick={() => beginRename(s.name)}
                             title="Rename"
                             className="group/name flex w-full min-w-0 items-center gap-1.5 text-left text-sm font-medium text-[var(--af-text,#111827)] hover:text-blue-600 dark:hover:text-blue-400"
                           >
@@ -377,7 +385,7 @@ export function SpeakersSidebar({
           <div className="flex items-start gap-2 text-[11px] text-[var(--af-text-3,#6b7280)]">
             <Info size={14} className="shrink-0 mt-0.5 text-blue-500" />
             <p className="leading-tight">
-              Click any speaker name to rename on the spot. Use the merge icon to combine two speakers who are the same person.
+              Click a name to rename that speaker. Pick a contact, or type a new one.
             </p>
           </div>
         </div>

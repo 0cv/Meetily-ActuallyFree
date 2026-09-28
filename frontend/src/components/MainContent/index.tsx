@@ -11,7 +11,7 @@ const MainContent: React.FC<MainContentProps> = ({ children }) => {
   const pathname = usePathname();
   // Recording and saved meetings sit flush against the rail divider, in the
   // same panel color. A left inset exposed the darker canvas as its own strip.
-  const chat = pathname === '/' || pathname === '/meeting-details';
+  const chat = pathname === '/' || pathname === '/meeting-details' || pathname === '/contacts' || pathname === '/groups' || pathname === '/person';
 
   return (
     // min-w-0 is required: flex items default to min-width:auto and will not

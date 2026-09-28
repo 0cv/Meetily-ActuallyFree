@@ -22,7 +22,8 @@
 import { invoke } from '@tauri-apps/api/core';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Play, Pause, Square, Mic, MicOff, Volume2, VolumeX, AlertCircle, X, Minimize2 } from 'lucide-react';
+import { Play, Pause, Square, Mic, MicOff, Volume2, VolumeX, AlertCircle, X, Minimize2, ChevronDown } from 'lucide-react';
+import { readPendingGroup, writePendingGroup, type PendingGroup } from '@/lib/groups';
 import { LiveAudioVisualizer } from './LiveAudioVisualizer';
 import { ProcessRequest, SummaryResponse } from '@/types/summary';
 import { listen } from '@tauri-apps/api/event';
@@ -37,6 +38,7 @@ import { deviceDisplayName, UNAVAILABLE_DEVICE_VALUE, type AudioDeviceOption } f
 import type { RecordingPreferences } from '@/components/RecordingSettings';
 import type { SelectedDevices } from '@/components/DeviceSelection';
 import { RecordingVoiceLane } from '@/components/RecordingVoiceLane';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Spinner } from '@/components/ui/spinner';
 
 interface RecordingControlsProps {
@@ -54,6 +56,97 @@ interface RecordingControlsProps {
     systemDevice: string | null;
   };
   meetingName?: string;
+}
+
+function GroupStartMenu() {
+  const [open, setOpen] = useState(false);
+  const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
+  const [selected, setSelected] = useState<PendingGroup | null>(null);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    setSelected(readPendingGroup());
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    setSearch('');
+    invoke<{ id: string; name: string }[]>('api_list_groups')
+      .then(setGroups)
+      .catch(() => setGroups([]));
+  }, [open]);
+
+  const choose = (group: PendingGroup | null) => {
+    writePendingGroup(group);
+    setSelected(group);
+    setOpen(false);
+  };
+
+  const needle = search.trim().toLowerCase();
+  const shown = needle
+    ? groups.filter((group) => group.name.toLowerCase().includes(needle))
+    : groups;
+  const exact = groups.some((group) => group.name.toLowerCase() === needle);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex max-w-[9rem] items-center gap-1 truncate text-[11px] text-white/70 hover:text-white"
+        >
+          <span className="truncate">{selected ? selected.name : 'No group'}</span>
+          <ChevronDown size={12} className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="start"
+        sideOffset={10}
+        avoidCollisions={false}
+        className="w-72 border-white/10 bg-[#151922] p-2 text-white shadow-2xl"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
+        <input
+          autoFocus
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search groups"
+          className="h-8 w-full rounded-lg border border-white/10 bg-black/30 px-2.5 text-xs outline-none focus:border-[var(--af-accent)]"
+        />
+        <div className="mt-2 max-h-64 overflow-y-auto">
+          <button type="button" onClick={() => choose(null)} className="block w-full rounded-md px-2 py-1.5 text-left text-xs hover:bg-white/10">
+            No group
+          </button>
+          {shown.map((group) => (
+            <button
+              key={group.id}
+              type="button"
+              onClick={() => choose(group)}
+              className="block w-full truncate rounded-md px-2 py-1.5 text-left text-xs hover:bg-white/10"
+            >
+              {group.name}
+            </button>
+          ))}
+          {shown.length === 0 && !needle && (
+            <p className="px-2 py-2 text-xs text-white/50">No groups yet.</p>
+          )}
+        </div>
+        {needle && !exact && (
+          <button
+            type="button"
+            onClick={async () => {
+              const created = await invoke<PendingGroup>('api_create_group', { name: search.trim() });
+              choose({ id: created.id, name: created.name });
+            }}
+            className="mt-1 w-full rounded-md px-2 py-1.5 text-left text-xs text-[var(--af-accent)] hover:bg-white/10"
+          >
+            Create {search.trim()}
+          </button>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export const RecordingControls: React.FC<RecordingControlsProps> = ({
@@ -700,6 +793,9 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                                 ? (startupMessage || 'Please wait')
                                 : 'Ready'}
                           </div>
+                          {!isRecording && !isProcessing && !isStarting && !isValidatingModel && (
+                            <GroupStartMenu />
+                          )}
                         </div>
 
                         <div

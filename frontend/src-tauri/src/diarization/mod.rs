@@ -517,6 +517,30 @@ pub async fn rename_meeting_speaker(
     })
 }
 
+/// Move a single transcript line to another speaker. The rest of that label stays put.
+#[tauri::command]
+pub async fn reassign_transcript_speaker(
+    state: tauri::State<'_, crate::state::AppState>,
+    meeting_id: String,
+    transcript_id: String,
+    to: String,
+) -> Result<MeetingSpeakerRenameResult, String> {
+    let _operation_guard = operation_guard().await;
+    let outcome = crate::database::repositories::person::PeopleRepository::reassign_transcript_speaker(
+        state.db_manager.pool(),
+        &meeting_id,
+        &transcript_id,
+        &to,
+    )
+    .await
+    .map_err(|e| format!("Failed to move this line: {}", e))?;
+    Ok(MeetingSpeakerRenameResult {
+        speaker: outcome.speaker,
+        count: outcome.count,
+        removed_name: outcome.removed_name,
+    })
+}
+
 /// Run diarization on a recording and return speaker-labeled time segments.
 #[tauri::command]
 pub async fn diarize_recording(

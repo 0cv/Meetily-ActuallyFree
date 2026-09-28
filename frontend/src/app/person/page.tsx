@@ -279,6 +279,29 @@ function PersonProfileContent() {
                 <span className="text-[var(--af-text-3)]">/</span>
                 <span>{seenRange}</span>
               </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {(profile.groups ?? []).length === 0 ? (
+                  <span className="text-xs text-[var(--af-text-3)]">Not in a group yet</span>
+                ) : (profile.groups ?? []).map((group) => (
+                  <button
+                    key={group.id}
+                    type="button"
+                    onClick={() => router.push(`/groups?id=${encodeURIComponent(group.id)}`)}
+                    className="rounded-full border border-[var(--af-border)] px-2.5 py-1 text-xs text-[var(--af-text-2)] hover:bg-[var(--af-hover)]"
+                  >
+                    {group.name}
+                  </button>
+                ))}
+                {profile.meetings[0] && (
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/meeting-details?id=${encodeURIComponent(profile.meetings[0].meetingId)}`)}
+                    className="text-xs text-[var(--af-accent)] hover:underline"
+                  >
+                    Last spoke {formatDate(profile.meetings[0].createdAt, false)} · {profile.meetings[0].title}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </header>
@@ -302,6 +325,27 @@ function PersonProfileContent() {
 
         <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(310px,0.65fr)]">
           <div className="min-w-0 space-y-6">
+            <section className="overflow-hidden rounded-2xl border border-[var(--af-border)] bg-[var(--af-panel)] shadow-sm">
+              <div className="border-b border-[var(--af-border)] px-5 py-4">
+                <h2 className="font-semibold text-[var(--af-text)]">Action items</h2>
+                <p className="mt-1 text-xs text-[var(--af-text-3)]">Things they said needed doing, or were asked to do. Each one stays tied to its meeting.</p>
+              </div>
+              <div className="divide-y divide-[var(--af-border)]">
+                {(profile.actionItems ?? []).length === 0 ? (
+                  <p className="px-5 py-4 text-sm text-[var(--af-text-3)]">No named action items yet.</p>
+                ) : (profile.actionItems ?? []).map((item) => (
+                  <button
+                    key={`${item.meetingId}-${item.text}`}
+                    type="button"
+                    onClick={() => router.push(`/meeting-details?id=${encodeURIComponent(item.meetingId)}`)}
+                    className="block w-full px-5 py-3 text-left hover:bg-[var(--af-hover)]"
+                  >
+                    <span className="block text-sm text-[var(--af-text)]">{item.text}</span>
+                    <span className="mt-0.5 block text-xs text-[var(--af-text-3)]">{item.meetingTitle}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
             <section className="overflow-hidden rounded-2xl border border-[var(--af-border)] bg-[var(--af-panel)] shadow-sm">
               <div className="flex items-start justify-between gap-4 border-b border-[var(--af-border)] px-5 py-4 sm:px-6">
                 <div>

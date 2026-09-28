@@ -20,7 +20,7 @@
  */
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ChevronDown, ChevronRight, FileText, AudioLines, ArrowRight, Settings, Calendar, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, Upload } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileText, AudioLines, ArrowRight, Settings, Calendar, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, Upload, PanelLeftClose, PanelLeftOpen, Contact, Layers } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSidebar } from './SidebarProvider';
 import type { CurrentMeeting } from '@/components/Sidebar/SidebarProvider';
@@ -149,6 +149,7 @@ const Sidebar: React.FC = () => {
     isCollapsed,
     sidebarWidth,
     setSidebarWidth,
+    toggleRail,
     previewSidebar,
     handleRecordingToggle,
     meetings,
@@ -692,6 +693,8 @@ const Sidebar: React.FC = () => {
     window.addEventListener('pointerup', stop);
   };
   const isSettingsPage = pathname === '/settings';
+  const isContactsPage = pathname === '/contacts' || pathname === '/person';
+  const isGroupsPage = pathname === '/groups';
   const meetingsTitle = sidebarItems.find((item) => item.id === 'meetings')?.title ?? 'Recent Meetings';
   const meetingListRef = useRef<HTMLDivElement>(null);
 
@@ -726,7 +729,42 @@ const Sidebar: React.FC = () => {
 
           <div className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-[var(--af-panel)] shadow-none">
             <div className="flex shrink-0 flex-col gap-3 px-3 pt-4">
+              <RailTip show={!expanded} label="Expand sidebar">
+                <button
+                  type="button"
+                  onClick={toggleRail}
+                  aria-label={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
+                  aria-expanded={expanded}
+                  className={navButtonClass(false)}
+                >
+                  <RailIcon>
+                    {expanded ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeftOpen className="h-5 w-5" />}
+                  </RailIcon>
+                  <RailLabel expanded={expanded}>
+                    <span className="truncate pr-2 text-sm font-medium">Collapse</span>
+                  </RailLabel>
+                </button>
+              </RailTip>
               <Logo expanded={expanded} />
+
+              <RailTip show={!expanded} label={isRecording ? 'Recording in progress' : 'New Recording'}>
+                <button
+                  type="button"
+                  onClick={handleRecordingToggle}
+                  disabled={isRecording}
+                  aria-label={isRecording ? 'Recording in progress' : 'New Recording'}
+                  className={`flex h-10 w-full items-center overflow-hidden rounded-full bg-red-500 text-sm font-semibold text-white shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 ${
+                    isRecording ? 'cursor-not-allowed opacity-80' : 'hover:bg-red-600'
+                  }`}
+                >
+                  <RailIcon>
+                    {isRecording ? <Square className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                  </RailIcon>
+                  <RailLabel expanded={expanded}>
+                    <span className="truncate pr-3">{isRecording ? 'Recording…' : 'New Recording'}</span>
+                  </RailLabel>
+                </button>
+              </RailTip>
 
               <RailTip show={!expanded} label="Search everything (Ctrl+K)">
                 <button
@@ -747,24 +785,19 @@ const Sidebar: React.FC = () => {
                 </button>
               </RailTip>
 
-              <RailTip show={!expanded} label={isRecording ? 'Recording in progress' : 'New Recording'}>
-                <button
-                  type="button"
-                  onClick={handleRecordingToggle}
-                  disabled={isRecording}
-                  aria-label={isRecording ? 'Recording in progress' : 'New Recording'}
-                  className={`flex h-10 w-full items-center overflow-hidden rounded-full bg-red-500 text-sm font-semibold text-white shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 ${
-                    isRecording ? 'cursor-not-allowed opacity-80' : 'hover:bg-red-600'
-                  }`}
-                >
-                  <RailIcon>
-                    {isRecording ? <Square className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-                  </RailIcon>
-                  <RailLabel expanded={expanded}>
-                    <span className="truncate pr-3">{isRecording ? 'Recording…' : 'New Recording'}</span>
-                  </RailLabel>
+              <RailTip show={!expanded} label="Contacts">
+                <button type="button" onClick={() => router.push('/contacts')} aria-label="Contacts" className={navButtonClass(isContactsPage)}>
+                  <RailIcon><Contact className="h-5 w-5" /></RailIcon>
+                  <RailLabel expanded={expanded}><span className="truncate pr-2 text-sm font-medium">Contacts</span></RailLabel>
                 </button>
               </RailTip>
+              <RailTip show={!expanded} label="Groups">
+                <button type="button" onClick={() => router.push('/groups')} aria-label="Groups" className={navButtonClass(isGroupsPage)}>
+                  <RailIcon><Layers className="h-5 w-5" /></RailIcon>
+                  <RailLabel expanded={expanded}><span className="truncate pr-2 text-sm font-medium">Groups</span></RailLabel>
+                </button>
+              </RailTip>
+
             </div>
 
             <div className="mt-2 flex min-h-0 flex-1 flex-col px-3">

@@ -151,6 +151,19 @@ export interface PersonProfileMeeting {
   excerpt?: string;
 }
 
+export interface PersonGroupRef {
+  id: string;
+  name: string;
+  meetingCount: number;
+}
+
+export interface PersonActionItem {
+  text: string;
+  meetingId: string;
+  meetingTitle: string;
+  createdAt: string;
+}
+
 export interface PersonProfile {
   id: string;
   displayName: string;
@@ -161,6 +174,8 @@ export interface PersonProfile {
   firstSeenAt?: string;
   lastSeenAt?: string;
   meetings: PersonProfileMeeting[];
+  groups?: PersonGroupRef[];
+  actionItems?: PersonActionItem[];
 }
 
 export interface DetectedSpeaker {

@@ -24,6 +24,7 @@ interface TranscriptContextType {
   detectedSpeakers: DetectedSpeaker[];
   speakerMap: Record<string, string>;
   renameSpeaker: (oldName: string, newName: string) => void;
+  reassignSegment: (segmentId: string, newSpeaker: string) => void;
   mergeSpeakers: (sourceSpeaker: string, targetSpeaker: string) => void;
 }
 
@@ -540,6 +541,21 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
     toast.success(`Renamed "${trimmedOld}" to "${trimmedNew}"`);
   }, []);
 
+  const reassignSegment = useCallback((segmentId: string, newSpeaker: string) => {
+    const nextSpeaker = newSpeaker.trim();
+    if (!segmentId) return;
+    const speaker = nextSpeaker || undefined;
+    transcriptsRef.current = transcriptsRef.current.map((t) =>
+      t.id === segmentId ? { ...t, speaker } : t
+    );
+    setTranscripts((prev) => prev.map((t) => (t.id === segmentId ? { ...t, speaker } : t)));
+    if (transcriptBufferRef.current) {
+      for (const [seqId, t] of transcriptBufferRef.current.entries()) {
+        if (t.id === segmentId) transcriptBufferRef.current.set(seqId, { ...t, speaker });
+      }
+    }
+  }, []);
+
   // Merge speakers across active session
   const mergeSpeakers = useCallback((sourceSpeaker: string, targetSpeaker: string) => {
     const trimmedSource = sourceSpeaker.trim();
@@ -645,6 +661,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
     detectedSpeakers,
     speakerMap,
     renameSpeaker,
+    reassignSegment,
     mergeSpeakers,
   };
 

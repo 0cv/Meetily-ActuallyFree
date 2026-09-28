@@ -17,6 +17,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Transcript, TranscriptSegmentData, DetectedSpeaker } from '@/types';
 import { Users } from 'lucide-react';
+import { MeetingGroupControl } from '@/components/MeetingGroupControl';
 import { SpeakerRenameDialog } from './SpeakerRenameDialog';
 import { VirtualizedTranscriptView } from '@/components/VirtualizedTranscriptView';
 import { TranscriptButtonGroup } from './TranscriptButtonGroup';
@@ -86,7 +87,7 @@ export function TranscriptPanel({
   onSpeakerRenamed,
 }: TranscriptPanelProps) {
   const { showSpeakersPanel } = useConfig();
-  const [renameTarget, setRenameTarget] = useState<string | null>(null);
+  const [renameTarget, setRenameTarget] = useState<{ speaker: string; transcriptId: string } | null>(null);
   const [mergeTarget, setMergeTarget] = useState<string | null>(null);
   const [showSpeakersSidebar, setShowSpeakersSidebar] = useState<boolean>(showSpeakersPanel);
   const [userName, setUserName] = useState<string>('');
@@ -192,6 +193,7 @@ export function TranscriptPanel({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
+          {meetingId && <MeetingGroupControl meetingId={meetingId} />}
           <button
             type="button"
             onClick={() => setShowSpeakersSidebar((prev) => !prev)}
@@ -223,19 +225,13 @@ export function TranscriptPanel({
 
       <SpeakerRenameDialog
         open={renameTarget !== null}
-        speaker={renameTarget}
+        speaker={renameTarget?.speaker ?? null}
+        transcriptId={renameTarget?.transcriptId || undefined}
         meetingId={meetingId}
         onOpenChange={(open) => !open && setRenameTarget(null)}
         onRenamed={async (rename) => {
           await onRefetchTranscripts?.();
           onSpeakerRenamed?.(rename);
-        }}
-        onMergeClick={() => {
-          if (renameTarget) {
-            const t = renameTarget;
-            setRenameTarget(null);
-            setMergeTarget(t);
-          }
         }}
       />
 
@@ -259,7 +255,7 @@ export function TranscriptPanel({
       <div className="flex flex-1 overflow-hidden min-h-0">
         <div className="min-h-0 flex-1 overflow-hidden pb-2 pl-2 pr-1">
           <VirtualizedTranscriptView
-            onRenameSpeaker={meetingId ? setRenameTarget : undefined}
+            onRenameSpeaker={meetingId ? (speaker, transcriptId) => setRenameTarget({ speaker, transcriptId }) : undefined}
             onMergeSpeaker={meetingId ? setMergeTarget : undefined}
             segments={convertedSegments}
             isRecording={isRecording}
@@ -282,6 +278,7 @@ export function TranscriptPanel({
           userName={userName}
           isOpen={showSpeakersSidebar}
           onClose={() => setShowSpeakersSidebar(false)}
+          onRequestRename={(speaker) => setRenameTarget({ speaker, transcriptId: '' })}
           onRenameSpeaker={async (from, to) => {
             if (!meetingId) return;
             try {

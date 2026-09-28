@@ -68,7 +68,7 @@ export interface VirtualizedTranscriptViewProps {
     /**
      * Called when a speaker label is clicked for renaming.
      */
-    onRenameSpeaker?: (speaker: string) => void;
+    onRenameSpeaker?: (speaker: string, segmentId: string) => void;
     /**
      * Called when merge action is triggered on a speaker.
      */
@@ -169,7 +169,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
     speaker?: string;
     userName: string;
     /** When provided, speaker labels become clickable for renaming. */
-    onRenameSpeaker?: (speaker: string) => void;
+    onRenameSpeaker?: (speaker: string, segmentId: string) => void;
     /** When provided, speaker can be merged into another speaker. */
     onMergeSpeaker?: (speaker: string) => void;
 }) {
@@ -197,8 +197,8 @@ const TranscriptSegment = memo(function TranscriptSegment({
                             {onRenameSpeaker ? (
                                 <button
                                     type="button"
-                                    onClick={() => onRenameSpeaker(speaker)}
-                                    title="Rename"
+                                    onClick={() => onRenameSpeaker(speaker, id)}
+                                    title="Rename this line"
                                     className={`text-xs font-semibold ${speakerColor(speaker)} rounded hover:underline inline-flex items-center gap-1`}
                                 >
                                     <span>{label}</span>

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Analytics from '@/lib/analytics';
 import { invoke } from '@tauri-apps/api/core';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
-import { displayedSidebarWidth, previewSidebarWidth, SIDEBAR_DEFAULT, SIDEBAR_MIN, snapSidebarWidth } from '@/hooks/useCompactChrome';
+import { displayedSidebarWidth, previewSidebarWidth, SIDEBAR_DEFAULT, SIDEBAR_MIN, snapSidebarWidth, windowWidthForRail } from '@/hooks/useCompactChrome';
 
 
 interface SidebarItem {
@@ -32,6 +32,7 @@ interface SidebarContextType {
   isCollapsed: boolean;
   sidebarWidth: number;
   setSidebarWidth: (width: number, origin?: number) => void;
+  toggleRail: () => void;
   previewSidebar: (width: number) => void;
   meetings: CurrentMeeting[];
   setMeetings: (meetings: CurrentMeeting[]) => void;
@@ -53,6 +54,19 @@ interface SidebarContextType {
 
 const SidebarContext = createContext<SidebarContextType | null>(null);
 
+async function growWindowWidth(width: number) {
+  try {
+    const { getCurrentWindow, LogicalSize } = await import('@tauri-apps/api/window');
+    const win = getCurrentWindow();
+    const factor = await win.scaleFactor();
+    const size = (await win.innerSize()).toLogical(factor);
+    if (size.width >= width) return;
+    await win.setSize(new LogicalSize(width, size.height));
+  } catch {
+    // Browser preview, or the desktop window is not available yet.
+  }
+}
+
 export const useSidebar = () => {
   const context = useContext(SidebarContext);
   if (!context) {
@@ -65,6 +79,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const [currentMeeting, setCurrentMeeting] = useState<CurrentMeeting | null>({ id: 'intro-call', title: '+ New Call' });
   const [preferredWidth, setPreferredWidth] = useState(SIDEBAR_DEFAULT);
   const [dragWidth, setDragWidth] = useState<number | null>(null);
+  const lastOpenWidthRef = useRef(SIDEBAR_DEFAULT);
   const [windowWidth, setWindowWidth] = useState(1600);
   const sidebarWidth = dragWidth ?? displayedSidebarWidth(preferredWidth, windowWidth);
   const isCollapsed = sidebarWidth <= SIDEBAR_MIN + 8;
@@ -153,12 +168,34 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     setDragWidth(previewSidebarWidth(width, windowWidth));
   };
 
+  const toggleRail = useCallback(() => {
+    setDragWidth(null);
+    if (sidebarWidth <= SIDEBAR_MIN + 8) {
+      const restore = Math.max(SIDEBAR_DEFAULT, lastOpenWidthRef.current);
+      const needed = windowWidthForRail(restore);
+      if (windowWidth < needed) {
+        setWindowWidth(needed);
+        void growWindowWidth(needed);
+      }
+      setPreferredWidth(snapSidebarWidth(restore, Math.max(windowWidth, needed), SIDEBAR_MIN));
+      return;
+    }
+    lastOpenWidthRef.current = Math.max(SIDEBAR_DEFAULT, sidebarWidth);
+    setPreferredWidth(SIDEBAR_MIN);
+  }, [sidebarWidth, windowWidth]);
+
   useEffect(() => {
     const read = () => setWindowWidth(window.innerWidth);
     read();
     window.addEventListener('resize', read);
     return () => window.removeEventListener('resize', read);
   }, []);
+
+  useEffect(() => {
+    if (dragWidth == null && sidebarWidth >= SIDEBAR_DEFAULT) {
+      lastOpenWidthRef.current = sidebarWidth;
+    }
+  }, [dragWidth, sidebarWidth]);
 
   useEffect(() => {
     document.documentElement.style.setProperty('--af-sidebar-width', `${sidebarWidth}px`);
@@ -329,6 +366,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
       isCollapsed,
       sidebarWidth,
       setSidebarWidth,
+      toggleRail,
       previewSidebar,
       meetings,
       setMeetings,

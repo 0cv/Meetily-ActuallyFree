@@ -60,6 +60,33 @@ pub struct PersonMeeting {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PersonGroupRef {
+    pub id: String,
+    pub name: String,
+    pub meeting_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonActionItem {
+    pub text: String,
+    pub meeting_id: String,
+    pub meeting_title: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonListItem {
+    pub id: String,
+    pub display_name: String,
+    pub meeting_count: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_seen_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PersonProfile {
     pub id: String,
     pub display_name: String,
@@ -73,6 +100,8 @@ pub struct PersonProfile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_seen_at: Option<String>,
     pub meetings: Vec<PersonMeeting>,
+    pub groups: Vec<PersonGroupRef>,
+    pub action_items: Vec<PersonActionItem>,
 }
 
 #[derive(Debug)]
@@ -340,9 +369,13 @@ impl PeopleRepository {
             .map(|meeting| meeting.speaking_seconds)
             .sum();
 
+        let display_name = person.1.clone();
+        let groups = person_groups(pool, person_id).await?;
+        let action_items = person_action_items(pool, person_id, &display_name).await?;
+
         Ok(PersonProfile {
             id: person.0,
-            display_name: person.1,
+            display_name,
             notes: person.2,
             meeting_count: meetings.len() as i64,
             message_count,
@@ -350,7 +383,52 @@ impl PeopleRepository {
             first_seen_at: meetings.last().map(|meeting| meeting.created_at.clone()),
             last_seen_at: meetings.first().map(|meeting| meeting.created_at.clone()),
             meetings,
+            groups,
+            action_items,
         })
+    }
+
+    /// After a meeting is saved, custom speaker names become contacts.
+    /// Generated labels such as "Speaker 1" stay unlinked until the user names them.
+    pub(crate) async fn link_named_speakers(
+        tx: &mut Transaction<'_, Sqlite>,
+        meeting_id: &str,
+    ) -> Result<(), sqlx::Error> {
+        let labels: Vec<String> = sqlx::query_scalar(
+            "SELECT DISTINCT speaker FROM transcripts \
+             WHERE meeting_id = ? AND speaker IS NOT NULL",
+        )
+        .bind(meeting_id)
+        .fetch_all(&mut **tx)
+        .await?;
+        for label in labels {
+            if is_person_name(&label) {
+                Self::reconcile_speaker_identity(tx, meeting_id, &label, &label).await?;
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn list_people(pool: &SqlitePool) -> Result<Vec<PersonListItem>, sqlx::Error> {
+        let rows = sqlx::query_as::<_, (String, String, i64, Option<String>)>(
+            "SELECT p.id, p.display_name, COUNT(DISTINCT ps.meeting_id), MAX(m.created_at) \
+             FROM people p \
+             LEFT JOIN person_speakers ps ON ps.person_id = p.id \
+             LEFT JOIN meetings m ON m.id = ps.meeting_id \
+             GROUP BY p.id, p.display_name \
+             ORDER BY p.display_name COLLATE NOCASE",
+        )
+        .fetch_all(pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|(id, display_name, meeting_count, last_seen_at)| PersonListItem {
+                id,
+                display_name,
+                meeting_count,
+                last_seen_at,
+            })
+            .collect())
     }
 
     pub async fn update_notes(
@@ -413,6 +491,67 @@ impl PeopleRepository {
         tx.commit().await?;
         Ok(SpeakerRenameOutcome {
             count,
+            speaker: resolved_to,
+            removed_name,
+        })
+    }
+
+    /// Move one transcript line to another speaker. Other lines that share the
+    /// old label stay where they are.
+    pub(crate) async fn reassign_transcript_speaker(
+        pool: &SqlitePool,
+        meeting_id: &str,
+        transcript_id: &str,
+        to: &str,
+    ) -> Result<SpeakerRenameOutcome, sqlx::Error> {
+        let to = to.trim();
+        let mut tx = pool.begin().await?;
+        let current: Option<String> = sqlx::query_scalar(
+            "SELECT speaker FROM transcripts WHERE id = ? AND meeting_id = ?",
+        )
+        .bind(transcript_id)
+        .bind(meeting_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some(from) = current else {
+            return Err(sqlx::Error::RowNotFound);
+        };
+        let removed_name = to.is_empty();
+        let resolved_to = if removed_name {
+            next_available_speaker_label(&mut tx, meeting_id).await?
+        } else {
+            to.to_string()
+        };
+
+        let result = sqlx::query(
+            "UPDATE transcripts SET speaker = ? WHERE id = ? AND meeting_id = ?",
+        )
+        .bind(&resolved_to)
+        .bind(transcript_id)
+        .bind(meeting_id)
+        .execute(&mut *tx)
+        .await?;
+
+        let remaining: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM transcripts WHERE meeting_id = ? AND speaker = ?",
+        )
+        .bind(meeting_id)
+        .bind(&from)
+        .fetch_one(&mut *tx)
+        .await?;
+        if remaining == 0 {
+            sqlx::query("DELETE FROM person_speakers WHERE meeting_id = ? AND speaker_label = ?")
+                .bind(meeting_id)
+                .bind(&from)
+                .execute(&mut *tx)
+                .await?;
+        }
+        if is_person_name(&resolved_to) {
+            ensure_label_identity(&mut tx, meeting_id, &resolved_to).await?;
+        }
+        tx.commit().await?;
+        Ok(SpeakerRenameOutcome {
+            count: result.rows_affected(),
             speaker: resolved_to,
             removed_name,
         })
@@ -587,6 +726,15 @@ pub async fn api_global_search(
 }
 
 #[tauri::command]
+pub async fn api_list_people(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<PersonListItem>, String> {
+    PeopleRepository::list_people(state.db_manager.pool())
+        .await
+        .map_err(|error| format!("Failed to list contacts: {}", error))
+}
+
+#[tauri::command]
 pub async fn api_get_person_profile(
     state: tauri::State<'_, AppState>,
     person_id: String,
@@ -611,6 +759,177 @@ pub async fn api_update_person_notes(
             sqlx::Error::RowNotFound => "Person not found".to_string(),
             _ => format!("Failed to update person notes: {}", error),
         })
+}
+
+async fn person_groups(
+    pool: &SqlitePool,
+    person_id: &str,
+) -> Result<Vec<PersonGroupRef>, sqlx::Error> {
+    let rows = sqlx::query_as::<_, (String, String, i64)>(
+        "SELECT g.id, g.name, COUNT(DISTINCT m.id) \
+         FROM person_speakers ps \
+         JOIN meetings m ON m.id = ps.meeting_id \
+         JOIN groups g ON g.id = m.group_id \
+         WHERE ps.person_id = ? \
+         GROUP BY g.id, g.name \
+         ORDER BY COUNT(DISTINCT m.id) DESC, g.name COLLATE NOCASE",
+    )
+    .bind(person_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(id, name, meeting_count)| PersonGroupRef {
+            id,
+            name,
+            meeting_count,
+        })
+        .collect())
+}
+
+async fn person_action_items(
+    pool: &SqlitePool,
+    person_id: &str,
+    display_name: &str,
+) -> Result<Vec<PersonActionItem>, sqlx::Error> {
+    let rows = sqlx::query_as::<_, (String, String, String, Option<String>)>(
+        "SELECT DISTINCT m.id, m.title, m.created_at, s.result \
+         FROM person_speakers ps \
+         JOIN meetings m ON m.id = ps.meeting_id \
+         LEFT JOIN summary_processes s ON s.meeting_id = m.id \
+         WHERE ps.person_id = ? \
+         ORDER BY m.created_at DESC",
+    )
+    .bind(person_id)
+    .fetch_all(pool)
+    .await?;
+    let mut items = Vec::new();
+    for (meeting_id, meeting_title, created_at, raw) in rows {
+        let Some(raw) = raw else { continue };
+        for text in action_lines_for_person(&raw, display_name) {
+            items.push(PersonActionItem {
+                text,
+                meeting_id: meeting_id.clone(),
+                meeting_title: meeting_title.clone(),
+                created_at: created_at.clone(),
+            });
+        }
+    }
+    Ok(items)
+}
+
+fn action_lines_for_person(raw: &str, display_name: &str) -> Vec<String> {
+    let needle = display_name.trim().to_lowercase();
+    if needle.is_empty() {
+        return Vec::new();
+    }
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) {
+        let mut lines = Vec::new();
+        collect_named_actions(&value, &needle, &mut lines);
+        if !lines.is_empty() {
+            return lines;
+        }
+    }
+    let Some(text) = visible_summary_text(raw) else {
+        return Vec::new();
+    };
+    let mut in_actions = false;
+    let mut lines = Vec::new();
+    for raw_line in text.lines() {
+        let line = raw_line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if line.starts_with('#') {
+            in_actions = line.to_lowercase().contains("action");
+            continue;
+        }
+        if !in_actions {
+            continue;
+        }
+        let item = line
+            .trim_start_matches(['-', '*', '•'])
+            .trim()
+            .trim_start_matches(|c: char| c.is_ascii_digit() || c == '.' || c == ')')
+            .trim();
+        if !item.is_empty() && item.to_lowercase().contains(&needle) {
+            lines.push(item.to_string());
+        }
+    }
+    lines
+}
+
+fn collect_named_actions(value: &serde_json::Value, needle: &str, out: &mut Vec<String>) {
+    let Some(object) = value.as_object() else {
+        return;
+    };
+    for (key, section) in object {
+        let title = section
+            .get("title")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
+        if !key.to_lowercase().contains("action") && !title.to_lowercase().contains("action") {
+            continue;
+        }
+        let Some(blocks) = section.get("blocks").and_then(serde_json::Value::as_array) else {
+            continue;
+        };
+        for block in blocks {
+            let Some(content) = block.get("content").and_then(serde_json::Value::as_str) else {
+                continue;
+            };
+            let content = content.trim();
+            if !content.is_empty() && content.to_lowercase().contains(needle) {
+                out.push(content.to_string());
+            }
+        }
+    }
+}
+
+async fn ensure_label_identity(
+    tx: &mut Transaction<'_, Sqlite>,
+    meeting_id: &str,
+    label: &str,
+) -> Result<(), sqlx::Error> {
+    let existing: Option<String> = sqlx::query_scalar(
+        "SELECT person_id FROM person_speakers WHERE meeting_id = ? AND speaker_label = ?",
+    )
+    .bind(meeting_id)
+    .bind(label)
+    .fetch_optional(&mut **tx)
+    .await?;
+    if existing.is_some() {
+        return Ok(());
+    }
+    let normalized = normalize_person_name(label);
+    let person_id = match find_person_by_normalized_name(tx, &normalized).await? {
+        Some(id) => id,
+        None => {
+            let id = format!("person-{}", Uuid::new_v4());
+            sqlx::query(
+                "INSERT INTO people \
+                 (id, display_name, normalized_name, notes, created_at, updated_at) \
+                 VALUES (?, ?, ?, NULL, datetime('now'), datetime('now'))",
+            )
+            .bind(&id)
+            .bind(label)
+            .bind(&normalized)
+            .execute(&mut **tx)
+            .await?;
+            id
+        }
+    };
+    sqlx::query(
+        "INSERT INTO person_speakers (person_id, meeting_id, speaker_label) \
+         VALUES (?, ?, ?) \
+         ON CONFLICT(meeting_id, speaker_label) DO UPDATE SET person_id = excluded.person_id",
+    )
+    .bind(person_id)
+    .bind(meeting_id)
+    .bind(label)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
 }
 
 pub(crate) fn normalize_person_name(name: &str) -> String {

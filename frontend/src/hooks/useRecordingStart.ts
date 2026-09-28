@@ -6,6 +6,7 @@ import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { useConfig } from '@/contexts/ConfigContext';
 import { useRecordingState, RecordingStatus } from '@/contexts/RecordingStateContext';
 import { recordingService } from '@/services/recordingService';
+import { pendingGroupTitle } from '@/lib/groups';
 import Analytics from '@/lib/analytics';
 import { showRecordingNotification } from '@/lib/recordingNotification';
 import { toast } from 'sonner';
@@ -174,7 +175,7 @@ export function useRecordingStart(
 
       console.log('Parakeet ready - setting up meeting title and state');
 
-      const randomTitle = generateMeetingTitle();
+      const randomTitle = pendingGroupTitle() || generateMeetingTitle();
       setMeetingTitle(randomTitle);
 
       // Model is ready; the remaining wait is audio device setup.
@@ -261,7 +262,7 @@ export function useRecordingStart(
           // Start the actual backend recording
           try {
             // Generate meeting title
-            const generatedMeetingTitle = generateMeetingTitle();
+            const generatedMeetingTitle = pendingGroupTitle() || generateMeetingTitle();
 
             // Set STARTING status before initiating backend recording
             setStatus(RecordingStatus.STARTING, 'Initializing recording...');
@@ -360,7 +361,7 @@ export function useRecordingStart(
 
       try {
         // Generate meeting title
-        const generatedMeetingTitle = generateMeetingTitle();
+        const generatedMeetingTitle = pendingGroupTitle() || generateMeetingTitle();
 
         // Set STARTING status before initiating backend recording
         setStatus(RecordingStatus.STARTING, 'Initializing recording...');

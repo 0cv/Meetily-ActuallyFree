@@ -91,6 +91,12 @@ impl TranscriptsRepository {
             meeting_id
         );
 
+        crate::database::repositories::person::PeopleRepository::link_named_speakers(
+            &mut transaction,
+            &meeting_id,
+        )
+        .await?;
+
         // Commit the transaction
         transaction.commit().await?;
 

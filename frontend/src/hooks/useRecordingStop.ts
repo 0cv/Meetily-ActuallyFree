@@ -266,6 +266,18 @@ export function useRecordingStop(
           );
 
           const meetingId = responseData.meeting_id;
+          if (meetingId) {
+            try {
+              const { readPendingGroup, writePendingGroup } = await import('@/lib/groups');
+              const pending = readPendingGroup();
+              if (pending) {
+                await invoke('api_set_meeting_group', { meetingId, groupId: pending.id });
+                writePendingGroup(null);
+              }
+            } catch (error) {
+              console.warn('Could not file this meeting into its group', error);
+            }
+          }
           if (!meetingId) {
             console.error('No meeting_id in response:', responseData);
             throw new Error('No meeting ID received from save operation');

@@ -1,3 +1,4 @@
+pub mod group;
 pub mod meeting;
 pub mod person;
 pub mod setting;
