@@ -53,7 +53,7 @@ export function AudioPlayerBar({
 
   if (status === 'unavailable' || status === 'error') {
     return (
-      <div className="flex h-11 items-center gap-2 border-t border-af-border px-4 text-xs text-af-text-3">
+      <div className="flex h-14 items-center gap-2 border-t border-af-border px-4 text-xs text-af-text-3">
         <VolumeX className="h-3.5 w-3.5 shrink-0" />
         {status === 'error' ? 'The recording could not be played.' : 'No audio was saved for this meeting.'}
       </div>
@@ -87,7 +87,8 @@ export function AudioPlayerBar({
     'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-af-text-2 transition-colors hover:bg-af-hover hover:text-af-text disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-af-accent/60';
 
   return (
-    <div className="flex h-12 items-center gap-1 border-t border-af-border bg-af-panel px-3">
+    // h-14 matches the sidebar footer, so their top borders line up.
+    <div className="flex h-14 items-center gap-1 border-t border-af-border bg-af-panel px-3">
       <Hint label="Back 10 seconds">
         <button type="button" className={button} onClick={() => audio.skip(-10)} disabled={status !== 'ready'} aria-label="Back 10 seconds">
           <RotateCcw className="h-4 w-4" />

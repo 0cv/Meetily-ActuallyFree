@@ -640,7 +640,8 @@ const Sidebar: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className={cn('mx-3 mt-auto shrink-0 border-t pb-3 pt-2 transition-colors', expanded ? 'border-af-border' : 'border-transparent')}>
+        {/* h-14 matches the meeting page's playback bar, so their top borders line up. */}
+        <div className={cn('mx-3 mt-auto flex h-14 shrink-0 flex-col justify-center border-t transition-colors', expanded ? 'border-af-border' : 'border-transparent')}>
           <RailTip show={!expanded} label="Settings">
             <button type="button" onClick={() => router.push('/settings')} className={navClass(isSettings)} aria-current={isSettings ? 'page' : undefined}>
               <RailIcon>
