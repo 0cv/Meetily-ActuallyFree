@@ -156,6 +156,9 @@ variants; the runtime payload must match the one validated in tests. Validate wi
 
 ## 6. Tests, qualification, and historical notes
 
+Live system-meter warnings are documented in
+[SYSTEM_AUDIO_LEVEL_ADVICE.md](SYSTEM_AUDIO_LEVEL_ADVICE.md).
+
 See [PR39_INTEGRATION.md](PR39_INTEGRATION.md) for capture-readiness, setup
 gating, quiet-speech and meeting-scoped speaker-edit recovery corrections.
 

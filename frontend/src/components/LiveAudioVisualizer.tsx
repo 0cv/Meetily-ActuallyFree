@@ -14,6 +14,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
+import { LOW_SYSTEM_AUDIO_MESSAGE, SystemAudioLevelMonitor } from '@/lib/system-audio-level';
 
 /**
  * Per-source live audio level sample emitted by the Rust audio pipeline
@@ -91,6 +92,9 @@ export function LiveAudioVisualizer({
   const previewMode = feedTick !== undefined;
   const [levels, setLevels] = useState<number[]>(() => new Array(bars).fill(0));
   const [limiterWarning, setLimiterWarning] = useState(false);
+  const [lowWarning, setLowWarning] = useState(false);
+  const lowMonitorRef = useRef(new SystemAudioLevelMonitor());
+  const lowClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const levelsRef = useRef<number[]>(new Array(bars).fill(0));
   const limiterStartedAtRef = useRef<number | null>(null);
   const limiterLastHitAtRef = useRef<number | null>(null);
@@ -115,6 +119,8 @@ export function LiveAudioVisualizer({
   useEffect(() => {
     if (previewMode) return;
     if (!active) {
+      lowMonitorRef.current.reset();
+      setLowWarning(false);
       const idle = new Array(bars).fill(0);
       levelsRef.current = idle;
       setLevels(idle);
@@ -143,6 +149,18 @@ export function LiveAudioVisualizer({
           next.push(level);
           levelsRef.current = next;
           setLevels(next);
+
+          if (source === 'system') {
+            // Native recording levels already include system gain. displayGain
+            // belongs to the device preview and must not amplify this check twice.
+            setLowWarning(lowMonitorRef.current.update(payload.rms, payload.peak, performance.now()));
+            if (lowClearTimerRef.current) clearTimeout(lowClearTimerRef.current);
+            // Some backends stop sending events during silence or device loss.
+            lowClearTimerRef.current = setTimeout(() => {
+              lowMonitorRef.current.reset();
+              setLowWarning(false);
+            }, 1000);
+          }
 
           if (source === 'system' && payload.limiter_hit) {
             const now = performance.now();
@@ -180,6 +198,12 @@ export function LiveAudioVisualizer({
     return () => {
       mounted = false;
       if (unlisten) unlisten();
+      if (lowClearTimerRef.current) {
+        clearTimeout(lowClearTimerRef.current);
+        lowClearTimerRef.current = null;
+      }
+      lowMonitorRef.current.reset();
+      setLowWarning(false);
       if (limiterClearTimerRef.current) {
         clearTimeout(limiterClearTimerRef.current);
         limiterClearTimerRef.current = null;
@@ -190,19 +214,21 @@ export function LiveAudioVisualizer({
   // Your voice in the accent color, everyone else in violet, amber when clipping.
   const barColor = !active
     ? 'var(--af-text-4)'
-    : limiterWarning
+    : limiterWarning || lowWarning
       ? 'var(--af-warning)'
       : source === 'mic'
         ? 'var(--af-accent)'
         : 'var(--af-c-violet)';
   const warningText = 'System audio is hitting the limiter. Lower system gain or playback volume.';
+  const warning = !previewMode && active && (limiterWarning || lowWarning);
+  const advice = limiterWarning ? warningText : LOW_SYSTEM_AUDIO_MESSAGE;
 
   return (
     <div
       className={`flex items-end gap-[2px] h-4 ${fill ? 'w-full' : ''} ${className}`}
       role="group"
-      aria-label={`${source === 'mic' ? 'Microphone' : 'System'} audio level${limiterWarning ? '. Too loud.' : ''}`}
-      title={limiterWarning ? warningText : undefined}
+      aria-label={`${source === 'mic' ? 'Microphone' : 'System'} audio level${warning ? limiterWarning ? '. Too loud.' : '. Very quiet.' : ''}`}
+      title={warning ? advice : undefined}
     >
       {levels.map((level, index) => {
         const shown = visualLevel(level, displayGain);
@@ -218,7 +244,9 @@ export function LiveAudioVisualizer({
         />
         );
       })}
-      {limiterWarning && <span role="status" className="sr-only">{warningText}</span>}
+      {warning && <span role="status" tabIndex={0} title={advice} aria-label={advice} className="shrink-0 self-center whitespace-nowrap text-[10px] font-medium text-[var(--af-warning)]">
+        {limiterWarning ? 'Too loud' : 'Low audio'}
+      </span>}
     </div>
   );
 }
