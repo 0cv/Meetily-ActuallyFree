@@ -28,6 +28,7 @@ interface CommandDialogProps extends DialogProps {
   contentClassName?: string
   title?: string
   showCloseButton?: boolean
+  anchor?: "center" | "top"
 }
 
 const CommandDialog = ({
@@ -36,6 +37,7 @@ const CommandDialog = ({
   contentClassName,
   title = "Command menu",
   showCloseButton = true,
+  anchor = "center",
   ...props
 }: CommandDialogProps) => {
   return (
@@ -43,6 +45,7 @@ const CommandDialog = ({
       <DialogContent
         className={cn("gap-0 overflow-hidden p-0", contentClassName)}
         showCloseButton={showCloseButton}
+        anchor={anchor}
       >
         <DialogTitle className="sr-only">{title}</DialogTitle>
         <Command {...commandProps} className={cn(commandProps?.className)}>

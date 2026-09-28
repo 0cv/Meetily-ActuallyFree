@@ -194,6 +194,13 @@ function searchResults(query: string) {
       }
     }
   }
+  for (const item of state.actionItems) {
+    const owner = item.ownerLabel ?? '';
+    if (!item.text.toLowerCase().includes(needle) && !owner.toLowerCase().includes(needle)) continue;
+    const entry = meeting(item.meetingId);
+    if (!entry) continue;
+    results.push({ kind: 'action', id: item.id, meetingId: entry.id, title: entry.title, snippet: item.text, speaker: item.ownerLabel ?? undefined, audioStartTime: item.audioTime ?? undefined, timestamp: entry.created_at });
+  }
   return results.slice(0, 40);
 }
 

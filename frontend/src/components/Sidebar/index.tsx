@@ -20,6 +20,7 @@ import {
   Check,
   ChevronDown,
   Contact,
+  Download,
   FolderInput,
   Layers,
   Library,
@@ -42,21 +43,20 @@ import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { useImportDialog } from '@/contexts/ImportDialogContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useRecordingClock } from '@/components/recording/RecordingPill';
-import { formatClock } from '@/lib/dates';
 import { cn } from '@/lib/utils';
-import { dateSection, formatDuration, formatShortDate, formatTime, parseDate } from '@/lib/dates';
+import { dateSection, formatClock, formatDuration, formatShortDate, formatTime, parseDate } from '@/lib/dates';
 import { displayTitle } from '@/lib/meeting-titles';
 import { writePendingGroup } from '@/lib/groups';
 import { deleteMeetings, moveMeetingsToGroup, renameMeeting } from '@/lib/meeting-actions';
 import { groupColorVar } from '@/lib/group-colors';
-import { createGroupFromPicker, GroupDot } from '@/components/groups/GroupBits';
+import { createGroupFromPicker, GroupDot, groupOptions } from '@/components/groups/GroupBits';
 import { openGroupEditor } from '@/components/groups/GroupEditor';
 import { Hint } from '@/components/ui/tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Kbd } from '@/components/ui/surface';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Combobox } from '@/components/ui/combobox';
-import { groupOptions } from '@/components/groups/GroupBits';
+import { ExportMeetingsDialog } from '@/components/meetings/ExportMeetingsDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -158,6 +158,7 @@ const Sidebar: React.FC = () => {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
   const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const selecting = selectedIds.size > 0;
 
@@ -617,6 +618,16 @@ const Sidebar: React.FC = () => {
                     </button>
                   }
                 />
+                <Hint label="Export">
+                  <button
+                    type="button"
+                    onClick={() => setExportOpen(true)}
+                    aria-label="Export selected meetings"
+                    className="flex h-8 w-9 items-center justify-center rounded-lg bg-af-panel-2 text-af-text-2 transition-colors hover:bg-af-hover hover:text-af-text"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </button>
+                </Hint>
                 <button
                   type="button"
                   onClick={() => setPendingDelete([...selectedIds])}
@@ -642,6 +653,14 @@ const Sidebar: React.FC = () => {
           </RailTip>
         </div>
       </div>
+
+      <ExportMeetingsDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        meetings={meetings
+          .filter((meeting) => selectedIds.has(meeting.id))
+          .map((meeting) => ({ ...meeting, groupName: groupById(meeting.group_id)?.name ?? null }))}
+      />
 
       <ConfirmDialog
         open={pendingDelete !== null}

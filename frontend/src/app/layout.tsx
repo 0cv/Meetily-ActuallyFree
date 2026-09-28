@@ -489,8 +489,8 @@ export default function RootLayout({
                           <AppTooltipGuard />
                           <RecordingPostProcessingProvider>
                             <UpdateCheckProvider onboardingCompleted={onboardingCompleted}>
-                              {onboardingCompleted && !showOnboarding && <GlobalSearchDialog />}
                               <ImportDialogProvider onOpen={handleOpenImportDialog}>
+                                {onboardingCompleted && !showOnboarding && <GlobalSearchDialog />}
                                 {/* Download progress toast provider - listens for background downloads */}
                                 <DownloadProgressToastProvider />
 

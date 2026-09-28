@@ -300,15 +300,29 @@ export default function PageContent({
   );
   const unidentified = speakers.filter((speaker) => isGeneratedLabel(speaker.label)).length;
 
-  // Deep link from search: load pages until the line is present, then show it.
+  // Deep link from search or an action item: the line itself, or the line
+  // spoken at the linked time. Load pages until it is present, then show it.
+  const focusLineId = useMemo(() => {
+    if (focusTranscriptId) return focusTranscriptId;
+    if (focusTime == null) return null;
+    let match: string | null = null;
+    for (const segment of transcriptSegments) {
+      if (segment.timestamp <= focusTime + 0.5) match = segment.id;
+      else break;
+    }
+    return match;
+  }, [focusTranscriptId, focusTime, transcriptSegments]);
   const focusAttempts = useRef(0);
   useEffect(() => {
-    if (!focusTranscriptId || !onLoadMore) return;
-    const present = transcriptSegments.some((segment) => segment.id === focusTranscriptId);
+    if (!onLoadMore || (!focusTranscriptId && focusTime == null)) return;
+    const last = transcriptSegments[transcriptSegments.length - 1];
+    const present = focusTranscriptId
+      ? transcriptSegments.some((segment) => segment.id === focusTranscriptId)
+      : !!last && (last.endTime ?? last.timestamp) >= (focusTime ?? 0);
     if (present || !hasMore || isLoadingMore || focusAttempts.current > 40) return;
     focusAttempts.current += 1;
     onLoadMore();
-  }, [focusTranscriptId, transcriptSegments, hasMore, isLoadingMore, onLoadMore]);
+  }, [focusTranscriptId, focusTime, transcriptSegments, hasMore, isLoadingMore, onLoadMore]);
 
   const focusedAudio = useRef(false);
   useEffect(() => {
@@ -441,7 +455,7 @@ export default function PageContent({
               playbackTime={audio.status === 'ready' && (audio.playing || audio.currentTime > 0) ? audio.currentTime : null}
               followPlayback={follow && audio.playing}
               onSeek={audio.status === 'ready' ? (seconds) => audio.seek(seconds, true) : undefined}
-              highlightSegmentId={focusTranscriptId ?? null}
+              highlightSegmentId={focusLineId}
               onSpeakerClick={(speaker, segmentId, anchor) => setCardTarget({ speaker, segmentId, rect: anchor.getBoundingClientRect() })}
               emptyState={<p className="mt-16 text-center text-sm text-af-text-3">This meeting has no transcript.</p>}
             />
