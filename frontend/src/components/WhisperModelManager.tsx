@@ -3,10 +3,10 @@ import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { Check, HardDrive, Target, Zap } from 'lucide-react';
 import {
   ModelInfo,
   ModelStatus,
-  getModelIcon,
   formatFileSize,
   getModelPerformanceBadge,
   isQuantizedModel,
@@ -181,7 +181,7 @@ export function ModelManager({
           // Clean up throttle data
           progressThrottleRef.current.delete(modelName);
 
-          toast.success(`${getModelIcon(model?.accuracy || 'Good')} ${displayName} ready!`, {
+          toast.success(`${displayName} ready`, {
             description: 'Model downloaded and ready to use',
             duration: 4000
           });
@@ -561,7 +561,6 @@ function ModelCard({
           <div className="flex-1">
             {/* Model Name and Tagline */}
             <div className="flex items-center gap-2 flex-wrap mb-2">
-              <span className="text-2xl">{getModelIcon(model.accuracy)}</span>
               <h3 className="font-semibold text-af-text">{displayName}</h3>
               <span className="text-sm text-af-text-3">•</span>
               <span className="text-sm text-af-text-3">{getModelTagline(model.name, model.speed, model.accuracy)}</span>
@@ -571,7 +570,7 @@ function ModelCard({
                   animate={{ scale: 1 }}
                   className="bg-af-accent text-af-on-accent px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1"
                 >
-                  ✓
+                  <Check className="h-3 w-3" />
                 </motion.span>
               )}
               {isQuantizedModel(model.name) && (
@@ -589,15 +588,15 @@ function ModelCard({
             {/* Model Specs */}
             <div className="flex items-center space-x-4 text-sm text-af-text-2 ml-9 mt-1.5">
               <span className="flex items-center space-x-1">
-                <span>📦</span>
+                <HardDrive className="h-3.5 w-3.5 text-af-text-4" />
                 <span>{formatFileSize(model.size_mb)}</span>
               </span>
               <span className="flex items-center space-x-1">
-                <span>🎯</span>
+                <Target className="h-3.5 w-3.5 text-af-text-4" />
                 <span>{model.accuracy} accuracy</span>
               </span>
               <span className="flex items-center space-x-1">
-                <span>⚡</span>
+                <Zap className="h-3.5 w-3.5 text-af-text-4" />
                 <span>{model.speed} processing</span>
               </span>
             </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Globe } from 'lucide-react';
+import { AlertTriangle, Globe, Info, Languages } from 'lucide-react';
 import Analytics from '@/lib/analytics';
 import { toast } from 'sonner';
 import { useConfig } from '@/contexts/ConfigContext';
@@ -202,9 +202,12 @@ export function LanguageSelection({
 
         {/* Parakeet language limitation warning */}
         {isParakeet && (
-          <div className="p-2 bg-af-warning/10 border border-af-warning/35 rounded text-af-text">
-            <p className="font-medium">ℹ️ Parakeet Language Support</p>
-            <p className="mt-1 text-xs">Parakeet currently only supports automatic language detection. Manual language selection is not available. Use Whisper if you need to specify a particular language.</p>
+          <div className="flex gap-2.5 rounded-lg border border-af-border bg-af-panel-2 px-3 py-2.5 text-xs text-af-text-2">
+            <Info className="mt-px h-4 w-4 shrink-0 text-af-text-3" />
+            <div>
+              <p className="font-medium text-af-text">Parakeet detects the language itself</p>
+              <p className="mt-0.5">It can't be set to a particular language. Use Whisper if you need to choose one.</p>
+            </div>
           </div>
         )}
 
@@ -214,15 +217,21 @@ export function LanguageSelection({
             <strong>Current:</strong> {selectedLanguageName}
           </p>
           {selectedLanguage === 'auto' && (
-            <div className="p-2 bg-af-warning/10 border border-af-warning/35 rounded text-af-text">
-              <p className="font-medium">⚠️ Auto Detect may produce incorrect results</p>
-              <p className="mt-1">For best accuracy, select your specific language (e.g., English, Spanish, etc.)</p>
+            <div className="flex gap-2.5 rounded-lg border border-af-warning/35 bg-af-warning/10 px-3 py-2.5 text-af-text-2">
+              <AlertTriangle className="mt-px h-4 w-4 shrink-0 text-af-warning" />
+              <div>
+                <p className="font-medium text-af-text">Auto detect can pick the wrong language</p>
+                <p className="mt-0.5">For the best accuracy, choose the language people speak.</p>
+              </div>
             </div>
           )}
           {selectedLanguage === 'auto-translate' && (
-            <div className="p-2 bg-af-accent/10 border border-af-accent/40 rounded text-af-accent">
-              <p className="font-medium">🌐 Translation Mode Active</p>
-              <p className="mt-1">All audio will be automatically translated to English. Best for multilingual meetings where you need English output.</p>
+            <div className="flex gap-2.5 rounded-lg border border-af-accent/35 bg-af-accent/10 px-3 py-2.5 text-af-text-2">
+              <Languages className="mt-px h-4 w-4 shrink-0 text-af-accent" />
+              <div>
+                <p className="font-medium text-af-text">Transcripts are translated to English</p>
+                <p className="mt-0.5">Useful for meetings in several languages when you want English notes.</p>
+              </div>
             </div>
           )}
           {selectedLanguage !== 'auto' && selectedLanguage !== 'auto-translate' && (

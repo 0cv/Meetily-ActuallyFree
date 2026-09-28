@@ -7,7 +7,7 @@ import { useOnboarding } from '@/contexts/OnboardingContext';
 import { usePlatform } from '@/hooks/usePlatform';
 import { MACOS_SYSTEM_AUDIO_VERIFIED_KEY } from '@/hooks/usePermissionCheck';
 import { OnboardingContainer } from '../OnboardingContainer';
-import { Mic, Volume2, RefreshCw } from 'lucide-react';
+import { Check, Mic, Volume2, RefreshCw } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface AudioDevice {
@@ -307,7 +307,14 @@ export function AudioTestStep() {
               <Mic size={16} className="text-af-accent" /> Microphone
             </span>
             <span className={micHeard ? 'text-af-success text-xs' : 'text-[var(--af-text-3)] text-xs'}>
-              {micHeard ? 'Heard you ✓' : 'Speak now…'}
+              {micHeard ? (
+                <span className="inline-flex items-center gap-1">
+                  <Check className="h-3.5 w-3.5" />
+                  Heard you
+                </span>
+              ) : (
+                'Speak now…'
+              )}
             </span>
           </div>
           {inputs.length > 0 ? (
@@ -324,7 +331,14 @@ export function AudioTestStep() {
               <Volume2 size={16} className="text-af-accent" /> System audio
             </span>
             <span className={sysHeard ? 'text-af-success text-xs' : 'text-[var(--af-text-3)] text-xs'}>
-              {sysHeard ? 'Detected ✓' : 'Play a video…'}
+              {sysHeard ? (
+                <span className="inline-flex items-center gap-1">
+                  <Check className="h-3.5 w-3.5" />
+                  Detected
+                </span>
+              ) : (
+                'Play a video…'
+              )}
             </span>
           </div>
           {isMacOS && outputs.length > 0 ? (
