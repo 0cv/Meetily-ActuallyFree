@@ -95,7 +95,10 @@ export function SpeakerIdentityDialog({
           : await invoke<{ speaker: string; count: number; removedName: boolean }>('rename_meeting_speaker', { meetingId, from: speaker, to: next });
       announceChange('people');
       if (result.removedName) {
-        toast.success('Name removed', { description: `Lines are now labelled ${result.speaker}.` });
+        const kept = people.some((person) => person.displayName.toLowerCase() === speaker.toLowerCase());
+        toast.success('Name removed', {
+          description: `Lines are now labelled ${result.speaker}.${kept ? ` ${speaker} is still in your contacts.` : ''}`,
+        });
       } else {
         const shown = result.speaker === 'You' ? displaySpeaker('You', userName) : result.speaker;
         toast.success(scope === 'line' ? `Line now attributed to ${shown}` : `${speaker} is now ${shown}`, {

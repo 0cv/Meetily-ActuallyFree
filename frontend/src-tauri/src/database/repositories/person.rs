@@ -876,8 +876,9 @@ impl PeopleRepository {
     }
 
     /// Relabeling changes transcript attribution and durable identity in one
-    /// transaction. A blank destination removes the identity assignment and
-    /// restores the lowest available meeting-local `Speaker N` label.
+    /// transaction. A blank destination unlinks the contact from this meeting
+    /// and restores the lowest available meeting-local `Speaker N` label; the
+    /// contact itself is kept.
     pub(crate) async fn rename_meeting_speaker(
         pool: &SqlitePool,
         meeting_id: &str,
@@ -907,7 +908,6 @@ impl PeopleRepository {
                 .bind(from)
                 .execute(&mut *tx)
                 .await?;
-            delete_orphan_people(&mut tx).await?;
         } else if count > 0 {
             Self::reconcile_speaker_identity(&mut tx, meeting_id, from, &resolved_to).await?;
         }
@@ -980,95 +980,27 @@ impl PeopleRepository {
         })
     }
 
+    /// Moves this meeting's link from label `from` to label `to`. A person name
+    /// joins the contact with that name, or adds one. The contact that `from`
+    /// pointed at is never renamed or deleted: it keeps its details and its
+    /// other meetings, and only loses this meeting's lines. Contacts go away
+    /// only when the user deletes or merges them.
     pub(crate) async fn reconcile_speaker_identity(
         tx: &mut Transaction<'_, Sqlite>,
         meeting_id: &str,
         from: &str,
         to: &str,
     ) -> Result<(), sqlx::Error> {
-        let current_person: Option<String> = sqlx::query_scalar(
-            "SELECT person_id FROM person_speakers WHERE meeting_id = ? AND speaker_label = ?",
-        )
-        .bind(meeting_id)
-        .bind(from)
-        .fetch_optional(&mut **tx)
-        .await?;
-
-        sqlx::query("DELETE FROM person_speakers WHERE meeting_id = ? AND speaker_label = ?")
-            .bind(meeting_id)
-            .bind(from)
-            .execute(&mut **tx)
-            .await?;
-
-        if !is_person_name(to) {
-            delete_orphan_people(tx).await?;
-            return Ok(());
+        if from != to {
+            sqlx::query("DELETE FROM person_speakers WHERE meeting_id = ? AND speaker_label = ?")
+                .bind(meeting_id)
+                .bind(from)
+                .execute(&mut **tx)
+                .await?;
         }
-
-        let normalized = normalize_person_name(to);
-        let named_person = find_person_by_normalized_name(tx, &normalized).await?;
-        // Removing this meeting/label mapping first lets us distinguish a truly
-        // private profile from a shared identity. Any surviving mapping, even a
-        // second alias in this same meeting, means changing the person row would
-        // silently rename records the dialog did not claim to edit.
-        let current_has_remaining_mappings = if let Some(current) = current_person.as_deref() {
-            let count: i64 =
-                sqlx::query_scalar("SELECT COUNT(*) FROM person_speakers WHERE person_id = ?")
-                    .bind(current)
-                    .fetch_one(&mut **tx)
-                    .await?;
-            count > 0
-        } else {
-            false
-        };
-
-        let person_id = match (current_person.as_deref(), named_person.as_deref()) {
-            // Exact-name auto-link: assigning a known name joins its existing
-            // profile instead of creating a duplicate person.
-            (_, Some(named)) => named.to_string(),
-            // The old person is now unreferenced, so it is safe to reuse its ID
-            // and preserve profile notes while changing the display name.
-            (Some(current), None) if !current_has_remaining_mappings => {
-                sqlx::query(
-                    "UPDATE people SET display_name = ?, normalized_name = ?, \
-                     updated_at = datetime('now') WHERE id = ?",
-                )
-                .bind(to)
-                .bind(&normalized)
-                .bind(current)
-                .execute(&mut **tx)
-                .await?;
-                current.to_string()
-            }
-            // Shared profiles split here. This keeps the rename meeting-local
-            // while leaving the other meetings attached to the original person.
-            _ => {
-                let id = format!("person-{}", Uuid::new_v4());
-                sqlx::query(
-                    "INSERT INTO people \
-                     (id, display_name, normalized_name, notes, created_at, updated_at) \
-                     VALUES (?, ?, ?, NULL, datetime('now'), datetime('now'))",
-                )
-                .bind(&id)
-                .bind(to)
-                .bind(&normalized)
-                .execute(&mut **tx)
-                .await?;
-                id
-            }
-        };
-
-        sqlx::query(
-            "INSERT INTO person_speakers (person_id, meeting_id, speaker_label) \
-             VALUES (?, ?, ?) \
-             ON CONFLICT(meeting_id, speaker_label) DO UPDATE SET person_id = excluded.person_id",
-        )
-        .bind(person_id)
-        .bind(meeting_id)
-        .bind(to)
-        .execute(&mut **tx)
-        .await?;
-        delete_orphan_people(tx).await?;
+        if is_person_name(to) {
+            ensure_label_identity(tx, meeting_id, to).await?;
+        }
         Ok(())
     }
 
@@ -1700,30 +1632,6 @@ fn format_audio_time(seconds: f64) -> String {
     format!("{:02}:{:02}", seconds / 60, seconds % 60)
 }
 
-#[allow(dead_code)]
-pub(crate) async fn clear_meeting_speaker_mappings(
-    tx: &mut Transaction<'_, Sqlite>,
-    meeting_id: &str,
-) -> Result<(), sqlx::Error> {
-    sqlx::query("DELETE FROM person_speakers WHERE meeting_id = ?")
-        .bind(meeting_id)
-        .execute(&mut **tx)
-        .await?;
-    delete_orphan_people(tx).await
-}
-
-/// Generated contacts disappear with their last speaker link. Contacts the user
-/// created or curated (details, notes, merges) are kept.
-async fn delete_orphan_people(tx: &mut Transaction<'_, Sqlite>) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "DELETE FROM people WHERE is_manual = 0 AND NOT EXISTS \
-         (SELECT 1 FROM person_speakers ps WHERE ps.person_id = people.id)",
-    )
-    .execute(&mut **tx)
-    .await?;
-    Ok(())
-}
-
 /// SQLite's built-in lower/LIKE folding is ASCII-only. Migration values remain
 /// compatible with SQL search, while this Rust fallback compares display names
 /// with Unicode lowercase before deciding that a new identity is necessary.
@@ -1756,9 +1664,9 @@ async fn find_person_by_normalized_name(
 #[cfg(test)]
 mod tests {
     use super::{
-        build_person_context, clear_meeting_speaker_mappings, escape_like, is_person_name,
-        normalize_person_name, visible_summary_text, PeopleRepository, PersonContextMeeting,
-        PersonContextMessage, PERSON_CONTEXT_CHARS,
+        build_person_context, escape_like, is_person_name, normalize_person_name,
+        visible_summary_text, PeopleRepository, PersonContextMeeting, PersonContextMessage,
+        PERSON_CONTEXT_CHARS,
     };
 
     #[test]
@@ -1863,7 +1771,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn meeting_local_rename_splits_shared_people_and_links_existing_names() {
+    async fn meeting_local_rename_links_or_adds_contacts_and_keeps_the_old_one() {
         let pool = sqlx::SqlitePool::connect(":memory:").await.unwrap();
         sqlx::raw_sql(
             "CREATE TABLE people (id TEXT PRIMARY KEY, display_name TEXT NOT NULL, \
@@ -1910,22 +1818,30 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(linked, "person-bob");
+        // Alicia no longer speaks anywhere but stays a contact.
         let alicia_count: i64 =
             sqlx::query_scalar("SELECT COUNT(*) FROM people WHERE normalized_name = 'alicia'")
                 .fetch_one(&pool)
                 .await
                 .unwrap();
-        assert_eq!(alicia_count, 0);
+        assert_eq!(alicia_count, 1);
 
+        // A new name for David's only lines adds a contact instead of renaming David.
         PeopleRepository::rename_meeting_speaker(&pool, "m4", "David", "Dave")
             .await
             .unwrap();
-        let renamed_id: String =
+        let m4_person: String =
             sqlx::query_scalar("SELECT person_id FROM person_speakers WHERE meeting_id = 'm4'")
                 .fetch_one(&pool)
                 .await
                 .unwrap();
-        assert_eq!(renamed_id, "person-david");
+        assert_ne!(m4_person, "person-david");
+        let david_name: String =
+            sqlx::query_scalar("SELECT display_name FROM people WHERE id = 'person-david'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(david_name, "David");
     }
 
     #[tokio::test]
@@ -2005,42 +1921,6 @@ mod tests {
             .unwrap();
         assert_eq!(linked, "person-elodie");
         assert_eq!(people, 1);
-    }
-
-    #[tokio::test]
-    async fn replacement_cleanup_removes_meeting_mappings_and_orphans() {
-        let pool = sqlx::SqlitePool::connect(":memory:").await.unwrap();
-        sqlx::raw_sql(
-            "CREATE TABLE people (id TEXT PRIMARY KEY, is_manual INTEGER NOT NULL DEFAULT 0); \
-             CREATE TABLE person_speakers (person_id TEXT NOT NULL, meeting_id TEXT NOT NULL, \
-                 speaker_label TEXT NOT NULL, UNIQUE(meeting_id, speaker_label)); \
-             INSERT INTO people (id) VALUES ('only-m1'), ('shared'); \
-             INSERT INTO person_speakers VALUES \
-                 ('only-m1', 'm1', 'Alice'), ('shared', 'm1', 'Bob'), ('shared', 'm2', 'Bob');",
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
-        let mut tx = pool.begin().await.unwrap();
-        clear_meeting_speaker_mappings(&mut tx, "m1").await.unwrap();
-        tx.commit().await.unwrap();
-
-        let m1_mappings: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM person_speakers WHERE meeting_id = 'm1'")
-                .fetch_one(&pool)
-                .await
-                .unwrap();
-        let orphan: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM people WHERE id = 'only-m1'")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-        let shared: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM people WHERE id = 'shared'")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-        assert_eq!(m1_mappings, 0);
-        assert_eq!(orphan, 0);
-        assert_eq!(shared, 1);
     }
 
     #[test]
@@ -2267,8 +2147,62 @@ mod tests {
         assert_eq!(mappings, 0);
     }
 
+    async fn person_link_count(pool: &sqlx::SqlitePool, person_id: &str) -> i64 {
+        sqlx::query_scalar("SELECT COUNT(*) FROM person_speakers WHERE person_id = ?")
+            .bind(person_id)
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    }
+
     #[tokio::test]
-    async fn hand_made_contacts_survive_orphan_cleanup() {
+    async fn unlinking_a_contacts_speech_keeps_the_contact() {
+        let pool = contacts_pool().await;
+
+        // Tom was named from a speaker label and only speaks in m1.
+        let removed = PeopleRepository::rename_meeting_speaker(&pool, "m1", "Tom", "").await.unwrap();
+        assert!(removed.removed_name);
+        assert_eq!(speaker_of(&pool, "t1").await, "Speaker 2");
+        let tom: (String, Option<String>) =
+            sqlx::query_as("SELECT display_name, notes FROM people WHERE id = 'p-tom'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(tom, ("Tom".to_string(), Some("Met at kickoff".to_string())));
+        assert_eq!(person_link_count(&pool, "p-tom").await, 0);
+
+        // Handing Thomas's only lines to Tom by mistake keeps Thomas, and undoing it relinks him.
+        PeopleRepository::rename_meeting_speaker(&pool, "m2", "Thomas Becker", "Tom").await.unwrap();
+        assert_eq!(person_link_count(&pool, "p-tom").await, 1);
+        assert_eq!(person_link_count(&pool, "p-thomas").await, 0);
+        let thomas: String = sqlx::query_scalar("SELECT display_name FROM people WHERE id = 'p-thomas'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(thomas, "Thomas Becker");
+        PeopleRepository::rename_meeting_speaker(&pool, "m2", "Tom", "Thomas Becker").await.unwrap();
+        assert_eq!(person_link_count(&pool, "p-thomas").await, 1);
+        assert_eq!(person_link_count(&pool, "p-tom").await, 0);
+
+        // Moving a contact's last line to someone else leaves the contact too.
+        PeopleRepository::reassign_transcript_speaker(&pool, "m2", "t3", "You").await.unwrap();
+        assert_eq!(person_link_count(&pool, "p-thomas").await, 0);
+        PeopleRepository::rename_meeting_speaker(&pool, "m2", "You", "").await.unwrap();
+
+        let people: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM people")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(people, 2);
+        let item_owner: Option<String> = sqlx::query_scalar("SELECT person_id FROM action_items WHERE id = 'a1'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(item_owner.as_deref(), Some("p-tom"));
+    }
+
+    #[tokio::test]
+    async fn hand_made_contacts_survive_speaker_changes() {
         let pool = contacts_pool().await;
         let created = PeopleRepository::create_person(
             &pool,
@@ -2283,7 +2217,6 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(created.meeting_count, 0);
-        // A meeting-local rename runs the orphan cleanup.
         PeopleRepository::rename_meeting_speaker(&pool, "m2", "You", "").await.unwrap();
         let exists: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM people WHERE id = ?")
             .bind(&created.id)

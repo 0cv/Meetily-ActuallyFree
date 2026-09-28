@@ -605,13 +605,6 @@ async fn delete_meeting_with_transaction(
         .execute(&mut *transaction)
         .await?;
 
-    // Curated contacts (created or edited by the user) outlive their meetings.
-    sqlx::query(
-        "DELETE FROM people WHERE is_manual = 0 AND NOT EXISTS \
-         (SELECT 1 FROM person_speakers ps WHERE ps.person_id = people.id)",
-    )
-    .execute(&mut *transaction)
-    .await?;
-
+    // Contacts outlive their meetings; only deleting the contact removes it.
     Ok(result.rows_affected() > 0)
 }
