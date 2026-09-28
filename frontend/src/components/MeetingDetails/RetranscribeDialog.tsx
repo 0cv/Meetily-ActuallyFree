@@ -26,6 +26,7 @@ import { useRouter } from 'next/navigation';
 import { LANGUAGES } from '@/constants/languages';
 import { useTranscriptionModels, ModelOption } from '@/hooks/useTranscriptionModels';
 import Analytics from '@/lib/analytics';
+import { announceChange } from '@/lib/workspace-api';
 
 interface RetranscribeDialogProps {
   open: boolean;
@@ -202,6 +203,7 @@ export function RetranscribeDialog({
             toast.success(
               `Retranscription complete! ${event.payload.segments_count} segments created.`
             );
+            announceChange('people');
             onCompleteRef.current?.();
             onOpenChangeRef.current(false);
           }

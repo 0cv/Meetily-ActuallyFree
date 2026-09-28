@@ -275,6 +275,10 @@ export function useRecordingStop(
 
           const meetingId = responseData.meeting_id;
           if (meetingId) {
+            // Saving turns names given during the call into contacts; the
+            // contact list is loaded once, so tell every screen to reload it.
+            announceChange('people');
+            announceChange('meetings', { meetingId });
             try {
               const { readPendingGroup, writePendingGroup } = await import('@/lib/groups');
               const pending = readPendingGroup();

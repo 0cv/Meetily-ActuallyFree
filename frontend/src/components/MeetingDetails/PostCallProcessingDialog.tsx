@@ -27,6 +27,7 @@ import { fieldClass } from '@/components/ui/input';
 import { PostCallHandoffCard } from '@/components/PostCallHandoffCard';
 import type { RawModelInfo } from '@/hooks/useTranscriptionModels';
 import { isVisibleParakeetModel } from '@/lib/parakeet';
+import { announceChange } from '@/lib/workspace-api';
 
 type Stage = 'idle' | 'prompt' | 'enhancing' | 'diarizing' | 'refreshing' | 'error';
 type FailedStage = 'enhancing' | 'diarizing' | 'pre-diarization-refresh' | 'post-diarization-refresh';
@@ -237,6 +238,8 @@ export function PostCallProcessingDialog({
     setStage('refreshing');
     setMessage('Refreshing the enhanced transcript...');
     await onRefetchTranscripts?.();
+    // The rerun links named speakers (and matched voices) to contacts.
+    announceChange('people');
   };
 
   const identifySpeakers = async (count: number | null) => {
