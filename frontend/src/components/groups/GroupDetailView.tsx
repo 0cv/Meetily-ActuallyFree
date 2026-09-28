@@ -303,7 +303,7 @@ export function GroupDetailView({ groupId }: { groupId: string }) {
                   {query.trim() ? 'No meetings match.' : 'No meetings yet. Record one, or add meetings you already have.'}
                 </p>
               ) : (
-                <ul className="-mx-1.5">
+                <ul className="af-appear -mx-1.5">
                   {detail.meetings.map((meeting) => {
                     const date = parseDate(meeting.createdAt);
                     return (
@@ -336,7 +336,7 @@ export function GroupDetailView({ groupId }: { groupId: string }) {
               ) : members.length === 0 ? (
                 <p className="py-2 text-[13px] leading-relaxed text-af-text-3">People show up once speakers in this group's meetings have names.</p>
               ) : (
-                <ul className="-mx-1.5">
+                <ul className="af-appear -mx-1.5">
                   {members.map((member) => (
                     <li key={member.personId}>
                       <Link

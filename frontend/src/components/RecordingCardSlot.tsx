@@ -17,7 +17,7 @@ export function RecordingCardSlot({ children }: { children: ReactNode }) {
           marginRight: 'calc(var(--af-speakers-width, 0px) + 0.5rem)',
         }}
       >
-        <div className="pointer-events-none flex w-full max-w-[42rem] justify-center">
+        <div className="af-appear pointer-events-none flex w-full max-w-[42rem] justify-center" style={{ '--af-i': 2 } as React.CSSProperties}>
           {children}
         </div>
       </div>

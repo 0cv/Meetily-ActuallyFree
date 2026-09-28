@@ -310,7 +310,7 @@ function PersonPageInner() {
               ) : profile.meetings.length === 0 ? (
                 <p className="py-2 text-[13px] text-af-text-3">Meetings appear here once {first || 'they'} are named as a speaker.</p>
               ) : (
-                <ul className="-mx-1.5">
+                <ul className="af-appear -mx-1.5">
                   {profile.meetings.map((meeting) => {
                     const date = parseDate(meeting.createdAt);
                     return (

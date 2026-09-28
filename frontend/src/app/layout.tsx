@@ -29,6 +29,7 @@ import { ImportDialogProvider } from '@/contexts/ImportDialogContext'
 import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioFormats'
 import { getPendingCrashReport, type PendingCrashReport } from '@/services/crashReportService'
 import { WorkspaceProvider } from '@/contexts/WorkspaceContext'
+import { RouteWarmup } from '@/components/RouteWarmup'
 import { RecordingPill } from '@/components/recording/RecordingPill'
 import { GroupEditorHost } from '@/components/groups/GroupEditor'
 
@@ -471,6 +472,7 @@ export default function RootLayout({
                             <UpdateCheckProvider onboardingCompleted={onboardingCompleted}>
                               <ImportDialogProvider onOpen={handleOpenImportDialog}>
                                 {onboardingCompleted && !showOnboarding && <GlobalSearchDialog />}
+                                {onboardingCompleted && !showOnboarding && <RouteWarmup />}
                                 {/* Download progress toast provider - listens for background downloads */}
                                 <DownloadProgressToastProvider />
 

@@ -295,13 +295,13 @@ export default function MeetingsPage() {
                   </button>
                 )}
               </div>
-              {sections.map((section) => (
+              {sections.map((section, sectionIndex) => (
                 <section key={section.title} className="mt-3 first:mt-1">
                   <h2 className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-af-text-4">
                     {section.title}
                     <span className="ml-2 font-normal normal-case tracking-normal tabular-nums">{section.meetings.length}</span>
                   </h2>
-                  <ul className="overflow-hidden rounded-xl border border-af-border bg-af-panel-2/40">
+                  <ul className="af-appear overflow-hidden rounded-xl border border-af-border bg-af-panel-2/40" style={{ '--af-i': sectionIndex } as React.CSSProperties}>
                     {section.meetings.map((meeting) => (
                       <LibraryRow
                         key={meeting.id}

@@ -144,7 +144,7 @@ function ContactsInner() {
           ) : shown.length === 0 ? (
             <EmptyState icon={<Search />} title="No one matches" description="Try part of a name, a company or an email." />
           ) : (
-            <ul className="overflow-hidden rounded-xl border border-af-border bg-af-panel-2/40">
+            <ul className="af-appear overflow-hidden rounded-xl border border-af-border bg-af-panel-2/40">
               {shown.map((person) => {
                 const seen = parseDate(person.lastSeenAt);
                 const checked = selected.has(person.id);

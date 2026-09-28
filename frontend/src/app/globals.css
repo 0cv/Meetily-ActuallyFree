@@ -446,6 +446,20 @@ html[data-sidebar-drag] .af-rail > * {
 }
 .af-settle { animation: af-settle 180ms var(--af-ease); }
 
+/* A page fading in as it opens (MainContent). Opacity only, so fixed
+   children such as the record card never shift. */
+@keyframes af-page-enter {
+  from { opacity: 0; }
+}
+.af-page-enter { animation: af-page-enter 200ms var(--af-ease) backwards; }
+
+/* Content that arrives after its page (lists replacing skeletons) rises in,
+   one row after another. Set --af-i on each row for the stagger. */
+.af-appear {
+  animation: af-settle 260ms var(--af-ease) backwards;
+  animation-delay: calc(min(var(--af-i, 0), 10) * 28ms);
+}
+
 @keyframes af-spin { to { transform: rotate(360deg); } }
 .af-spinner { animation: af-spin 0.7s linear infinite; }
 
@@ -705,6 +719,18 @@ html.minibar-window body {
   color: var(--af-text-4) !important;
 }
 
+/* The editor's block menus render into this page-level layer (see
+   components/editor/blocknote-menus.tsx). It takes no space; its menus are
+   fixed to the viewport above every panel. */
+.bn-container.af-blocknote-layer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0 !important;
+  height: 0;
+  z-index: 60;
+}
+
 /* Block menu, slash menu and formatting toolbar: the same surface, rows and
    motion as the app's own menus. */
 .bn-container.bn-shadcn .bn-menu-dropdown,
@@ -719,18 +745,6 @@ html.minibar-window body {
 }
 .bn-container.bn-shadcn .bn-menu-dropdown,
 .bn-container.bn-shadcn .bn-suggestion-menu { padding: 4px; gap: 1px; }
-/* The editor's block menus render into this page-level layer (see
-   components/editor/blocknote-menus.tsx). It takes no space; its menus are
-   fixed to the viewport above every panel. */
-.bn-container.af-blocknote-layer {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 0 !important;
-  height: 0;
-  z-index: 60;
-}
-
 /* Slash menu rows: BlockNote repeats the row class on the icon, title and
    subtitle, so rows are matched by role. */
 .bn-container.bn-shadcn .bn-menu-item,
@@ -855,6 +869,8 @@ html.minibar-window body {
 @media (prefers-reduced-motion: reduce) {
   .af-text-reveal { transition: none; }
   .af-settle { animation: none; }
+  .af-page-enter,
+  .af-appear { animation: none; }
   .af-name-scroll { animation: none !important; }
   .af-spinner { animation-duration: 1.4s; }
   .af-skeleton { animation: none; }

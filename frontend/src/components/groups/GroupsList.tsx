@@ -83,7 +83,7 @@ export function GroupsList() {
                 <span>Next</span>
                 <span />
               </div>
-              <ul className="divide-y divide-af-border overflow-hidden rounded-xl border border-af-border">
+              <ul className="af-appear divide-y divide-af-border overflow-hidden rounded-xl border border-af-border">
                 {sorted.map((group) => (
                   <GroupRow key={group.id} group={group} next={nextMeeting.get(group.id) ?? null} />
                 ))}

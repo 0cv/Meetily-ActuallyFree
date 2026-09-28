@@ -402,7 +402,8 @@ function MeetingDetailsContent() {
             detail="Getting the transcript ready."
           />
         ) : (
-          <div className="flex h-screen items-center justify-center">
+          // Shown only if loading takes a moment; quick loads go straight to the meeting.
+          <div className="af-appear flex h-screen items-center justify-center" style={{ '--af-i': 10 } as React.CSSProperties}>
             <Spinner className="h-6 w-6 text-[var(--af-text-2)]" />
           </div>
         )}
@@ -437,7 +438,7 @@ function MeetingDetailsContent() {
 export default function MeetingDetails() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center h-screen">
+      <div className="af-appear flex h-screen items-center justify-center" style={{ '--af-i': 10 } as React.CSSProperties}>
         <Spinner className="h-6 w-6 text-[var(--af-text-2)]" />
       </div>
     }>

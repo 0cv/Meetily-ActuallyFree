@@ -23,7 +23,9 @@ const MainContent: React.FC<MainContentProps> = ({ children }) => {
       }`}
       style={{ marginLeft: 'var(--af-sidebar-width, 16rem)' }}
     >
-      <div className={`h-full min-w-0 min-h-0 overflow-hidden ${chat ? '' : 'pl-4 sm:pl-6 lg:pl-8'}`}>
+      {/* Keyed by page so each page fades in when opened. Opacity only: a
+          transform here would move the fixed record card while it runs. */}
+      <div key={pathname} className={`af-page-enter h-full min-w-0 min-h-0 overflow-hidden ${chat ? '' : 'pl-4 sm:pl-6 lg:pl-8'}`}>
         {children}
       </div>
     </main>
