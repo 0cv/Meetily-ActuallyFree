@@ -94,8 +94,8 @@ const GROUPS: Array<{ title: string; features: Feature[] }> = [
         icon: Fingerprint,
         title: 'Voice profiles',
         description:
-          "Learn a contact's voice from a meeting they spoke in. When speakers are identified in later meetings, a matching voice gets their name.",
-        where: "Learn or forget a voice on the contact's page.",
+          "Learn a contact's voice from the meetings they spoke in. When speakers are identified in later meetings, a matching voice gets their name.",
+        where: "Learn, update or forget a voice on a contact's page, or add one meeting's audio from its speaker card.",
       },
     ],
   },
