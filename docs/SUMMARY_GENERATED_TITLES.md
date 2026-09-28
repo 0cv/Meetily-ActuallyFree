@@ -27,3 +27,11 @@ quality depends on the selected model following the summary template.
 Verification: all three `generated_title` native CPU regression tests passed on
 Windows. This validates extraction and persistence/ownership; it is not a live
 summary-provider quality benchmark.
+
+The corrected CPU/Vulkan/CUDA candidate was rebuilt as v0.2.18 (no extra version
+bump), passed the Windows payload verifier and was installed locally. Its CUDA
+executable matched the packaged hash; startup, enabled Nemotron, SQLite integrity,
+existing meeting/transcript records, models and preferences were verified after
+the upgrade. The app was reopened without debugging flags. The correction is
+installed locally, not a published release; no live provider title-quality test
+was performed during this qualification.
