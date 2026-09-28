@@ -28,7 +28,7 @@ import { TranscriptSegmentData } from '@/types';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import { cleanTranscriptText } from '@/lib/labs';
-import { displaySpeaker, isUserSpeaker, speakerColor, speakerColorIndexMap, speakerDot, speakerKey } from '@/utils/speakerUtils';
+import { displaySpeaker, isUserSpeaker, speakerColor, speakerColorIndexMap, speakerColorValue, speakerDot, speakerKey } from '@/utils/speakerUtils';
 
 /**
  * How line text is shown. `tidy` drops filler words (the default); with Labs
@@ -229,10 +229,12 @@ const TurnRow = memo(function TurnRow({
         <div
           className={cn(
             'rounded-2xl border px-3.5 py-2 transition-[box-shadow,border-color,background-color] duration-200',
-            isYou ? 'rounded-tr-md border-af-accent/25 bg-af-accent/[0.12]' : 'rounded-tl-md border-af-border bg-af-panel-2',
+            // Others' bubbles carry a faint wash of their colour (globals.css).
+            isYou ? 'rounded-tr-md border-af-accent/25 bg-af-accent/[0.12]' : 'af-speaker-bubble rounded-tl-md',
             active && 'border-af-accent/60 shadow-[0_0_0_3px_rgb(var(--af-accent-rgb)/0.14)]',
             flash && 'animate-af-flash',
           )}
+          style={isYou ? undefined : ({ '--chip': speakerColorValue(speaker, colorIndex) } as React.CSSProperties)}
         >
           <p className={cn('text-sm leading-relaxed text-af-text', isStreaming && 'opacity-80')}>{shown}</p>
         </div>

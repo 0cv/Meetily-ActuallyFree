@@ -496,6 +496,16 @@ html[data-sidebar-drag] .af-rail > * {
   to { background-position: -200% 0; }
 }
 
+/* A transcript bubble from someone else: a faint wash of the speaker's colour
+   (--chip, from speakerColorValue). In the components layer so the playing
+   line's highlight still wins. */
+@layer components {
+  .af-speaker-bubble {
+    background-color: color-mix(in srgb, var(--chip, var(--af-text-4)) 7%, var(--af-panel-2));
+    border-color: color-mix(in srgb, var(--chip, var(--af-text-4)) 24%, var(--af-border));
+  }
+}
+
 /* A user-chosen group color. Set --chip on the element (see GroupChip). */
 .af-tint {
   color: var(--chip);
