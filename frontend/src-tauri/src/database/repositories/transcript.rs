@@ -265,6 +265,10 @@ pub(crate) fn is_default_meeting_title(title: &str) -> bool {
     if matches!(title, "+ New Call" | "New Meeting") {
         return true;
     }
+    // Current format: "Meeting · Mon, Sep 28 · 2:30 PM" (see lib/meeting-titles.ts).
+    if title.starts_with("Meeting · ") {
+        return true;
+    }
 
     let Some(timestamp) = title.strip_prefix("Meeting ") else {
         return false;

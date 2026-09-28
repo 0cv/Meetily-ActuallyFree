@@ -571,6 +571,16 @@ async fn delete_meeting_with_transaction(
         .execute(&mut *transaction)
         .await?;
 
+    sqlx::query("DELETE FROM action_items WHERE meeting_id = ?")
+        .bind(meeting_id)
+        .execute(&mut *transaction)
+        .await?;
+
+    sqlx::query("DELETE FROM meeting_notes WHERE meeting_id = ?")
+        .bind(meeting_id)
+        .execute(&mut *transaction)
+        .await?;
+
     // 1. Delete from transcript_chunks
     sqlx::query("DELETE FROM transcript_chunks WHERE meeting_id = ?")
         .bind(meeting_id)
@@ -595,8 +605,9 @@ async fn delete_meeting_with_transaction(
         .execute(&mut *transaction)
         .await?;
 
+    // Curated contacts (created or edited by the user) outlive their meetings.
     sqlx::query(
-        "DELETE FROM people WHERE NOT EXISTS \
+        "DELETE FROM people WHERE is_manual = 0 AND NOT EXISTS \
          (SELECT 1 FROM person_speakers ps WHERE ps.person_id = people.id)",
     )
     .execute(&mut *transaction)

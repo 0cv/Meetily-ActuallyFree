@@ -6,12 +6,13 @@
 //! normalized custom names intentionally auto-link across meetings. All profile
 //! and AI queries join through that mapping instead of guessing from label text.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::{Sqlite, SqlitePool, Transaction};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use uuid::Uuid;
 
+use super::action_item::{ActionItemFilter, ActionItemView, ActionItemsRepository};
 use crate::state::AppState;
 
 const DEFAULT_SEARCH_LIMIT: i64 = 40;
@@ -44,6 +45,10 @@ pub struct GlobalSearchResult {
     pub audio_start_time: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub meeting_count: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -63,16 +68,9 @@ pub struct PersonMeeting {
 pub struct PersonGroupRef {
     pub id: String,
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
     pub meeting_count: i64,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PersonActionItem {
-    pub text: String,
-    pub meeting_id: String,
-    pub meeting_title: String,
-    pub created_at: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -80,9 +78,33 @@ pub struct PersonActionItem {
 pub struct PersonListItem {
     pub id: String,
     pub display_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub company: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub phone: Option<String>,
     pub meeting_count: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_seen_at: Option<String>,
+    pub groups: Vec<PersonGroupRef>,
+}
+
+/// Contact details the user can edit. Updates send the full state.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonInput {
+    pub display_name: String,
+    #[serde(default)]
+    pub email: Option<String>,
+    #[serde(default)]
+    pub company: Option<String>,
+    #[serde(default)]
+    pub role: Option<String>,
+    #[serde(default)]
+    pub phone: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -92,6 +114,14 @@ pub struct PersonProfile {
     pub display_name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub company: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub phone: Option<String>,
     pub meeting_count: i64,
     pub message_count: i64,
     pub total_speaking_seconds: f64,
@@ -101,7 +131,8 @@ pub struct PersonProfile {
     pub last_seen_at: Option<String>,
     pub meetings: Vec<PersonMeeting>,
     pub groups: Vec<PersonGroupRef>,
-    pub action_items: Vec<PersonActionItem>,
+    /// Items this person owns, each linked back to its meeting.
+    pub action_items: Vec<ActionItemView>,
 }
 
 #[derive(Debug)]
@@ -183,6 +214,8 @@ impl PeopleRepository {
                     speaker: None,
                     audio_start_time: None,
                     meeting_count: Some(meeting_count),
+                    group_id: None,
+                    color: None,
                 },
             });
         }
@@ -213,6 +246,8 @@ impl PeopleRepository {
                     speaker: None,
                     audio_start_time: None,
                     meeting_count: None,
+                    group_id: None,
+                    color: None,
                 },
             });
         }
@@ -261,6 +296,8 @@ impl PeopleRepository {
                     speaker,
                     audio_start_time,
                     meeting_count: None,
+                    group_id: None,
+                    color: None,
                 },
             });
         }
@@ -297,6 +334,77 @@ impl PeopleRepository {
                     speaker: None,
                     audio_start_time: None,
                     meeting_count: None,
+                    group_id: None,
+                    color: None,
+                },
+            });
+        }
+
+        let groups = sqlx::query_as::<_, (String, String, Option<String>, i64)>(
+            "SELECT g.id, g.name, g.color, (SELECT COUNT(*) FROM meetings m WHERE m.group_id = g.id) \
+             FROM groups g WHERE g.normalized_name LIKE ? ESCAPE '\\' LIMIT ?",
+        )
+        .bind(&like_query)
+        .bind(limit)
+        .fetch_all(pool)
+        .await?;
+
+        for (id, name, color, meeting_count) in groups {
+            ranked.push(RankedResult {
+                score: match_quality(&normalize_person_name(&name), &normalized_query) + 1,
+                sort_time: String::new(),
+                result: GlobalSearchResult {
+                    kind: "group".to_string(),
+                    id: id.clone(),
+                    meeting_id: None,
+                    person_id: None,
+                    transcript_id: None,
+                    title: name,
+                    snippet: format!(
+                        "{} meeting{}",
+                        meeting_count,
+                        if meeting_count == 1 { "" } else { "s" }
+                    ),
+                    timestamp: None,
+                    speaker: None,
+                    audio_start_time: None,
+                    meeting_count: Some(meeting_count),
+                    group_id: Some(id),
+                    color,
+                },
+            });
+        }
+
+        let actions = sqlx::query_as::<_, (String, String, String, String, String, Option<String>, Option<f64>)>(
+            "SELECT a.id, a.meeting_id, m.title, m.created_at, a.text, a.owner_label, a.audio_time \
+             FROM action_items a JOIN meetings m ON m.id = a.meeting_id \
+             WHERE lower(a.text) LIKE ? ESCAPE '\\' OR lower(COALESCE(a.owner_label, '')) LIKE ? ESCAPE '\\' \
+             ORDER BY a.done, m.created_at DESC LIMIT ?",
+        )
+        .bind(&like_query)
+        .bind(&like_query)
+        .bind(limit)
+        .fetch_all(pool)
+        .await?;
+
+        for (id, meeting_id, title, created_at, text, owner, audio_time) in actions {
+            ranked.push(RankedResult {
+                score: 18,
+                sort_time: created_at.clone(),
+                result: GlobalSearchResult {
+                    kind: "action".to_string(),
+                    id,
+                    meeting_id: Some(meeting_id),
+                    person_id: None,
+                    transcript_id: None,
+                    title,
+                    snippet: text,
+                    timestamp: Some(created_at),
+                    speaker: owner,
+                    audio_start_time: audio_time,
+                    meeting_count: None,
+                    group_id: None,
+                    color: None,
                 },
             });
         }
@@ -315,8 +423,19 @@ impl PeopleRepository {
         pool: &SqlitePool,
         person_id: &str,
     ) -> Result<PersonProfile, sqlx::Error> {
-        let person = sqlx::query_as::<_, (String, String, Option<String>)>(
-            "SELECT id, display_name, notes FROM people WHERE id = ?",
+        let person = sqlx::query_as::<
+            _,
+            (
+                String,
+                String,
+                Option<String>,
+                Option<String>,
+                Option<String>,
+                Option<String>,
+                Option<String>,
+            ),
+        >(
+            "SELECT id, display_name, notes, email, company, role, phone FROM people WHERE id = ?",
         )
         .bind(person_id)
         .fetch_optional(pool)
@@ -369,14 +488,24 @@ impl PeopleRepository {
             .map(|meeting| meeting.speaking_seconds)
             .sum();
 
-        let display_name = person.1.clone();
         let groups = person_groups(pool, person_id).await?;
-        let action_items = person_action_items(pool, person_id, &display_name).await?;
+        let action_items = ActionItemsRepository::list(
+            pool,
+            &ActionItemFilter {
+                person_id: Some(person_id.to_string()),
+                ..Default::default()
+            },
+        )
+        .await?;
 
         Ok(PersonProfile {
             id: person.0,
-            display_name,
+            display_name: person.1,
             notes: person.2,
+            email: person.3,
+            company: person.4,
+            role: person.5,
+            phone: person.6,
             meeting_count: meetings.len() as i64,
             message_count,
             total_speaking_seconds,
@@ -410,8 +539,21 @@ impl PeopleRepository {
     }
 
     pub async fn list_people(pool: &SqlitePool) -> Result<Vec<PersonListItem>, sqlx::Error> {
-        let rows = sqlx::query_as::<_, (String, String, i64, Option<String>)>(
-            "SELECT p.id, p.display_name, COUNT(DISTINCT ps.meeting_id), MAX(m.created_at) \
+        let rows = sqlx::query_as::<
+            _,
+            (
+                String,
+                String,
+                Option<String>,
+                Option<String>,
+                Option<String>,
+                Option<String>,
+                i64,
+                Option<String>,
+            ),
+        >(
+            "SELECT p.id, p.display_name, p.email, p.company, p.role, p.phone, \
+                    COUNT(DISTINCT ps.meeting_id), MAX(m.created_at) \
              FROM people p \
              LEFT JOIN person_speakers ps ON ps.person_id = p.id \
              LEFT JOIN meetings m ON m.id = ps.meeting_id \
@@ -420,15 +562,292 @@ impl PeopleRepository {
         )
         .fetch_all(pool)
         .await?;
+
+        let group_rows = sqlx::query_as::<_, (String, String, String, Option<String>, i64)>(
+            "SELECT ps.person_id, g.id, g.name, g.color, COUNT(DISTINCT m.id) \
+             FROM person_speakers ps \
+             JOIN meetings m ON m.id = ps.meeting_id \
+             JOIN groups g ON g.id = m.group_id \
+             GROUP BY ps.person_id, g.id \
+             ORDER BY COUNT(DISTINCT m.id) DESC, g.name COLLATE NOCASE",
+        )
+        .fetch_all(pool)
+        .await?;
+        let mut groups_by_person: HashMap<String, Vec<PersonGroupRef>> = HashMap::new();
+        for (person_id, id, name, color, meeting_count) in group_rows {
+            groups_by_person.entry(person_id).or_default().push(PersonGroupRef {
+                id,
+                name,
+                color,
+                meeting_count,
+            });
+        }
+
         Ok(rows
             .into_iter()
-            .map(|(id, display_name, meeting_count, last_seen_at)| PersonListItem {
-                id,
-                display_name,
-                meeting_count,
-                last_seen_at,
-            })
+            .map(
+                |(id, display_name, email, company, role, phone, meeting_count, last_seen_at)| {
+                    PersonListItem {
+                        groups: groups_by_person.remove(&id).unwrap_or_default(),
+                        id,
+                        display_name,
+                        email,
+                        company,
+                        role,
+                        phone,
+                        meeting_count,
+                        last_seen_at,
+                    }
+                },
+            )
             .collect())
+    }
+
+    async fn list_item(pool: &SqlitePool, person_id: &str) -> Result<PersonListItem, sqlx::Error> {
+        Self::list_people(pool)
+            .await?
+            .into_iter()
+            .find(|person| person.id == person_id)
+            .ok_or(sqlx::Error::RowNotFound)
+    }
+
+    /// A contact added by hand, before they have spoken in any meeting.
+    pub async fn create_person(
+        pool: &SqlitePool,
+        input: PersonInput,
+    ) -> Result<PersonListItem, sqlx::Error> {
+        let name = input.display_name.trim().to_string();
+        if !is_person_name(&name) {
+            return Err(sqlx::Error::Protocol("Enter a name for the contact".into()));
+        }
+        let normalized = normalize_person_name(&name);
+        let mut tx = pool.begin().await?;
+        if find_person_by_normalized_name(&mut tx, &normalized).await?.is_some() {
+            return Err(sqlx::Error::Protocol(format!("A contact named \"{}\" already exists", name)));
+        }
+        let id = format!("person-{}", Uuid::new_v4());
+        sqlx::query(
+            "INSERT INTO people (id, display_name, normalized_name, notes, email, company, role, phone, \
+             is_manual, created_at, updated_at) \
+             VALUES (?, ?, ?, NULL, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))",
+        )
+        .bind(&id)
+        .bind(&name)
+        .bind(&normalized)
+        .bind(clean_field(input.email))
+        .bind(clean_field(input.company))
+        .bind(clean_field(input.role))
+        .bind(clean_field(input.phone))
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Self::list_item(pool, &id).await
+    }
+
+    /// Edits a contact. A new name is applied to every meeting the person
+    /// spoke in, so transcripts, summaries on regeneration, and search agree.
+    pub async fn update_person(
+        pool: &SqlitePool,
+        person_id: &str,
+        input: PersonInput,
+    ) -> Result<PersonListItem, sqlx::Error> {
+        let name = input.display_name.trim().to_string();
+        if !is_person_name(&name) {
+            return Err(sqlx::Error::Protocol("Enter a name for the contact".into()));
+        }
+        let normalized = normalize_person_name(&name);
+        let mut tx = pool.begin().await?;
+        let current: String = sqlx::query_scalar("SELECT display_name FROM people WHERE id = ?")
+            .bind(person_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)?;
+        if let Some(other) = find_person_by_normalized_name(&mut tx, &normalized).await? {
+            if other != person_id {
+                return Err(sqlx::Error::Protocol(format!(
+                    "Another contact is already named \"{}\". Merge them instead.",
+                    name
+                )));
+            }
+        }
+
+        sqlx::query(
+            "UPDATE people SET display_name = ?, normalized_name = ?, email = ?, company = ?, role = ?, \
+             phone = ?, is_manual = 1, updated_at = datetime('now') WHERE id = ?",
+        )
+        .bind(&name)
+        .bind(&normalized)
+        .bind(clean_field(input.email))
+        .bind(clean_field(input.company))
+        .bind(clean_field(input.role))
+        .bind(clean_field(input.phone))
+        .bind(person_id)
+        .execute(&mut *tx)
+        .await?;
+
+        if current != name {
+            relabel_person(&mut tx, person_id, &name).await?;
+        }
+        tx.commit().await?;
+        Self::list_item(pool, person_id).await
+    }
+
+    /// Folds `source` into `target`: every meeting, action item, and note of
+    /// the duplicate ends up on the contact that is kept.
+    pub async fn merge_people(
+        pool: &SqlitePool,
+        source_id: &str,
+        target_id: &str,
+    ) -> Result<PersonListItem, sqlx::Error> {
+        if source_id == target_id {
+            return Err(sqlx::Error::Protocol("Choose two different contacts to merge".into()));
+        }
+        let mut tx = pool.begin().await?;
+        let source = sqlx::query_as::<
+            _,
+            (Option<String>, Option<String>, Option<String>, Option<String>, Option<String>),
+        >("SELECT notes, email, company, role, phone FROM people WHERE id = ?")
+        .bind(source_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(sqlx::Error::RowNotFound)?;
+        let target = sqlx::query_as::<
+            _,
+            (String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>),
+        >("SELECT display_name, notes, email, company, role, phone FROM people WHERE id = ?")
+        .bind(target_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(sqlx::Error::RowNotFound)?;
+        let target_name = target.0.clone();
+
+        let mappings = sqlx::query_as::<_, (String, String)>(
+            "SELECT meeting_id, speaker_label FROM person_speakers WHERE person_id = ?",
+        )
+        .bind(source_id)
+        .fetch_all(&mut *tx)
+        .await?;
+        for (meeting_id, label) in mappings {
+            // If the target already spoke in this meeting, the two labels become one.
+            let target_label: Option<String> = sqlx::query_scalar(
+                "SELECT speaker_label FROM person_speakers WHERE person_id = ? AND meeting_id = ? LIMIT 1",
+            )
+            .bind(target_id)
+            .bind(&meeting_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+            let new_label = target_label.unwrap_or_else(|| target_name.clone());
+            let taken_by_other: Option<String> = sqlx::query_scalar(
+                "SELECT person_id FROM person_speakers WHERE meeting_id = ? AND speaker_label = ? \
+                 AND person_id NOT IN (?, ?)",
+            )
+            .bind(&meeting_id)
+            .bind(&new_label)
+            .bind(source_id)
+            .bind(target_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+            let new_label = if taken_by_other.is_some() { label.clone() } else { new_label };
+
+            sqlx::query("DELETE FROM person_speakers WHERE person_id = ? AND meeting_id = ? AND speaker_label = ?")
+                .bind(source_id)
+                .bind(&meeting_id)
+                .bind(&label)
+                .execute(&mut *tx)
+                .await?;
+            if new_label != label {
+                sqlx::query("UPDATE transcripts SET speaker = ? WHERE meeting_id = ? AND speaker = ?")
+                    .bind(&new_label)
+                    .bind(&meeting_id)
+                    .bind(&label)
+                    .execute(&mut *tx)
+                    .await?;
+            }
+            sqlx::query(
+                "INSERT INTO person_speakers (person_id, meeting_id, speaker_label) VALUES (?, ?, ?) \
+                 ON CONFLICT(meeting_id, speaker_label) DO UPDATE SET person_id = excluded.person_id",
+            )
+            .bind(target_id)
+            .bind(&meeting_id)
+            .bind(&new_label)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        sqlx::query("UPDATE action_items SET person_id = ?, owner_label = ?, updated_at = datetime('now') WHERE person_id = ?")
+            .bind(target_id)
+            .bind(&target_name)
+            .bind(source_id)
+            .execute(&mut *tx)
+            .await?;
+
+        let merged_notes = match (target.1.filter(|n| !n.trim().is_empty()), source.0.filter(|n| !n.trim().is_empty())) {
+            (Some(kept), Some(extra)) => Some(format!("{}\n\n{}", kept, extra)),
+            (kept, extra) => kept.or(extra),
+        };
+        sqlx::query(
+            "UPDATE people SET notes = ?, email = COALESCE(email, ?), company = COALESCE(company, ?), \
+             role = COALESCE(role, ?), phone = COALESCE(phone, ?), is_manual = 1, updated_at = datetime('now') \
+             WHERE id = ?",
+        )
+        .bind(merged_notes)
+        .bind(source.1)
+        .bind(source.2)
+        .bind(source.3)
+        .bind(source.4)
+        .bind(target_id)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query("DELETE FROM people WHERE id = ?")
+            .bind(source_id)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Self::list_item(pool, target_id).await
+    }
+
+    /// Removes a contact. Each meeting keeps its lines, relabelled with the
+    /// lowest free `Speaker N`, and their action items stay but are unlinked.
+    pub async fn delete_person(pool: &SqlitePool, person_id: &str) -> Result<(), sqlx::Error> {
+        let mut tx = pool.begin().await?;
+        let exists: Option<String> = sqlx::query_scalar("SELECT id FROM people WHERE id = ?")
+            .bind(person_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+        if exists.is_none() {
+            return Err(sqlx::Error::RowNotFound);
+        }
+        let mappings = sqlx::query_as::<_, (String, String)>(
+            "SELECT meeting_id, speaker_label FROM person_speakers WHERE person_id = ?",
+        )
+        .bind(person_id)
+        .fetch_all(&mut *tx)
+        .await?;
+        for (meeting_id, label) in mappings {
+            sqlx::query("DELETE FROM person_speakers WHERE person_id = ? AND meeting_id = ? AND speaker_label = ?")
+                .bind(person_id)
+                .bind(&meeting_id)
+                .bind(&label)
+                .execute(&mut *tx)
+                .await?;
+            let generated = next_available_speaker_label(&mut tx, &meeting_id).await?;
+            sqlx::query("UPDATE transcripts SET speaker = ? WHERE meeting_id = ? AND speaker = ?")
+                .bind(&generated)
+                .bind(&meeting_id)
+                .bind(&label)
+                .execute(&mut *tx)
+                .await?;
+        }
+        sqlx::query("UPDATE action_items SET person_id = NULL WHERE person_id = ?")
+            .bind(person_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("DELETE FROM people WHERE id = ?")
+            .bind(person_id)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(())
     }
 
     pub async fn update_notes(
@@ -441,8 +860,12 @@ impl PeopleRepository {
             (!trimmed.is_empty()).then(|| trimmed.to_string())
         });
         let result =
-            sqlx::query("UPDATE people SET notes = ?, updated_at = datetime('now') WHERE id = ?")
-                .bind(notes)
+            sqlx::query(
+                "UPDATE people SET notes = ?, is_manual = CASE WHEN ? IS NOT NULL THEN 1 ELSE is_manual END, \
+                 updated_at = datetime('now') WHERE id = ?",
+            )
+                .bind(&notes)
+                .bind(&notes)
                 .bind(person_id)
                 .execute(pool)
                 .await?;
@@ -761,12 +1184,90 @@ pub async fn api_update_person_notes(
         })
 }
 
+fn person_error(action: &str, error: sqlx::Error) -> String {
+    match error {
+        sqlx::Error::RowNotFound => "Contact not found".to_string(),
+        sqlx::Error::Protocol(message) => message,
+        other => format!("Failed to {}: {}", action, other),
+    }
+}
+
+#[tauri::command]
+pub async fn api_create_person(
+    state: tauri::State<'_, AppState>,
+    display_name: String,
+    email: Option<String>,
+    company: Option<String>,
+    role: Option<String>,
+    phone: Option<String>,
+) -> Result<PersonListItem, String> {
+    PeopleRepository::create_person(
+        state.db_manager.pool(),
+        PersonInput {
+            display_name,
+            email,
+            company,
+            role,
+            phone,
+        },
+    )
+    .await
+    .map_err(|error| person_error("create contact", error))
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn api_update_person(
+    state: tauri::State<'_, AppState>,
+    person_id: String,
+    display_name: String,
+    email: Option<String>,
+    company: Option<String>,
+    role: Option<String>,
+    phone: Option<String>,
+) -> Result<PersonListItem, String> {
+    PeopleRepository::update_person(
+        state.db_manager.pool(),
+        &person_id,
+        PersonInput {
+            display_name,
+            email,
+            company,
+            role,
+            phone,
+        },
+    )
+    .await
+    .map_err(|error| person_error("update contact", error))
+}
+
+#[tauri::command]
+pub async fn api_merge_people(
+    state: tauri::State<'_, AppState>,
+    source_id: String,
+    target_id: String,
+) -> Result<PersonListItem, String> {
+    PeopleRepository::merge_people(state.db_manager.pool(), &source_id, &target_id)
+        .await
+        .map_err(|error| person_error("merge contacts", error))
+}
+
+#[tauri::command]
+pub async fn api_delete_person(
+    state: tauri::State<'_, AppState>,
+    person_id: String,
+) -> Result<(), String> {
+    PeopleRepository::delete_person(state.db_manager.pool(), &person_id)
+        .await
+        .map_err(|error| person_error("delete contact", error))
+}
+
 async fn person_groups(
     pool: &SqlitePool,
     person_id: &str,
 ) -> Result<Vec<PersonGroupRef>, sqlx::Error> {
-    let rows = sqlx::query_as::<_, (String, String, i64)>(
-        "SELECT g.id, g.name, COUNT(DISTINCT m.id) \
+    let rows = sqlx::query_as::<_, (String, String, Option<String>, i64)>(
+        "SELECT g.id, g.name, g.color, COUNT(DISTINCT m.id) \
          FROM person_speakers ps \
          JOIN meetings m ON m.id = ps.meeting_id \
          JOIN groups g ON g.id = m.group_id \
@@ -779,111 +1280,13 @@ async fn person_groups(
     .await?;
     Ok(rows
         .into_iter()
-        .map(|(id, name, meeting_count)| PersonGroupRef {
+        .map(|(id, name, color, meeting_count)| PersonGroupRef {
             id,
             name,
+            color,
             meeting_count,
         })
         .collect())
-}
-
-async fn person_action_items(
-    pool: &SqlitePool,
-    person_id: &str,
-    display_name: &str,
-) -> Result<Vec<PersonActionItem>, sqlx::Error> {
-    let rows = sqlx::query_as::<_, (String, String, String, Option<String>)>(
-        "SELECT DISTINCT m.id, m.title, m.created_at, s.result \
-         FROM person_speakers ps \
-         JOIN meetings m ON m.id = ps.meeting_id \
-         LEFT JOIN summary_processes s ON s.meeting_id = m.id \
-         WHERE ps.person_id = ? \
-         ORDER BY m.created_at DESC",
-    )
-    .bind(person_id)
-    .fetch_all(pool)
-    .await?;
-    let mut items = Vec::new();
-    for (meeting_id, meeting_title, created_at, raw) in rows {
-        let Some(raw) = raw else { continue };
-        for text in action_lines_for_person(&raw, display_name) {
-            items.push(PersonActionItem {
-                text,
-                meeting_id: meeting_id.clone(),
-                meeting_title: meeting_title.clone(),
-                created_at: created_at.clone(),
-            });
-        }
-    }
-    Ok(items)
-}
-
-fn action_lines_for_person(raw: &str, display_name: &str) -> Vec<String> {
-    let needle = display_name.trim().to_lowercase();
-    if needle.is_empty() {
-        return Vec::new();
-    }
-    if let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) {
-        let mut lines = Vec::new();
-        collect_named_actions(&value, &needle, &mut lines);
-        if !lines.is_empty() {
-            return lines;
-        }
-    }
-    let Some(text) = visible_summary_text(raw) else {
-        return Vec::new();
-    };
-    let mut in_actions = false;
-    let mut lines = Vec::new();
-    for raw_line in text.lines() {
-        let line = raw_line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        if line.starts_with('#') {
-            in_actions = line.to_lowercase().contains("action");
-            continue;
-        }
-        if !in_actions {
-            continue;
-        }
-        let item = line
-            .trim_start_matches(['-', '*', '•'])
-            .trim()
-            .trim_start_matches(|c: char| c.is_ascii_digit() || c == '.' || c == ')')
-            .trim();
-        if !item.is_empty() && item.to_lowercase().contains(&needle) {
-            lines.push(item.to_string());
-        }
-    }
-    lines
-}
-
-fn collect_named_actions(value: &serde_json::Value, needle: &str, out: &mut Vec<String>) {
-    let Some(object) = value.as_object() else {
-        return;
-    };
-    for (key, section) in object {
-        let title = section
-            .get("title")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("");
-        if !key.to_lowercase().contains("action") && !title.to_lowercase().contains("action") {
-            continue;
-        }
-        let Some(blocks) = section.get("blocks").and_then(serde_json::Value::as_array) else {
-            continue;
-        };
-        for block in blocks {
-            let Some(content) = block.get("content").and_then(serde_json::Value::as_str) else {
-                continue;
-            };
-            let content = content.trim();
-            if !content.is_empty() && content.to_lowercase().contains(needle) {
-                out.push(content.to_string());
-            }
-        }
-    }
 }
 
 async fn ensure_label_identity(
@@ -929,6 +1332,77 @@ async fn ensure_label_identity(
     .bind(label)
     .execute(&mut **tx)
     .await?;
+    Ok(())
+}
+
+fn clean_field(value: Option<String>) -> Option<String> {
+    value.and_then(|text| {
+        let trimmed = text.trim();
+        (!trimmed.is_empty()).then(|| trimmed.to_string())
+    })
+}
+
+/// Applies a person's new display name to every meeting they are linked in.
+/// A meeting where another speaker already uses that label keeps the old one.
+async fn relabel_person(
+    tx: &mut Transaction<'_, Sqlite>,
+    person_id: &str,
+    name: &str,
+) -> Result<(), sqlx::Error> {
+    let mappings = sqlx::query_as::<_, (String, String)>(
+        "SELECT meeting_id, speaker_label FROM person_speakers WHERE person_id = ?",
+    )
+    .bind(person_id)
+    .fetch_all(&mut **tx)
+    .await?;
+    for (meeting_id, label) in mappings {
+        if label == name {
+            continue;
+        }
+        let taken: Option<String> = sqlx::query_scalar(
+            "SELECT person_id FROM person_speakers WHERE meeting_id = ? AND speaker_label = ?",
+        )
+        .bind(&meeting_id)
+        .bind(name)
+        .fetch_optional(&mut **tx)
+        .await?;
+        match taken {
+            Some(owner) if owner != person_id => continue,
+            Some(_) => {
+                sqlx::query(
+                    "DELETE FROM person_speakers WHERE person_id = ? AND meeting_id = ? AND speaker_label = ?",
+                )
+                .bind(person_id)
+                .bind(&meeting_id)
+                .bind(&label)
+                .execute(&mut **tx)
+                .await?;
+            }
+            None => {
+                sqlx::query(
+                    "UPDATE person_speakers SET speaker_label = ? \
+                     WHERE person_id = ? AND meeting_id = ? AND speaker_label = ?",
+                )
+                .bind(name)
+                .bind(person_id)
+                .bind(&meeting_id)
+                .bind(&label)
+                .execute(&mut **tx)
+                .await?;
+            }
+        }
+        sqlx::query("UPDATE transcripts SET speaker = ? WHERE meeting_id = ? AND speaker = ?")
+            .bind(name)
+            .bind(&meeting_id)
+            .bind(&label)
+            .execute(&mut **tx)
+            .await?;
+    }
+    sqlx::query("UPDATE action_items SET owner_label = ? WHERE person_id = ?")
+        .bind(name)
+        .bind(person_id)
+        .execute(&mut **tx)
+        .await?;
     Ok(())
 }
 
@@ -1238,9 +1712,11 @@ pub(crate) async fn clear_meeting_speaker_mappings(
     delete_orphan_people(tx).await
 }
 
+/// Generated contacts disappear with their last speaker link. Contacts the user
+/// created or curated (details, notes, merges) are kept.
 async fn delete_orphan_people(tx: &mut Transaction<'_, Sqlite>) -> Result<(), sqlx::Error> {
     sqlx::query(
-        "DELETE FROM people WHERE NOT EXISTS \
+        "DELETE FROM people WHERE is_manual = 0 AND NOT EXISTS \
          (SELECT 1 FROM person_speakers ps WHERE ps.person_id = people.id)",
     )
     .execute(&mut **tx)
@@ -1392,11 +1868,11 @@ mod tests {
         sqlx::raw_sql(
             "CREATE TABLE people (id TEXT PRIMARY KEY, display_name TEXT NOT NULL, \
                  normalized_name TEXT NOT NULL UNIQUE, notes TEXT, created_at TEXT NOT NULL, \
-                 updated_at TEXT NOT NULL); \
+                 updated_at TEXT NOT NULL, is_manual INTEGER NOT NULL DEFAULT 0); \
              CREATE TABLE person_speakers (person_id TEXT NOT NULL, meeting_id TEXT NOT NULL, \
                  speaker_label TEXT NOT NULL, UNIQUE(meeting_id, speaker_label)); \
              CREATE TABLE transcripts (id TEXT PRIMARY KEY, meeting_id TEXT NOT NULL, speaker TEXT); \
-             INSERT INTO people VALUES \
+             INSERT INTO people (id, display_name, normalized_name, notes, created_at, updated_at) VALUES \
                  ('person-alice', 'Alice', 'alice', NULL, 'now', 'now'), \
                  ('person-bob', 'Bob', 'bob', NULL, 'now', 'now'), \
                  ('person-david', 'David', 'david', NULL, 'now', 'now'); \
@@ -1458,11 +1934,11 @@ mod tests {
         sqlx::raw_sql(
             "CREATE TABLE people (id TEXT PRIMARY KEY, display_name TEXT NOT NULL, \
                  normalized_name TEXT NOT NULL UNIQUE, notes TEXT, created_at TEXT NOT NULL, \
-                 updated_at TEXT NOT NULL); \
+                 updated_at TEXT NOT NULL, is_manual INTEGER NOT NULL DEFAULT 0); \
              CREATE TABLE person_speakers (person_id TEXT NOT NULL, meeting_id TEXT NOT NULL, \
                  speaker_label TEXT NOT NULL, UNIQUE(meeting_id, speaker_label)); \
              CREATE TABLE transcripts (id TEXT PRIMARY KEY, meeting_id TEXT NOT NULL, speaker TEXT); \
-             INSERT INTO people VALUES ('person-carol', 'Carol', 'carol', NULL, 'now', 'now'); \
+             INSERT INTO people (id, display_name, normalized_name, notes, created_at, updated_at) VALUES ('person-carol', 'Carol', 'carol', NULL, 'now', 'now'); \
              INSERT INTO person_speakers VALUES \
                  ('person-carol', 'm1', 'Carol'), ('person-carol', 'm1', 'C.'); \
              INSERT INTO transcripts VALUES ('t1', 'm1', 'Carol'), ('t2', 'm1', 'C.');",
@@ -1504,11 +1980,11 @@ mod tests {
         sqlx::raw_sql(
             "CREATE TABLE people (id TEXT PRIMARY KEY, display_name TEXT NOT NULL, \
                  normalized_name TEXT NOT NULL UNIQUE, notes TEXT, created_at TEXT NOT NULL, \
-                 updated_at TEXT NOT NULL); \
+                 updated_at TEXT NOT NULL, is_manual INTEGER NOT NULL DEFAULT 0); \
              CREATE TABLE person_speakers (person_id TEXT NOT NULL, meeting_id TEXT NOT NULL, \
                  speaker_label TEXT NOT NULL, UNIQUE(meeting_id, speaker_label)); \
              CREATE TABLE transcripts (id TEXT PRIMARY KEY, meeting_id TEXT NOT NULL, speaker TEXT); \
-             INSERT INTO people VALUES ('person-elodie', 'Élodie', 'Élodie', NULL, 'now', 'now'); \
+             INSERT INTO people (id, display_name, normalized_name, notes, created_at, updated_at) VALUES ('person-elodie', 'Élodie', 'Élodie', NULL, 'now', 'now'); \
              INSERT INTO transcripts VALUES ('t1', 'm1', 'Speaker 1');",
         )
         .execute(&pool)
@@ -1535,10 +2011,10 @@ mod tests {
     async fn replacement_cleanup_removes_meeting_mappings_and_orphans() {
         let pool = sqlx::SqlitePool::connect(":memory:").await.unwrap();
         sqlx::raw_sql(
-            "CREATE TABLE people (id TEXT PRIMARY KEY); \
+            "CREATE TABLE people (id TEXT PRIMARY KEY, is_manual INTEGER NOT NULL DEFAULT 0); \
              CREATE TABLE person_speakers (person_id TEXT NOT NULL, meeting_id TEXT NOT NULL, \
                  speaker_label TEXT NOT NULL, UNIQUE(meeting_id, speaker_label)); \
-             INSERT INTO people VALUES ('only-m1'), ('shared'); \
+             INSERT INTO people (id) VALUES ('only-m1'), ('shared'); \
              INSERT INTO person_speakers VALUES \
                  ('only-m1', 'm1', 'Alice'), ('shared', 'm1', 'Bob'), ('shared', 'm2', 'Bob');",
         )
@@ -1597,7 +2073,7 @@ mod tests {
     async fn removing_name_uses_available_local_label_and_unlinks_person() {
         let pool = sqlx::SqlitePool::connect(":memory:").await.unwrap();
         sqlx::raw_sql(
-            "CREATE TABLE people (id TEXT PRIMARY KEY); \
+            "CREATE TABLE people (id TEXT PRIMARY KEY, is_manual INTEGER NOT NULL DEFAULT 0); \
              CREATE TABLE person_speakers (person_id TEXT NOT NULL, meeting_id TEXT NOT NULL, \
                  speaker_label TEXT NOT NULL, UNIQUE(meeting_id, speaker_label)); \
              CREATE TABLE transcripts (id TEXT PRIMARY KEY, meeting_id TEXT NOT NULL, speaker TEXT); \
@@ -1643,5 +2119,189 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(people_count, 1);
+    }
+
+    use super::PersonInput;
+
+    async fn contacts_pool() -> sqlx::SqlitePool {
+        let pool = sqlx::SqlitePool::connect(":memory:").await.unwrap();
+        sqlx::raw_sql(
+            "CREATE TABLE meetings (id TEXT PRIMARY KEY, title TEXT NOT NULL DEFAULT '', \
+                 created_at TEXT NOT NULL DEFAULT '2026-09-01', group_id TEXT); \
+             CREATE TABLE groups (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT); \
+             CREATE TABLE people (id TEXT PRIMARY KEY, display_name TEXT NOT NULL, \
+                 normalized_name TEXT NOT NULL UNIQUE, notes TEXT, email TEXT, company TEXT, role TEXT, \
+                 phone TEXT, is_manual INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT 'now', \
+                 updated_at TEXT NOT NULL DEFAULT 'now'); \
+             CREATE TABLE person_speakers (person_id TEXT NOT NULL, meeting_id TEXT NOT NULL, \
+                 speaker_label TEXT NOT NULL, UNIQUE(meeting_id, speaker_label)); \
+             CREATE TABLE transcripts (id TEXT PRIMARY KEY, meeting_id TEXT NOT NULL, speaker TEXT); \
+             CREATE TABLE action_items (id TEXT PRIMARY KEY, meeting_id TEXT NOT NULL, text TEXT NOT NULL, \
+                 owner_label TEXT, person_id TEXT, updated_at TEXT NOT NULL DEFAULT 'now'); \
+             INSERT INTO meetings (id) VALUES ('m1'), ('m2'); \
+             INSERT INTO people (id, display_name, normalized_name, notes) VALUES \
+                 ('p-tom', 'Tom', 'tom', 'Met at kickoff'), ('p-thomas', 'Thomas Becker', 'thomas becker', NULL); \
+             INSERT INTO person_speakers VALUES ('p-tom', 'm1', 'Tom'), ('p-thomas', 'm2', 'Thomas Becker'); \
+             INSERT INTO transcripts VALUES ('t1', 'm1', 'Tom'), ('t2', 'm1', 'Speaker 1'), \
+                 ('t3', 'm2', 'Thomas Becker'), ('t4', 'm2', 'You'); \
+             INSERT INTO action_items (id, meeting_id, text, owner_label, person_id) VALUES \
+                 ('a1', 'm1', 'Send the contract', 'Tom', 'p-tom');",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        pool
+    }
+
+    async fn speaker_of(pool: &sqlx::SqlitePool, transcript_id: &str) -> String {
+        sqlx::query_scalar("SELECT speaker FROM transcripts WHERE id = ?")
+            .bind(transcript_id)
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn renaming_a_contact_relabels_every_meeting_and_owner() {
+        let pool = contacts_pool().await;
+        let updated = PeopleRepository::update_person(
+            &pool,
+            "p-tom",
+            PersonInput {
+                display_name: "Tom Becker".into(),
+                email: Some(" tom@acme.test ".into()),
+                company: None,
+                role: None,
+                phone: None,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(updated.display_name, "Tom Becker");
+        assert_eq!(updated.email.as_deref(), Some("tom@acme.test"));
+        assert_eq!(speaker_of(&pool, "t1").await, "Tom Becker");
+        assert_eq!(speaker_of(&pool, "t2").await, "Speaker 1");
+        let owner: String = sqlx::query_scalar("SELECT owner_label FROM action_items WHERE id = 'a1'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(owner, "Tom Becker");
+
+        // A name another contact already uses is refused with a merge hint.
+        let clash = PeopleRepository::update_person(
+            &pool,
+            "p-tom",
+            PersonInput {
+                display_name: "thomas becker".into(),
+                email: None,
+                company: None,
+                role: None,
+                phone: None,
+            },
+        )
+        .await;
+        assert!(matches!(clash, Err(sqlx::Error::Protocol(message)) if message.contains("Merge")));
+    }
+
+    #[tokio::test]
+    async fn merging_moves_meetings_items_and_notes_to_the_kept_contact() {
+        let pool = contacts_pool().await;
+        let kept = PeopleRepository::merge_people(&pool, "p-tom", "p-thomas").await.unwrap();
+        assert_eq!(kept.id, "p-thomas");
+        assert_eq!(kept.meeting_count, 2);
+        assert_eq!(speaker_of(&pool, "t1").await, "Thomas Becker");
+        let item_owner: (String, String) =
+            sqlx::query_as("SELECT person_id, owner_label FROM action_items WHERE id = 'a1'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(item_owner, ("p-thomas".to_string(), "Thomas Becker".to_string()));
+        let notes: Option<String> = sqlx::query_scalar("SELECT notes FROM people WHERE id = 'p-thomas'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(notes.as_deref(), Some("Met at kickoff"));
+        let gone: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM people WHERE id = 'p-tom'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(gone, 0);
+    }
+
+    #[tokio::test]
+    async fn merging_two_labels_from_one_meeting_joins_them() {
+        let pool = contacts_pool().await;
+        sqlx::raw_sql(
+            "INSERT INTO person_speakers VALUES ('p-tom', 'm2', 'Tom'); \
+             INSERT INTO transcripts VALUES ('t5', 'm2', 'Tom');",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        PeopleRepository::merge_people(&pool, "p-tom", "p-thomas").await.unwrap();
+        assert_eq!(speaker_of(&pool, "t5").await, "Thomas Becker");
+        let labels: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM person_speakers WHERE meeting_id = 'm2' AND person_id = 'p-thomas'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(labels, 1);
+    }
+
+    #[tokio::test]
+    async fn deleting_a_contact_restores_generated_labels() {
+        let pool = contacts_pool().await;
+        PeopleRepository::delete_person(&pool, "p-tom").await.unwrap();
+        // "Speaker 1" is taken in m1, so the next free label is used.
+        assert_eq!(speaker_of(&pool, "t1").await, "Speaker 2");
+        let person: Option<String> = sqlx::query_scalar("SELECT person_id FROM action_items WHERE id = 'a1'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(person, None);
+        let mappings: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM person_speakers WHERE person_id = 'p-tom'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(mappings, 0);
+    }
+
+    #[tokio::test]
+    async fn hand_made_contacts_survive_orphan_cleanup() {
+        let pool = contacts_pool().await;
+        let created = PeopleRepository::create_person(
+            &pool,
+            PersonInput {
+                display_name: "Sam Rivera".into(),
+                email: None,
+                company: Some("Acme".into()),
+                role: None,
+                phone: None,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(created.meeting_count, 0);
+        // A meeting-local rename runs the orphan cleanup.
+        PeopleRepository::rename_meeting_speaker(&pool, "m2", "You", "").await.unwrap();
+        let exists: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM people WHERE id = ?")
+            .bind(&created.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(exists, 1);
+        let duplicate = PeopleRepository::create_person(
+            &pool,
+            PersonInput {
+                display_name: "sam rivera".into(),
+                email: None,
+                company: None,
+                role: None,
+                phone: None,
+            },
+        )
+        .await;
+        assert!(duplicate.is_err());
     }
 }

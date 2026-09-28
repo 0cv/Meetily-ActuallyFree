@@ -18,10 +18,23 @@ impl SummaryProcessesRepository {
             .await
     }
 
+    /// Whether the user changed the generated summary since it was produced.
+    pub async fn is_user_edited(pool: &SqlitePool, meeting_id: &str) -> Result<bool, sqlx::Error> {
+        let edited: Option<bool> =
+            sqlx::query_scalar("SELECT user_edited FROM summary_processes WHERE meeting_id = ?")
+                .bind(meeting_id)
+                .fetch_optional(pool)
+                .await?;
+        Ok(edited.unwrap_or(false))
+    }
+
+    /// Saves summary content. `user_edit` marks the text as the user's so
+    /// regeneration asks before replacing it; app-side rewrites pass false.
     pub async fn update_meeting_summary(
         pool: &SqlitePool,
         meeting_id: &str,
         summary: &Value,
+        user_edit: bool,
     ) -> Result<bool, sqlx::Error> {
         let mut transaction = pool.begin().await?;
 
@@ -48,12 +61,16 @@ impl SummaryProcessesRepository {
         }
         let now = Utc::now();
 
-        sqlx::query("UPDATE summary_processes SET result = ?, updated_at = ? WHERE meeting_id = ?")
-            .bind(&result_json.unwrap())
-            .bind(now)
-            .bind(meeting_id)
-            .execute(&mut *transaction)
-            .await?;
+        sqlx::query(
+            "UPDATE summary_processes SET result = ?, updated_at = ?, \
+             user_edited = CASE WHEN ? THEN 1 ELSE user_edited END WHERE meeting_id = ?",
+        )
+        .bind(&result_json.unwrap())
+        .bind(now)
+        .bind(user_edit)
+        .bind(meeting_id)
+        .execute(&mut *transaction)
+        .await?;
 
         sqlx::query("UPDATE meetings SET updated_at = ? WHERE id = ?")
             .bind(now)
@@ -132,7 +149,7 @@ impl SummaryProcessesRepository {
         let result = sqlx::query(
             r#"
             UPDATE summary_processes
-            SET status = 'completed', result = ?, updated_at = ?, end_time = ?, chunk_count = ?, processing_time = ?, error = NULL, result_backup = NULL, result_backup_timestamp = NULL
+            SET status = 'completed', result = ?, updated_at = ?, end_time = ?, chunk_count = ?, processing_time = ?, error = NULL, result_backup = NULL, result_backup_timestamp = NULL, user_edited = 0
             WHERE meeting_id = ? AND status = 'PENDING'
             "#
         )
