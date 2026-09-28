@@ -21,6 +21,8 @@
 - Contacts are kept when a speaker's lines are unlinked; only deleting or merging
   removes them. Meetings keep their day-and-time title, and summaries no longer
   rename them.
+- Each person is drawn in their contact colour across the transcript, with a faint
+  tint on their chat bubbles, so it is easy to see who is talking.
 
 ### Claude Code CLI summaries
 
@@ -36,6 +38,35 @@ this provider.
   Nothing is bundled and no key is stored — the CLI owns sign-in.
 - Runs on current Claude Code releases. The system prompt is passed as a file rather
   than on the command line, and a signed-out or outdated CLI reports the step to take.
+
+### Per-app recording and Labs
+
+Thanks to **[@ampersandru](https://github.com/ampersandru)** for
+[PR #38](https://github.com/TylerBuza/Meetily-ActuallyFree/pull/38) (which also brings
+their PRs #36 and #37), which provides these features. They are built into the
+interface above.
+
+- **Record only the apps you choose.** On Windows and macOS, computer audio can come
+  from just the chosen apps, such as the call without music or notification sounds,
+  instead of everything the computer plays. Choose in Settings > Recording or in the
+  record card's system audio panel; each app shows whether it is open and playing
+  sound.
+- **Labs**, a new Settings section of experimental features. Each stays off until you
+  turn it on, and each also appears where it is used:
+  - Meeting automation records a detected call once it uses your microphone or
+    camera, and stops and saves when the call ends. Recordings you start yourself
+    are never stopped. Also in Meeting detection.
+  - Waveform scrubbing shows the recording's waveform in the meeting player and adds
+    0.5× and 0.75× speeds.
+  - Clean transcript adds a Clean/Verbatim switch to the meeting player and writes
+    new summaries from the clean text. The saved transcript stays word for word.
+  - Whisper silence guard filters silence and noise more strictly when Whisper
+    transcribes.
+  - Parakeet on the GPU runs Parakeet's encoder through DirectML on Windows.
+  - Voice profiles learn a contact's voice on their page or from the speaker card,
+    and later meetings name a matching voice. Renaming, merging or deleting a contact
+    updates or removes their voice.
+- Unnamed voices keep distinct colours in a meeting, and keep them when renamed.
 
 ## 0.2.17 - 2026-09-25
 

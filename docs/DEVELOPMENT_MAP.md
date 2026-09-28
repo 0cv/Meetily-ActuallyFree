@@ -184,21 +184,30 @@ is not a published release.
 ### Speaker colors in transcripts
 
 `speakerUtils.ts` supplies the shared dot/text palette for the live and post-call
-virtualized transcript and the detected-speakers sidebar. The Tailwind scan must
-include `src/utils`, where the palette class names are declared, or named speakers
-can render without a dot or text color in production. Both transcript views
-assign palette slots by first-spoken meeting order. A rename changes the display
-label in place and retains its slot; `You` stays blue. The palette has eight
-remote slots, so meetings with more than eight remote speakers reuse colors.
-The focused `tests/lib/speaker-colors.test.mjs` checks slot continuity on rename;
-the Next production CSS output must also contain every dot palette class.
+virtualized transcript, the live speakers list, the person card and the identify
+dialog. The Tailwind scan must include `src/utils`, where the palette class names
+are declared, or named speakers can render without a dot or text color in
+production. A named person is drawn in their avatar's colour (`colorForName`),
+so they look the same in the transcript, the meeting header and their contact
+page; their transcript bubbles take a faint wash of it (`.af-speaker-bubble`).
+Unnamed voices ("Speaker 2") get palette slots by first-spoken meeting order, so
+they stay apart until identified; `You` uses the theme accent. The palette has
+eight slots, so meetings with more than eight unnamed voices reuse colors.
+The focused `tests/lib/speaker-colors.test.mjs` checks slot continuity and the
+contact colour; the Next production CSS output must also contain every dot
+palette class.
 
 Labs roadmap features 1, 3, 7, 8, and 12 are mapped in
 [LABS_MACWHISPER_FEATURES.md](LABS_MACWHISPER_FEATURES.md). Read it before
 changing meeting detection, recorded audio seeking, named voice enrollment,
-Whisper silence thresholds, or the clean transcript display. The Labs settings
-page stores frontend preferences; the Whisper and voice-profile switches also
-persist in native app data so they survive a WebView reload. Named profiles use
+Whisper silence thresholds, or the clean transcript display. Settings > Labs
+holds the switches (`LabsSettings.tsx`, `lib/labs-features.ts`); the Whisper,
+voice-profile and Parakeet GPU switches also persist in native app data so they
+survive a WebView reload. Each feature also appears where it is used: the
+automation switch in Meeting detection, the waveform, slower speeds and
+Clean/Verbatim switch in the meeting player, voices on each contact's page and
+in the speaker card, and per-app capture (not a Labs feature) in Settings >
+Recording and the record card's system audio panel. Named profiles use
 WeSpeaker embeddings in Pyannote live sessions and as a separate identity
 matcher for Nemotron live and both post-call paths. Nemotron remains the selected
 diarizer; its channel numbers never establish persistent identity.

@@ -8,6 +8,27 @@ The current branch already has per-app capture, live/post-call speaker editing,
 VAD silence rejection, some Whisper repetition guards, a local-user voiceprint,
 recording-relative transcript turn times, and process-based meeting prompts.
 
+## Where each feature lives in the app
+
+All switches are in Settings > Labs, and each feature also shows where it is
+used:
+
+- Meeting automation: a switch in Settings > Meeting detection as well. A
+  notice says when a call starts a recording (with an option to keep it going
+  after the call) and when the call's end stops it. The stop runs the
+  recorder's normal stop and save from any page, without reloading.
+- Audio and transcript seeking: the meeting player shows the waveform instead
+  of a plain track and adds 0.5× and 0.75×. Seeking from a line's timestamp
+  and following playback work without Labs.
+- Named voice profiles: a Voice panel on each contact's page learns a voice
+  from their recent meetings, relearns it, or forgets it; the speaker card on a
+  meeting page offers Remember voice. Renaming, merging or deleting a contact
+  updates or removes their voice.
+- Whisper silence guard and Parakeet GPU: tagged on the engine they change in
+  Settings > Transcription.
+- Clean transcript: a Clean/Verbatim switch in the meeting player. With Labs
+  off the transcript still hides simple fillers, as before.
+
 ## Feature 1: meeting automation
 
 `meeting_detection.rs` now includes packaged Teams microphone/camera leases and
