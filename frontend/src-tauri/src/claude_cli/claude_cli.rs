@@ -466,10 +466,58 @@ struct PrintResult {
     result: Option<String>,
 }
 
+/// The system prompt for one call, written next to the CLI's working
+/// directory and removed however the call ends.
+struct SystemPromptFile(PathBuf);
+
+impl SystemPromptFile {
+    fn create(dir: &Path, contents: &str) -> Result<Self, String> {
+        let path = dir.join(format!("system-prompt-{}.txt", uuid::Uuid::new_v4()));
+        std::fs::write(&path, contents)
+            .map_err(|e| format!("Failed to write the Claude Code CLI prompt: {}", e))?;
+        Ok(Self(path))
+    }
+}
+
+impl Drop for SystemPromptFile {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+/// Model names come from settings and end up on a command line, which runs
+/// under cmd.exe for `.cmd` shims. Aliases (`sonnet`, `opus[1m]`) and model IDs
+/// only need these characters.
+fn is_safe_model_name(model: &str) -> bool {
+    !model.is_empty()
+        && model
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | ':' | '[' | ']'))
+}
+
+/// Turns the CLI's terse failures into the step the user has to take.
+fn explain_cli_error(detail: &str) -> String {
+    let lower = detail.to_ascii_lowercase();
+    if lower.contains("not logged in") || lower.contains("please run /login") {
+        return "Claude Code isn't signed in. Open a terminal, run `claude auth login` and sign \
+                in with your Claude account, then try again."
+            .to_string();
+    }
+    if lower.contains("unknown option") {
+        return format!(
+            "This Claude Code CLI is too old for Meetily ({}). Run `claude update`, then try again.",
+            detail
+        );
+    }
+    format!("Claude Code CLI returned an error: {}", detail)
+}
+
 /// Produce one completion via `claude --print`.
 ///
-/// The prompt goes in on stdin rather than as an argument: Windows caps a
-/// command line at ~32k characters and meeting transcripts sail past that.
+/// Neither prompt goes on the command line. The transcript is written to
+/// stdin and the system prompt to a file: Windows caps a command line at ~32k
+/// characters (8191 through cmd.exe, which `.cmd` shims need), and cmd.exe
+/// reads quotes, `&` and `%` in prompt text as its own syntax.
 pub async fn generate(
     configured_path: Option<&str>,
     model_name: &str,
@@ -483,24 +531,33 @@ pub async fn generate(
         }
     }
 
+    let model = model_name.trim();
+    if !model.is_empty() && !is_safe_model_name(model) {
+        return Err(format!("\"{}\" is not a Claude model name", model));
+    }
+
     let binary = resolve_binary(configured_path)?;
     let working_dir = working_dir();
+    let prompt_file = SystemPromptFile::create(&working_dir, system_prompt)?;
+    let prompt_path = prompt_file
+        .0
+        .to_str()
+        .ok_or_else(|| "The Claude Code CLI working folder has an unreadable path".to_string())?;
 
     // Strip the CLI down to a plain text-in/text-out model call: no tools, no
-    // MCP servers, no user settings, no saved session. Without this a summary
-    // could hit a permission prompt and hang, or pick up a user's hooks.
+    // MCP servers, no user settings, no saved session, so a user's hooks and
+    // CLAUDE.md never reach a summary. With no tools there is nothing to ask
+    // permission for, and print mode never prompts.
     let mut args: Vec<&str> = vec![
         "--print",
         "--output-format",
         "json",
-        "--system-prompt",
-        system_prompt,
+        "--system-prompt-file",
+        prompt_path,
         "--tools",
         "",
         "--permission-mode",
         "dontAsk",
-        "--permission-prompts",
-        "none",
         "--disable-slash-commands",
         "--strict-mcp-config",
         "--setting-sources",
@@ -508,7 +565,6 @@ pub async fn generate(
         "--no-session-persistence",
     ];
 
-    let model = model_name.trim();
     if !model.is_empty() && model != "default" {
         args.push("--model");
         args.push(model);
@@ -538,10 +594,7 @@ pub async fn generate(
                 truncate_for_error(trimmed)
             )
         } else {
-            format!(
-                "The Claude Code CLI exited with an error: {}",
-                first_meaningful_line(&output.stderr, trimmed)
-            )
+            explain_cli_error(first_meaningful_line(&output.stderr, trimmed))
         }
     })?;
 
@@ -553,7 +606,7 @@ pub async fn generate(
             .filter(|value| !value.is_empty())
             .map(|value| value.to_string())
             .unwrap_or_else(|| first_meaningful_line(&output.stderr, trimmed).to_string());
-        return Err(format!("Claude Code CLI returned an error: {}", detail));
+        return Err(explain_cli_error(&detail));
     }
 
     let text = parsed.result.unwrap_or_default();
@@ -573,4 +626,58 @@ fn truncate_for_error(value: &str) -> String {
     }
     let head: String = value.chars().take(LIMIT).collect();
     format!("{}…", head)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn model_names_are_limited_to_alias_and_id_characters() {
+        for name in ["sonnet", "opus[1m]", "claude-sonnet-4-5-20250929", "haiku"] {
+            assert!(is_safe_model_name(name), "{name}");
+        }
+        for name in ["", "sonnet & calc", "opus\"", "%PATH%", "haiku|x", "a b"] {
+            assert!(!is_safe_model_name(name), "{name}");
+        }
+    }
+
+    #[test]
+    fn cli_errors_name_the_fix() {
+        assert!(explain_cli_error("Not logged in · Please run /login").contains("claude auth login"));
+        assert!(explain_cli_error("error: unknown option '--tools'").contains("claude update"));
+        assert_eq!(
+            explain_cli_error("Overloaded"),
+            "Claude Code CLI returned an error: Overloaded"
+        );
+    }
+
+    /// Runs the installed CLI. Signed out, the call is free and must come back
+    /// as the sign-in message; signed in, it must return text. Either way the
+    /// flags have to be accepted and the output parsed.
+    #[tokio::test]
+    #[ignore = "Runs the local Claude Code CLI"]
+    async fn installed_cli_accepts_the_invocation() {
+        let result = generate(None, "haiku", "Reply with one word.", "Say: ready", None).await;
+        println!("{result:?}");
+        match result {
+            Ok(text) => assert!(!text.is_empty()),
+            Err(error) => {
+                assert!(!error.contains("too old"), "{error}");
+                assert!(!error.starts_with("Could not read"), "{error}");
+                assert!(error.contains("claude auth login"), "{error}");
+            }
+        }
+    }
+
+    #[test]
+    fn system_prompt_file_is_removed_after_the_call() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = {
+            let file = SystemPromptFile::create(dir.path(), "Say \"hi\" & 100% more").unwrap();
+            assert_eq!(std::fs::read_to_string(&file.0).unwrap(), "Say \"hi\" & 100% more");
+            file.0.clone()
+        };
+        assert!(!path.exists());
+    }
 }
