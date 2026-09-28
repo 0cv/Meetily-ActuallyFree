@@ -1,6 +1,7 @@
 'use client'
 
 import './globals.css'
+import './icon-motion.css'
 import dynamic from 'next/dynamic'
 import { Inter } from 'next/font/google'
 import { SidebarProvider } from '@/components/Sidebar/SidebarProvider'
