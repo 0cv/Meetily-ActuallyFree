@@ -12,7 +12,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
 import { listen, UnlistenFn } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
-import { applyAppTheme, getSavedAppTheme } from '@/lib/app-theme'
+import { applyAppTheme, getSavedAppTheme, themeInfo, THEME_BOOT_SCRIPT, useAppTheme } from '@/lib/app-theme'
 import { COMPACT_MIN_WIDTH } from '@/hooks/useCompactChrome'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AppTooltipGuard } from '@/components/AppTooltipGuard'
@@ -28,6 +28,16 @@ import { RecordingPostProcessingProvider } from '@/contexts/RecordingPostProcess
 import { ImportDialogProvider } from '@/contexts/ImportDialogContext'
 import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioFormats'
 import { getPendingCrashReport, type PendingCrashReport } from '@/services/crashReportService'
+import { WorkspaceProvider } from '@/contexts/WorkspaceContext'
+import { RecordingPill } from '@/components/recording/RecordingPill'
+import { GroupEditorHost } from '@/components/groups/GroupEditor'
+
+// Development only: in a plain browser (no Tauri bridge) serve sample data so
+// screens can be reviewed at http://localhost:3118. Stripped from production.
+if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined' && !('__TAURI_INTERNALS__' in window)) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('@/dev/preview').installPreviewMocks()
+}
 
 // Dynamically import heavy dialogs and onboarding wizard so app/layout.js stays lightweight
 // and cold-compiles quickly without timing out on slow startup or high CPU load.
@@ -151,7 +161,10 @@ export default function RootLayout({
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [importFilePath, setImportFilePath] = useState<string | null>(null)
 
-  // Apply saved theme (default: dark). Toggle lives in Settings.
+  // THEME_BOOT_SCRIPT already painted the saved theme; this also syncs the
+  // native title bar. useAppTheme follows changes from Settings and from the
+  // other window.
+  const [appTheme] = useAppTheme()
   useEffect(() => {
     applyAppTheme(getSavedAppTheme())
   }, [])
@@ -431,8 +444,9 @@ export default function RootLayout({
   // client so the full app chrome never mounts there and then unmounts.
   if (isMinibar) {
     return (
-      <html lang="en" className={`dark minibar-window ${inter.variable} ${inter.className}`}>
+      <html lang="en" data-theme="midnight" className={`dark minibar-window ${inter.variable} ${inter.className}`} suppressHydrationWarning>
         <head>
+          <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
           <script dangerouslySetInnerHTML={{ __html: inlineChunkErrorHandler }} />
         </head>
         <body className="font-sans antialiased bg-transparent">
@@ -443,8 +457,9 @@ export default function RootLayout({
   }
 
   return (
-    <html lang="en" className={`dark ${inter.variable} ${inter.className}`}>
+    <html lang="en" data-theme="midnight" className={`dark ${inter.variable} ${inter.className}`} suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: inlineChunkErrorHandler }} />
       </head>
       <body className="font-sans antialiased">
@@ -463,6 +478,7 @@ export default function RootLayout({
                 <ConfigProvider>
                   <OllamaDownloadProvider>
                     <OnboardingProvider>
+                      <WorkspaceProvider>
                       <SidebarProvider>
                         <TooltipProvider>
                           <AppTooltipGuard />
@@ -480,6 +496,8 @@ export default function RootLayout({
                                   <div className="flex min-h-0 min-w-0 h-screen overflow-hidden">
                                     <Sidebar />
                                     <MainContent>{children}</MainContent>
+                                    <RecordingPill />
+                                    <GroupEditorHost />
                                   </div>
                                 )}
                                 {/* Import audio overlay and dialog */}
@@ -501,6 +519,7 @@ export default function RootLayout({
                           </RecordingPostProcessingProvider>
                         </TooltipProvider>
                       </SidebarProvider>
+                      </WorkspaceProvider>
                     </OnboardingProvider>
                   </OllamaDownloadProvider>
                 </ConfigProvider>
@@ -511,15 +530,15 @@ export default function RootLayout({
 
         <Toaster
           position="top-center"
-          theme="dark"
+          theme={themeInfo(appTheme).dark ? 'dark' : 'light'}
           closeButton
           offset={20}
           icons={{ close: <X className="h-4 w-4" /> }}
           toastOptions={{
             classNames: {
               toast: 'af-toast',
-              title: 'text-sm font-medium text-[var(--af-text)]',
-              description: 'text-xs text-[var(--af-text-2)]',
+              title: 'text-sm font-medium text-af-text',
+              description: 'text-xs text-af-text-2',
             },
           }}
         />

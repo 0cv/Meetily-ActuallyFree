@@ -40,6 +40,7 @@ import type { SelectedDevices } from '@/components/DeviceSelection';
 import { RecordingVoiceLane } from '@/components/RecordingVoiceLane';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Spinner } from '@/components/ui/spinner';
+import { STOP_REQUEST_KEY } from '@/components/recording/RecordingPill';
 
 interface RecordingControlsProps {
   isRecording: boolean;
@@ -504,6 +505,19 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
     // Immediately trigger the stop action
     await stopRecordingAction();
   }, [isRecording, isStarting, isStopping, stopRecordingAction, onStopInitiated]);
+
+  // Stop pressed on the recording pill elsewhere in the app: it routes here and
+  // leaves a request, so the normal stop and save flow runs from this card.
+  useEffect(() => {
+    let requested = false;
+    try {
+      requested = sessionStorage.getItem(STOP_REQUEST_KEY) === '1';
+      if (requested) sessionStorage.removeItem(STOP_REQUEST_KEY);
+    } catch {
+      requested = false;
+    }
+    if (requested && isRecording) void handleStopRecording();
+  }, [isRecording, handleStopRecording]);
 
   const handlePauseRecording = useCallback(async () => {
     if (!isRecording || isPaused || isPausing) return;

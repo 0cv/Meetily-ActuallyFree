@@ -6,6 +6,7 @@ import Analytics from '@/lib/analytics';
 import { invoke } from '@tauri-apps/api/core';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { displayedSidebarWidth, previewSidebarWidth, SIDEBAR_DEFAULT, SIDEBAR_MIN, snapSidebarWidth, windowWidthForRail } from '@/hooks/useCompactChrome';
+import { onWorkspaceChange } from '@/lib/workspace-api';
 
 
 interface SidebarItem {
@@ -23,6 +24,7 @@ export interface CurrentMeeting {
   created_at?: string;
   /** Approx length in seconds (from transcript timings). */
   duration_seconds?: number;
+  group_id?: string | null;
 }
 
 interface SidebarContextType {
@@ -112,12 +114,14 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
           title: string;
           created_at?: string;
           duration_seconds?: number;
+          group_id?: string | null;
         }>;
         const transformedMeetings = meetings.map((meeting) => ({
           id: meeting.id,
           title: meeting.title,
           created_at: meeting.created_at ?? (meeting as any).createdAt ?? (meeting as any).updated_at,
           duration_seconds: meeting.duration_seconds,
+          group_id: meeting.group_id ?? null,
         }));
         setMeetings(transformedMeetings);
         Analytics.trackBackendConnection(true);
@@ -132,6 +136,9 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     fetchMeetings();
   }, [serverAddress, fetchMeetings]);
+
+  // Renames, group moves and deletes made anywhere refresh the list.
+  useEffect(() => onWorkspaceChange(['meetings'], () => void fetchMeetings()), [fetchMeetings]);
 
   useEffect(() => {
     const fetchSettings = async () => {

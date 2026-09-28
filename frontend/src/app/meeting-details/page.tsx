@@ -25,11 +25,16 @@ function MeetingDetailsContent() {
   const searchParams = useSearchParams();
   const meetingId = searchParams.get('id');
   const source = searchParams.get('source'); // Check if navigated from recording
+  // Search results link straight to a line (t) and a moment in the audio (ts).
+  const focusTranscriptId = searchParams.get('t');
+  const focusTimeParam = searchParams.get('ts');
+  const focusTime = focusTimeParam !== null && Number.isFinite(Number(focusTimeParam)) ? Number(focusTimeParam) : null;
   const { setCurrentMeeting, refetchMeetings, stopSummaryPolling, isCollapsed: sidebarCollapsed } = useSidebar();
   const { isAutoSummary, setModelConfig } = useConfig(); // Get auto-summary toggle state
   const router = useRouter();
   const [meetingDetails, setMeetingDetails] = useState<MeetingDetailsResponse | null>(null);
   const [meetingSummary, setMeetingSummary] = useState<Summary | null>(null);
+  const [summaryUserEdited, setSummaryUserEdited] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [shouldAutoGenerate, setShouldAutoGenerate] = useState<boolean>(false);
@@ -226,6 +231,7 @@ function MeetingDetailsContent() {
         }) as any;
 
         console.log('FETCH SUMMARY: Raw response:', summary);
+        if (active) setSummaryUserEdited(!!summary?.userEdited);
 
         // Check if the summary request failed with 404 or error status, or if no summary exists yet (idle)
         // Note: 'cancelled' and 'failed' statuses can still have data if backup was restored
@@ -408,6 +414,9 @@ function MeetingDetailsContent() {
   return <PageContent
     meeting={meetingDetails}
     summaryData={meetingSummary}
+    summaryUserEdited={summaryUserEdited}
+    focusTranscriptId={focusTranscriptId}
+    focusTime={focusTime}
     isPostCallRecording={source === 'recording'}
     shouldAutoGenerate={shouldAutoGenerate}
     onAutoGenerateComplete={() => setShouldAutoGenerate(false)}

@@ -72,24 +72,24 @@ export function speakerPaletteIndex(speaker: string): number {
 
 /** Dot colour on the timeline rail — same mapping as the text colour. */
 export function speakerDot(speaker?: string | null): string {
-  if (!speaker) return 'bg-gray-400';
-  if (isUserSpeaker(speaker)) return 'bg-blue-500';
+  if (!speaker) return 'bg-af-text-4';
+  if (isUserSpeaker(speaker)) return 'bg-af-accent';
   if (/^guest\b/i.test(speaker)) return 'bg-purple-500';
   return speakerDotPalette[speakerPaletteIndex(speaker)];
 }
 
 /** Stable colour per speaker label so each speaker reads consistently. */
 export function speakerColor(speaker?: string | null): string {
-  if (!speaker) return 'text-gray-500';
-  if (isUserSpeaker(speaker)) return 'text-blue-500';
+  if (!speaker) return 'text-af-text-3';
+  if (isUserSpeaker(speaker)) return 'text-af-accent';
   if (/^guest\b/i.test(speaker)) return 'text-purple-500';
   return speakerTextPalette[speakerPaletteIndex(speaker)];
 }
 
 /** Chip / badge styling per speaker */
 export function speakerBadgeClass(speaker?: string | null): string {
-  if (!speaker) return 'bg-gray-100 border-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
-  if (isUserSpeaker(speaker)) return 'bg-blue-500/10 border-blue-500/25 text-blue-600 dark:text-blue-400';
+  if (!speaker) return 'bg-af-panel-2 border-af-border text-af-text-2';
+  if (isUserSpeaker(speaker)) return 'bg-af-accent/10 border-af-accent/25 text-af-accent';
   if (/^guest\b/i.test(speaker)) return 'bg-purple-500/10 border-purple-500/25 text-purple-600 dark:text-purple-400';
   return speakerBgLightPalette[speakerPaletteIndex(speaker)];
 }

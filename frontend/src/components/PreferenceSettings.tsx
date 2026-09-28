@@ -7,7 +7,7 @@ import { invoke } from "@tauri-apps/api/core"
 import { toast } from "sonner"
 import Analytics from "@/lib/analytics"
 import { useConfig, NotificationSettings } from "@/contexts/ConfigContext"
-import { applyAppTheme, getSavedAppTheme } from "@/lib/app-theme"
+import { ThemePicker } from "@/components/settings/ThemePicker"
 
 export function PreferenceSettings() {
   const {
@@ -37,16 +37,6 @@ export function PreferenceSettings() {
     if (typeof window !== 'undefined') {
       localStorage.setItem('meetily_user_name', v);
     }
-  };
-
-  // Theme (default dark). Applies a `.dark` class on <html> for the navy skin.
-  const [isDark, setIsDark] = useState(true);
-  useEffect(() => {
-    setIsDark(getSavedAppTheme() === 'dark');
-  }, []);
-  const toggleTheme = (dark: boolean) => {
-    setIsDark(dark);
-    applyAppTheme(dark ? 'dark' : 'light', true);
   };
 
   // Lazy load preferences on mount (only loads if not already cached)
@@ -204,13 +194,9 @@ export function PreferenceSettings() {
     <div className="space-y-6">
       {/* Appearance / Theme Section */}
       <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Dark mode</h3>
-            <p className="text-sm text-gray-600">Use the dark navy theme. Turn off for the classic light theme.</p>
-          </div>
-          <Switch checked={isDark} onCheckedChange={toggleTheme} />
-        </div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-1">Theme</h3>
+        <p className="text-sm text-gray-600 mb-4">Applies to every window, including the floating recording bar.</p>
+        <ThemePicker />
       </div>
 
       {/* Your Name Section */}

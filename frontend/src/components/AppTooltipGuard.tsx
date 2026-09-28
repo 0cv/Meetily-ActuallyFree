@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { cn } from '@/lib/utils';
+import { tooltipSurface } from '@/components/ui/tooltip';
 
 type Tip = { text: string; x: number; y: number; below: boolean };
 
@@ -88,17 +90,20 @@ export function AppTooltipGuard() {
 
   if (!tip || typeof document === 'undefined') return null;
 
+  // The outer box owns placement; the inner one animates, so the entrance
+  // transform never fights the centering translate.
   return createPortal(
     <div
-      role="tooltip"
-      className="pointer-events-none fixed z-[80] max-w-xs -translate-x-1/2 rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground shadow-md"
+      className="pointer-events-none fixed z-[80]"
       style={{
         left: tip.x,
         top: tip.y,
         transform: tip.below ? 'translate(-50%, 0)' : 'translate(-50%, -100%)',
       }}
     >
-      {tip.text}
+      <div role="tooltip" className={cn(tooltipSurface, 'animate-af-pop')}>
+        {tip.text}
+      </div>
     </div>,
     document.body,
   );
