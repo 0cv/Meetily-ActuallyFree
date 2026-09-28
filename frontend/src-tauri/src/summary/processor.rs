@@ -298,20 +298,6 @@ fn require_meaningful_summary(markdown: &str, stage: &str) -> Result<String, Str
     }
 }
 
-/// Extracts meeting name from the first heading in markdown
-///
-/// # Arguments
-/// * `markdown` - Markdown content
-///
-/// # Returns
-/// Meeting name if found, None otherwise
-pub fn extract_meeting_name_from_markdown(markdown: &str) -> Option<String> {
-    markdown
-        .lines()
-        .find(|line| line.starts_with("# "))
-        .map(|line| line.trim_start_matches("# ").trim().to_string())
-}
-
 /// Generates a complete meeting summary with conditional chunking strategy
 ///
 /// # Arguments

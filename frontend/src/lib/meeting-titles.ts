@@ -6,8 +6,8 @@
  *   "Meeting · Mon, Sep 28 · 2:30–3:15 PM"   once it ends
  *   "Weekly Standup — Sep 28"                for a group's meeting
  *
- * Rust treats titles starting with DEFAULT_PREFIX as auto-generated (see
- * is_default_meeting_title), so an AI title can still replace them later.
+ * Rust records titles starting with DEFAULT_PREFIX as automatic (see
+ * is_default_meeting_title). Summaries never rename a meeting; only the user does.
  */
 
 export const DEFAULT_PREFIX = 'Meeting · ';

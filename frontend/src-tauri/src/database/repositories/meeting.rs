@@ -250,43 +250,6 @@ impl MeetingsRepository {
         transaction.commit().await?;
         Ok(true)
     }
-
-    pub async fn update_generated_meeting_title(
-        pool: &SqlitePool,
-        meeting_id: &str,
-        new_title: &str,
-    ) -> Result<bool, SqlxError> {
-        let mut transaction = pool.begin().await?;
-        let now = Utc::now();
-
-        // A manual rename that commits first makes this update a no-op. If this
-        // commits first, the later manual rename remains authoritative.
-        let meeting_update = sqlx::query(
-            "UPDATE meetings
-             SET title = ?, updated_at = ?
-             WHERE id = ? AND title_is_manual = 0",
-        )
-                .bind(new_title)
-                .bind(now)
-                .bind(meeting_id)
-                .execute(&mut *transaction)
-                .await?;
-
-        if meeting_update.rows_affected() == 0 {
-            transaction.rollback().await?;
-            return Ok(false);
-        }
-
-        // Update transcript_chunks table
-        sqlx::query("UPDATE transcript_chunks SET meeting_name = ? WHERE meeting_id = ?")
-            .bind(new_title)
-            .bind(meeting_id)
-            .execute(&mut *transaction)
-            .await?;
-
-        transaction.commit().await?;
-        Ok(true)
-    }
 }
 
 #[cfg(test)]
@@ -437,70 +400,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn generated_title_updates_only_automatic_titles() {
-        let pool = test_pool().await;
-        insert_meeting(&pool, false).await;
-
-        assert!(MeetingsRepository::update_generated_meeting_title(
-            &pool,
-            "meeting-1",
-            "Generated"
-        )
-        .await
-        .unwrap());
-
-        let row: (String, bool, String) = sqlx::query_as(
-            "SELECT m.title, m.title_is_manual, c.meeting_name
-             FROM meetings m
-             JOIN transcript_chunks c ON c.meeting_id = m.id
-             WHERE m.id = 'meeting-1'",
-        )
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-        assert_eq!(row, ("Generated".to_string(), false, "Generated".to_string()));
-    }
-
-    #[tokio::test]
-    async fn generated_title_preserves_manual_titles() {
-        let pool = test_pool().await;
-        insert_meeting(&pool, true).await;
-
-        assert!(!MeetingsRepository::update_generated_meeting_title(
-            &pool,
-            "meeting-1",
-            "Generated"
-        )
-        .await
-        .unwrap());
-
-        let row: (String, String) = sqlx::query_as(
-            "SELECT m.title, c.meeting_name
-             FROM meetings m
-             JOIN transcript_chunks c ON c.meeting_id = m.id
-             WHERE m.id = 'meeting-1'",
-        )
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-        assert_eq!(row, ("Original".to_string(), "Original".to_string()));
-    }
-
-    #[tokio::test]
-    async fn manual_title_marks_automatic_meeting_and_remains_authoritative() {
+    async fn manual_title_marks_the_meeting_manual() {
         let pool = test_pool().await;
         insert_meeting(&pool, false).await;
 
         assert!(MeetingsRepository::update_meeting_title(&pool, "meeting-1", "Manual")
             .await
             .unwrap());
-        assert!(!MeetingsRepository::update_generated_meeting_title(
-            &pool,
-            "meeting-1",
-            "Generated"
-        )
-        .await
-        .unwrap());
 
         let row: (String, bool, String) = sqlx::query_as(
             "SELECT m.title, m.title_is_manual, c.meeting_name
@@ -515,31 +421,65 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn manual_title_wins_after_generated_title() {
-        let pool = test_pool().await;
-        insert_meeting(&pool, false).await;
-
-        assert!(MeetingsRepository::update_generated_meeting_title(
-            &pool,
-            "meeting-1",
-            "Generated"
-        )
-        .await
-        .unwrap());
-        assert!(MeetingsRepository::update_meeting_title(&pool, "meeting-1", "Manual")
+    async fn placeholder_title_migration_restores_automatic_titles_only() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
             .await
-            .unwrap());
-
-        let row: (String, bool, String) = sqlx::query_as(
-            "SELECT m.title, m.title_is_manual, c.meeting_name
-             FROM meetings m
-             JOIN transcript_chunks c ON c.meeting_id = m.id
-             WHERE m.id = 'meeting-1'",
+            .unwrap();
+        sqlx::raw_sql(
+            "CREATE TABLE meetings (id TEXT PRIMARY KEY, title TEXT NOT NULL, \
+                created_at TEXT NOT NULL, title_is_manual INTEGER NOT NULL DEFAULT 1); \
+             CREATE TABLE transcript_chunks (meeting_id TEXT NOT NULL, meeting_name TEXT); \
+             INSERT INTO meetings (id, title, created_at, title_is_manual) VALUES \
+                ('placeholder', '<Add Title here>', '2026-09-28T14:30:05.123+00:00', 0), \
+                ('other-case', 'add title HERE', '2026-09-27 09:01:02', 0), \
+                ('typed', '<Add Title here>', '2026-09-26T08:00:00Z', 1), \
+                ('named', 'Quarterly Review', '2026-09-25T08:00:00Z', 0); \
+             INSERT INTO transcript_chunks (meeting_id, meeting_name) VALUES \
+                ('placeholder', '<Add Title here>'), ('typed', '<Add Title here>');",
         )
-        .fetch_one(&pool)
+        .execute(&pool)
         .await
         .unwrap();
-        assert_eq!(row, ("Manual".to_string(), true, "Manual".to_string()));
+        sqlx::raw_sql(include_str!(
+            "../../../migrations/20260928010000_reset_placeholder_titles.sql"
+        ))
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let titles: Vec<(String, String)> =
+            sqlx::query_as("SELECT id, title FROM meetings ORDER BY id")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        assert_eq!(
+            titles,
+            vec![
+                ("named".to_string(), "Quarterly Review".to_string()),
+                ("other-case".to_string(), "Meeting 2026-09-27_09-01-02".to_string()),
+                ("placeholder".to_string(), "Meeting 2026-09-28_14-30-05".to_string()),
+                ("typed".to_string(), "<Add Title here>".to_string()),
+            ]
+        );
+        assert!(crate::database::repositories::transcript::is_default_meeting_title(
+            &titles[2].1
+        ));
+
+        let chunks: Vec<(String, String)> = sqlx::query_as(
+            "SELECT meeting_id, meeting_name FROM transcript_chunks ORDER BY meeting_id",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            chunks,
+            vec![
+                ("placeholder".to_string(), "Meeting 2026-09-28_14-30-05".to_string()),
+                ("typed".to_string(), "<Add Title here>".to_string()),
+            ]
+        );
     }
 }
 

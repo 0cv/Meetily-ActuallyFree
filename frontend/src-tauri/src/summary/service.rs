@@ -4,9 +4,7 @@ use crate::database::repositories::{
 use crate::summary::llm_client::LLMProvider;
 use crate::summary::language_detection::detect_summary_language;
 use crate::summary::metadata::read_detected_summary_language_from_metadata;
-use crate::summary::processor::{
-    extract_meeting_name_from_markdown, generate_meeting_summary, language_name_from_code,
-};
+use crate::summary::processor::{generate_meeting_summary, language_name_from_code};
 use crate::summary::templates::{self, Template};
 use crate::ollama::metadata::ModelMetadataCache;
 use serde::{Deserialize, Serialize};
@@ -656,36 +654,12 @@ impl SummaryService {
                         meeting_id
                     ),
                     Ok(true) => {
+                        // The meeting keeps its title. Only the user renames a
+                        // meeting; the summary's heading is not a title source.
                         info!(
                             "Summary saved successfully for meeting_id: {}",
                             meeting_id
                         );
-                        if let Some(name) = extract_meeting_name_from_markdown(&final_markdown)
-                            .map(|name| name.trim().to_string())
-                            .filter(|name| !name.is_empty())
-                        {
-                            info!("Extracted meeting name from summary: '{}'", name);
-                            match MeetingsRepository::update_generated_meeting_title(
-                                &pool,
-                                &meeting_id,
-                                &name,
-                            )
-                            .await
-                            {
-                                Ok(true) => info!(
-                                    "Successfully updated generated meeting name for {}",
-                                    meeting_id
-                                ),
-                                Ok(false) => info!(
-                                    "Preserved user-owned meeting name for {}",
-                                    meeting_id
-                                ),
-                                Err(e) => error!(
-                                    "Failed to update meeting name for {}: {}",
-                                    meeting_id, e
-                                ),
-                            }
-                        }
                         emit_progress("completed", "Summary ready", Some(result_json));
                     }
                 }
@@ -816,8 +790,8 @@ mod tests {
 
     #[test]
     fn test_strip_title_if_present_mid_document_h1_preserved() {
-        // H1 after body content must NOT be stripped — guards the asymmetry where
-        // extract_meeting_name_from_markdown scans every line for "# ".
+        // Only a leading H1 is the template's title line; one after body
+        // content is part of the notes.
         let input = "Some paragraph\n\n# H1 on line 3\n## Section\nbody";
         assert_eq!(strip_title_if_present(input), input);
     }
