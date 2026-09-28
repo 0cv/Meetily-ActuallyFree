@@ -737,9 +737,25 @@ function handle(cmd: string, args: Args): unknown {
       if (person) person.notes = args.notes;
       return null;
     }
-    case 'rename_meeting_speaker':
-    case 'reassign_transcript_speaker':
-      return { speaker: args.to || 'Speaker 1', count: 1, removedName: !args.to };
+    // Relabels the lines like the app does, so turns merge and split as they
+    // would after a rename or a diarization rerun.
+    case 'rename_meeting_speaker': {
+      const rows = transcripts(args.meetingId);
+      const target = args.to || 'Speaker 1';
+      let count = 0;
+      for (const row of rows) {
+        if (row.speaker === args.from) {
+          row.speaker = target;
+          count += 1;
+        }
+      }
+      return { speaker: target, count, removedName: !args.to };
+    }
+    case 'reassign_transcript_speaker': {
+      const row = transcripts(args.meetingId).find((entry) => entry.id === args.transcriptId);
+      if (row) row.speaker = args.to || 'Speaker 1';
+      return { speaker: args.to || 'Speaker 1', count: row ? 1 : 0, removedName: !args.to };
+    }
 
     // ---- Action items ----------------------------------------------------
     case 'api_list_action_items': {

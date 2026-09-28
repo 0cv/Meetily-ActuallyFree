@@ -284,6 +284,11 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     count: turns.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 64,
+    // Heights are cached per turn, not per position. When a relabel (a
+    // rename, or diarization after the call) merges two turns, the turns
+    // after it move up a slot; keyed by position they kept the old slot's
+    // height and overlapped the bubble above.
+    getItemKey: (index) => turns[index]?.id ?? index,
     overscan: 10,
     onChange: () => startTransition(() => rerender()),
   });
