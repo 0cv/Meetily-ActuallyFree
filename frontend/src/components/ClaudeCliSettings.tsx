@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { AlertTriangle, CheckCircle2, ExternalLink, RefreshCw, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ExternalLink, XCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Spinner } from '@/components/ui/spinner';
 import {
   CLAUDE_CODE_INSTALL_URL,
   ClaudeCliStatus,
@@ -106,15 +107,15 @@ export function ClaudeCliSettings({
       </div>
 
       {/* Detection result */}
-      <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm dark:border-gray-700 dark:bg-gray-800/50">
+      <div className="rounded-xl border border-af-border bg-af-panel-2 p-3 text-sm">
         {isChecking && !status ? (
           <div className="flex items-center text-muted-foreground">
-            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+            <Spinner className="mr-2 h-4 w-4" />
             Looking for the Claude Code CLI…
           </div>
         ) : status?.installed ? (
           <div className="space-y-1">
-            <div className="flex items-center font-medium text-green-700 dark:text-green-400">
+            <div className="flex items-center font-medium text-af-success">
               <CheckCircle2 className="mr-2 h-4 w-4 shrink-0" />
               Found {status.version}
             </div>
@@ -129,7 +130,7 @@ export function ClaudeCliSettings({
                 {auth.orgName ? ` · ${auth.orgName}` : ''}
               </p>
             ) : (
-              <p className="flex items-start text-xs text-amber-700 dark:text-amber-400">
+              <p className="flex items-start text-xs text-af-warning">
                 <AlertTriangle className="mr-1.5 mt-0.5 h-3.5 w-3.5 shrink-0" />
                 Not signed in. Run <code className="mx-1">claude auth login</code> in a terminal,
                 then re-check.
@@ -138,7 +139,7 @@ export function ClaudeCliSettings({
           </div>
         ) : (
           <div className="space-y-2">
-            <div className="flex items-start font-medium text-red-700 dark:text-red-400">
+            <div className="flex items-start font-medium text-af-danger">
               <XCircle className="mr-2 mt-0.5 h-4 w-4 shrink-0" />
               <span>{status?.error ?? 'Claude Code CLI not found.'}</span>
             </div>
@@ -160,8 +161,8 @@ export function ClaudeCliSettings({
       {/* An API key in the environment silently overrides the subscription, which
           defeats the point of choosing this provider. */}
       {status?.api_key_env_detected && (
-        <p className="flex items-start rounded-md bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
-          <AlertTriangle className="mr-1.5 mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <p className="flex items-start rounded-lg bg-af-warning/10 p-2 text-xs text-af-text">
+          <AlertTriangle className="mr-1.5 mt-0.5 h-3.5 w-3.5 shrink-0 text-af-warning" />
           <span>
             <code>ANTHROPIC_API_KEY</code> is set in this app&apos;s environment. The CLI prefers
             that key over your subscription, so summaries would be billed per token. Unset it to use
@@ -196,7 +197,7 @@ export function ClaudeCliSettings({
         >
           {isChecking ? (
             <>
-              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              <Spinner className="mr-2 h-4 w-4" />
               Checking…
             </>
           ) : (
@@ -214,7 +215,7 @@ export function ClaudeCliSettings({
         >
           {isTesting ? (
             <>
-              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              <Spinner className="mr-2 h-4 w-4" />
               Testing…
             </>
           ) : (
@@ -225,11 +226,7 @@ export function ClaudeCliSettings({
 
       {testResult && (
         <p
-          className={`text-xs ${
-            testResult.ok
-              ? 'text-green-700 dark:text-green-400'
-              : 'text-red-700 dark:text-red-400'
-          }`}
+          className={`text-xs ${testResult.ok ? 'text-af-success' : 'text-af-danger'}`}
         >
           {testResult.message}
         </p>
