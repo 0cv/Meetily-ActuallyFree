@@ -191,7 +191,6 @@ export default function MeetingsPage() {
     <div className="h-full overflow-y-auto bg-af-panel">
       <div className="mx-auto w-full max-w-5xl px-8 pb-32 pt-10 animate-af-rise">
         <PageHeader
-          icon={<Library />}
           title="All meetings"
           description={summaryLine}
           actions={

@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * Group visuals used everywhere a group appears: the colored dot, the chip,
- * the searchable picker (with "Create …"), and the color swatches.
+ * Group visuals used everywhere a group appears: the chip (the group's name on
+ * a soft tint of its color), the searchable picker (with "Create …"), the color
+ * swatches, and the small color dot that labels groups inside pickers and menus.
  */
 import * as React from 'react';
 import { Check, ChevronDown, Layers } from 'lucide-react';
@@ -24,7 +25,7 @@ export function GroupDot({ color, className }: { color?: string | null; classNam
   );
 }
 
-/** A group's name on its own color. Pass `onClick` to make it a button. */
+/** A group's name on a soft tint of its color. Pass `onClick` to make it a button. */
 export function GroupChip({
   group,
   size = 'sm',
@@ -44,16 +45,15 @@ export function GroupChip({
       type={onClick ? 'button' : undefined}
       onClick={onClick}
       className={cn(
-        'af-tint inline-flex max-w-full items-center gap-1.5 rounded-full border font-medium leading-none',
-        size === 'xs' && 'h-5 px-1.5 text-[10px]',
-        size === 'sm' && 'h-6 px-2 text-[11px]',
-        size === 'md' && 'h-7 px-2.5 text-xs',
+        'af-tint inline-flex max-w-full items-center gap-1 rounded-md font-medium leading-none',
+        size === 'xs' && 'h-5 px-1.5 text-[11px]',
+        size === 'sm' && 'h-6 px-2 text-xs',
+        size === 'md' && 'h-7 px-2.5 text-[13px]',
         onClick && 'transition-[filter,transform] hover:brightness-110 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-af-accent/60',
         className,
       )}
       style={{ '--chip': groupColorVar(group.color) } as React.CSSProperties}
     >
-      <span className="af-tint-dot h-1.5 w-1.5 shrink-0 rounded-full" />
       <span className="truncate">{group.name}</span>
       {trailing}
     </Tag>
@@ -126,13 +126,13 @@ export function GroupPicker({
             type="button"
             disabled={disabled}
             className={cn(
-              'inline-flex h-7 max-w-[14rem] items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-[background-color,border-color,filter] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-af-accent/60 disabled:opacity-50',
-              current ? 'af-tint hover:brightness-110' : 'border-dashed border-af-border-strong text-af-text-3 hover:border-af-text-4 hover:text-af-text-2',
+              'inline-flex h-6 max-w-[14rem] items-center gap-1 rounded-md px-2 text-xs font-medium transition-[background-color,border-color,color,filter] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-af-accent/60 disabled:opacity-50',
+              current ? 'af-tint hover:brightness-110' : 'border border-dashed border-af-border-strong text-af-text-3 hover:border-af-text-4 hover:text-af-text-2',
               triggerClassName,
             )}
             style={current ? ({ '--chip': groupColorVar(current.color) } as React.CSSProperties) : undefined}
           >
-            {current ? <span className="af-tint-dot h-1.5 w-1.5 shrink-0 rounded-full" /> : <Layers className="h-3.5 w-3.5 shrink-0" />}
+            {!current && <Layers className="h-3.5 w-3.5 shrink-0" />}
             <span className="truncate">{current?.name ?? placeholder}</span>
             <ChevronDown className="h-3 w-3 shrink-0 opacity-70" />
           </button>

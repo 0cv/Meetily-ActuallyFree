@@ -26,11 +26,9 @@ import { cn } from '@/lib/utils';
 import Analytics from '@/lib/analytics';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { useConfig } from '@/contexts/ConfigContext';
-import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { usePlatform } from '@/hooks/usePlatform';
 import { usePendingGroup } from '@/hooks/usePendingGroup';
 import { deviceDisplayName, UNAVAILABLE_DEVICE_VALUE, type AudioDeviceOption } from '@/lib/audio-devices';
-import { groupColorVar } from '@/lib/group-colors';
 import type { RecordingPreferences } from '@/components/RecordingSettings';
 import type { SelectedDevices } from '@/components/DeviceSelection';
 import { RecordingVoiceLane } from '@/components/RecordingVoiceLane';
@@ -63,8 +61,6 @@ const sideButton =
 /** "No group ▾" under "Start recording": which group the next meeting is filed in. */
 function NextGroupPicker() {
   const [pending, choose] = usePendingGroup();
-  const { groupById } = useWorkspace();
-  const group = pending ? groupById(pending.id) : null;
   return (
     <GroupPicker
       value={pending?.id ?? null}
@@ -76,14 +72,7 @@ function NextGroupPicker() {
           type="button"
           className="mt-0.5 inline-flex max-w-[10rem] items-center gap-1.5 rounded-md text-[11px] font-medium text-af-text-3 transition-colors hover:text-af-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-af-accent/60"
         >
-          {pending ? (
-            <span
-              className="af-tint-dot h-1.5 w-1.5 shrink-0 rounded-full"
-              style={{ '--chip': groupColorVar(group?.color) } as React.CSSProperties}
-            />
-          ) : (
-            <Layers className="h-3 w-3 shrink-0" />
-          )}
+          <Layers className="h-3 w-3 shrink-0" />
           <span className="truncate">{pending ? pending.name : 'No group'}</span>
           <ChevronDown className="h-3 w-3 shrink-0 opacity-70" />
         </button>

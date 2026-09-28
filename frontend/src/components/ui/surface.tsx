@@ -11,14 +11,12 @@ import { cn } from "@/lib/utils"
 export function PageHeader({
   title,
   description,
-  icon,
   actions,
   eyebrow,
   className,
 }: {
   title: React.ReactNode
   description?: React.ReactNode
-  icon?: React.ReactNode
   actions?: React.ReactNode
   /** Small line above the title, e.g. a back link or breadcrumb. */
   eyebrow?: React.ReactNode
@@ -28,14 +26,7 @@ export function PageHeader({
     <header className={cn("flex flex-wrap items-end justify-between gap-x-6 gap-y-3", className)}>
       <div className="min-w-0 flex-1">
         {eyebrow && <div className="mb-2 text-xs text-af-text-3">{eyebrow}</div>}
-        <div className="flex min-w-0 items-center gap-2.5">
-          {icon && (
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-af-accent/[0.12] text-af-accent [&_svg]:size-4">
-              {icon}
-            </span>
-          )}
-          <h1 className="truncate text-xl font-semibold text-af-text">{title}</h1>
-        </div>
+        <h1 className="truncate text-xl font-semibold tracking-tight text-af-text">{title}</h1>
         {description && <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-af-text-3">{description}</p>}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
@@ -139,5 +130,28 @@ export function Kbd({ children, className }: { children: React.ReactNode; classN
 export function Overline({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <p className={cn("text-[11px] font-semibold uppercase tracking-[0.08em] text-af-text-4", className)}>{children}</p>
+  )
+}
+
+/** A titled block on a page. The title carries it; no icon or accent needed. */
+export function Panel({
+  title,
+  action,
+  children,
+  className,
+}: {
+  title: React.ReactNode
+  action?: React.ReactNode
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <section className={cn("rounded-2xl border border-af-border bg-af-panel-2/40 p-4", className)}>
+      <header className="mb-2 flex min-h-7 items-center justify-between gap-3">
+        <h2 className="text-[13px] font-semibold text-af-text">{title}</h2>
+        {action}
+      </header>
+      {children}
+    </section>
   )
 }

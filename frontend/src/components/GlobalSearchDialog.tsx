@@ -44,7 +44,6 @@ import {
 import { Avatar } from '@/components/ui/avatar';
 import { Kbd } from '@/components/ui/surface';
 import { Spinner } from '@/components/ui/spinner';
-import { GroupDot } from '@/components/groups/GroupBits';
 import { openGroupEditor } from '@/components/groups/GroupEditor';
 import { STOP_REQUEST_KEY } from '@/components/recording/RecordingPill';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
@@ -301,9 +300,7 @@ export default function GlobalSearchDialog() {
     if (result.kind === 'group') {
       return (
         <CommandItem key={`group-${result.id}`} value={`group-${result.id}`} onSelect={() => select(result)}>
-          <span className="flex h-6 w-6 items-center justify-center">
-            <GroupDot color={result.color} className="h-2.5 w-2.5" />
-          </span>
+          <Layers className="text-af-text-3" />
           <span className="min-w-0 flex-1 truncate font-medium text-af-text">{result.title}</span>
           <CommandShortcut>{result.snippet}</CommandShortcut>
         </CommandItem>

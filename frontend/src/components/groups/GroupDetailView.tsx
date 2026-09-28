@@ -13,13 +13,11 @@ import { toast } from 'sonner';
 import {
   ArrowLeft,
   CalendarClock,
-  CircleCheck,
   MoreHorizontal,
   Mic,
   Pencil,
   Plus,
   Search,
-  Sparkles,
   Trash2,
   Users,
 } from 'lucide-react';
@@ -29,7 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { EmptyState, Skeleton } from '@/components/ui/surface';
+import { EmptyState, Skeleton, Panel } from '@/components/ui/surface';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,7 +36,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { ActionItemsList } from '@/components/actions/ActionItemsList';
 import { ChatThread } from '@/components/chat/ChatThread';
-import { kindIcon, openGroupEditor } from '@/components/groups/GroupEditor';
+import { openGroupEditor } from '@/components/groups/GroupEditor';
 import { AddMeetingsDialog } from '@/components/groups/AddMeetingsDialog';
 import {
   announceChange,
@@ -54,25 +52,9 @@ import {
 } from '@/lib/workspace-api';
 import { describeSchedule, effectiveSchedule, nextOccurrence } from '@/lib/schedule';
 import { formatDuration, formatRelativeFuture, formatShortDate, formatWhen, parseDate } from '@/lib/dates';
-import { groupColorVar } from '@/lib/group-colors';
 import { displayTitle } from '@/lib/meeting-titles';
 import { completeSummaryMarkdown, parseSummaryData } from '@/lib/summary-markdown';
 import { launchRecording } from '@/lib/recording-launch';
-
-function Card({ title, icon, action, children, className }: { title: string; icon: React.ReactNode; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
-  return (
-    <section className={cn('rounded-2xl border border-af-border bg-af-panel-2/50 p-4', className)}>
-      <header className="mb-2 flex min-h-7 items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-[13px] font-semibold text-af-text">
-          <span className="text-af-text-3 [&_svg]:size-4">{icon}</span>
-          {title}
-        </h2>
-        {action}
-      </header>
-      {children}
-    </section>
-  );
-}
 
 /** Recent summaries, notes and open items: what Ask AI reads for a group. */
 async function groupContext(detail: GroupDetail, openItems: ActionItem[]): Promise<string> {
@@ -171,7 +153,6 @@ export function GroupDetailView({ groupId }: { groupId: string }) {
     );
   }
 
-  const Icon = kindIcon(detail?.kind);
   const record = () => detail && launchRecording((href) => router.push(href), { group: { id: detail.id, name: detail.name } });
   const members: Array<GroupMember & { frequent: boolean }> = [
     ...(detail?.frequent ?? []).map((member) => ({ ...member, frequent: true })),
@@ -196,16 +177,13 @@ export function GroupDetailView({ groupId }: { groupId: string }) {
 
   return (
     <div className="h-full overflow-y-auto bg-af-panel">
-      <div className="mx-auto w-full max-w-5xl px-8 pb-24 pt-8 animate-af-rise" style={{ '--chip': groupColorVar(detail?.color) } as React.CSSProperties}>
+      <div className="mx-auto w-full max-w-5xl px-8 pb-24 pt-8 animate-af-rise">
         <Link href="/groups" className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-af-text-3 transition-colors hover:bg-af-hover hover:text-af-text">
           <ArrowLeft className="h-3.5 w-3.5" />
           Groups
         </Link>
 
         <header className="mt-3 flex flex-wrap items-start gap-4">
-          <span className="af-tint flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border">
-            <Icon className="h-5 w-5" />
-          </span>
           <div className="min-w-0 flex-1">
             {detail ? (
               <>
@@ -292,9 +270,8 @@ export function GroupDetailView({ groupId }: { groupId: string }) {
 
         <div className="mt-5 grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="flex min-w-0 flex-col gap-4">
-            <Card
+            <Panel
               title="Still open"
-              icon={<CircleCheck />}
               action={openItems && openItems.length > 0 ? <span className="text-xs tabular-nums text-af-text-4">{openItems.length}</span> : undefined}
             >
               {openItems === null ? (
@@ -304,11 +281,10 @@ export function GroupDetailView({ groupId }: { groupId: string }) {
               ) : (
                 <ActionItemsList items={openItems} onItemsChange={setOpenItems} className="-mx-2" />
               )}
-            </Card>
+            </Panel>
 
-            <Card
+            <Panel
               title="Meetings"
-              icon={<CalendarClock />}
               action={
                 <Button size="xs" variant="ghost" onClick={() => setAdding(true)} disabled={!detail}>
                   <Plus />
@@ -350,11 +326,11 @@ export function GroupDetailView({ groupId }: { groupId: string }) {
                   })}
                 </ul>
               )}
-            </Card>
+            </Panel>
           </div>
 
           <div className="flex min-w-0 flex-col gap-4">
-            <Card title="People" icon={<Users />}>
+            <Panel title="People">
               {!detail ? (
                 <Skeleton className="h-16" />
               ) : members.length === 0 ? (
@@ -377,9 +353,9 @@ export function GroupDetailView({ groupId }: { groupId: string }) {
                   ))}
                 </ul>
               )}
-            </Card>
+            </Panel>
 
-            <Card title="Ask about this group" icon={<Sparkles />} className="flex h-[26rem] flex-col p-0 pt-4 [&>header]:px-4">
+            <Panel title="Ask about this group" className="flex h-[26rem] flex-col p-0 pt-4 [&>header]:px-4">
               <ChatThread
                 historyKey={`group:${groupId}`}
                 ask={ask}
@@ -390,7 +366,7 @@ export function GroupDetailView({ groupId }: { groupId: string }) {
                 placeholder="Ask about this group…"
                 className="min-h-0 flex-1"
               />
-            </Card>
+            </Panel>
           </div>
         </div>
       </div>

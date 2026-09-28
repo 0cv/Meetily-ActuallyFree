@@ -17,7 +17,6 @@ import { Combobox } from '@/components/ui/combobox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { Hint } from '@/components/ui/tooltip';
-import { GroupDot } from '@/components/groups/GroupBits';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useUserName } from '@/hooks/useUserName';
 import {
@@ -178,12 +177,10 @@ function ActionItemRow({
   onDelete: () => void;
 }) {
   const router = useRouter();
-  const { groupById } = useWorkspace();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.text);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const meetingDate = parseDate(item.meetingCreatedAt);
-  const group = groupById(item.groupId);
 
   useEffect(() => {
     if (!editing) return;
@@ -271,7 +268,6 @@ function ActionItemRow({
               }}
               className="inline-flex h-6 min-w-0 max-w-[16rem] items-center gap-1.5 rounded-md px-1.5 text-[11px] text-af-text-3 transition-colors hover:bg-af-hover hover:text-af-text"
             >
-              {group && <GroupDot color={group.color} className="h-1.5 w-1.5" />}
               <span className="truncate">{displayTitle(item.meetingTitle, item.meetingCreatedAt)}</span>
               {meetingDate && <span className="shrink-0 text-af-text-4">· {formatShortDate(meetingDate)}</span>}
             </button>

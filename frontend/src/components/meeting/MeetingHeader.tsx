@@ -2,7 +2,8 @@
 
 /**
  * One header for a meeting: the title (edit in place), when it happened, its
- * group, who was there, Export, and a ⋯ menu for everything else.
+ * group, the people who spoke (click one to name or open them), Export, and a
+ * ⋯ menu for everything else.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -16,12 +17,13 @@ import {
   FolderOpen,
   MoreHorizontal,
   Trash2,
+  UserRound,
   Users,
   Wand2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { AvatarStack } from '@/components/ui/avatar';
+import { Avatar } from '@/components/ui/avatar';
 import { Hint } from '@/components/ui/tooltip';
 import { Spinner } from '@/components/ui/spinner';
 import {
@@ -40,6 +42,10 @@ import { RetranscribeDialog } from '@/components/MeetingDetails/RetranscribeDial
 import { useConfig } from '@/contexts/ConfigContext';
 import { formatDuration, parseDate } from '@/lib/dates';
 import { timeRange } from '@/lib/meeting-titles';
+import { useUserName } from '@/hooks/useUserName';
+import { isUserSpeaker } from '@/utils/speakerUtils';
+
+const isGenericSpeaker = (label: string) => /^speaker d+$/i.test(label.trim()) || /^guest$/i.test(label.trim());
 
 export interface MeetingHeaderProps {
   meetingId: string;
@@ -50,8 +56,9 @@ export interface MeetingHeaderProps {
   groupId: string | null;
   onGroupChange: (groupId: string | null) => void;
   onRename: (title: string) => Promise<boolean>;
-  participants: string[];
-  unidentified: number;
+  /** Speaker labels in this meeting, most talkative first. */
+  people: string[];
+  onPersonClick: (label: string, anchor: HTMLElement) => void;
   onExport: () => void;
   onCopyTranscript: () => void;
   onCopySummary: () => void;
@@ -71,8 +78,8 @@ export function MeetingHeader({
   groupId,
   onGroupChange,
   onRename,
-  participants,
-  unidentified,
+  people,
+  onPersonClick,
   onExport,
   onCopyTranscript,
   onCopySummary,
@@ -82,6 +89,7 @@ export function MeetingHeader({
   onTranscriptChanged,
 }: MeetingHeaderProps) {
   const router = useRouter();
+  const userName = useUserName();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [identifyOpen, setIdentifyOpen] = useState(false);
   const [expected, setExpected] = useState('');
@@ -130,17 +138,36 @@ export function MeetingHeader({
             {when && <span className="tabular-nums">{when}</span>}
             {durationSeconds ? <span className="tabular-nums">{formatDuration(durationSeconds)}</span> : null}
             <GroupPicker value={groupId} onChange={onGroupChange} placeholder="Add to group" />
-            {(participants.length > 0 || unidentified > 0) && (
-              <span className="flex items-center gap-2">
-                {participants.length > 0 && <AvatarStack names={participants} max={4} size="sm" />}
-                <span>
-                  {participants.length > 0 && `${participants.length} identified`}
-                  {participants.length > 0 && unidentified > 0 && ' · '}
-                  {unidentified > 0 && `${unidentified} unidentified`}
-                </span>
-              </span>
-            )}
           </div>
+          {people.length > 0 && (
+            <ul aria-label="People in this meeting" className="-ml-1 mt-2 flex flex-wrap items-center gap-0.5">
+              {people.map((label) => {
+                const unnamed = isGenericSpeaker(label);
+                return (
+                  <li key={label}>
+                    <button
+                      type="button"
+                      onClick={(event) => onPersonClick(label, event.currentTarget)}
+                      title={unnamed ? 'Name this speaker' : undefined}
+                      className={cn(
+                        'inline-flex h-7 max-w-[14rem] items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2.5 text-[13px] transition-colors hover:bg-af-hover',
+                        unnamed ? 'text-af-text-3 hover:text-af-text-2' : 'text-af-text-2 hover:text-af-text',
+                      )}
+                    >
+                      {unnamed ? (
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-dashed border-af-border-strong text-af-text-4">
+                          <UserRound className="h-3.5 w-3.5" />
+                        </span>
+                      ) : (
+                        <Avatar name={isUserSpeaker(label) ? userName || 'You' : label} size="sm" />
+                      )}
+                      <span className="truncate">{isUserSpeaker(label) ? 'You' : label}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {identifying && (

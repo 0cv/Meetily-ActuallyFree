@@ -34,7 +34,7 @@ import { announceChange, getMeetingGroup, setMeetingGroup } from '@/lib/workspac
 import { deleteMeetings, renameMeeting } from '@/lib/meeting-actions';
 import { displayTitle } from '@/lib/meeting-titles';
 import { cn } from '@/lib/utils';
-import { displaySpeaker, isUserSpeaker, speakerDot } from '@/utils/speakerUtils';
+import { displaySpeaker } from '@/utils/speakerUtils';
 
 // Page remounts join the same backend-start attempt. Only accepted attempts are
 // persisted in sessionStorage below; failed preflight attempts remain retryable.
@@ -47,8 +47,6 @@ function clampDocumentWidth(width: number, frame: number) {
   const max = Math.max(DOCUMENT_MIN, frame - 6 - TRANSCRIPT_MIN);
   return Math.round(Math.min(max, Math.max(DOCUMENT_MIN, width)));
 }
-
-const isGeneratedLabel = (label: string) => /^speaker \d+$/i.test(label.trim()) || /^guest$/i.test(label.trim());
 
 export default function PageContent({
   meeting,
@@ -291,11 +289,6 @@ export default function PageContent({
     return [...counts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
   }, [transcriptSegments]);
 
-  const participants = useMemo(
-    () => speakers.filter((speaker) => !isUserSpeaker(speaker.label) && !isGeneratedLabel(speaker.label)).map((speaker) => speaker.label),
-    [speakers],
-  );
-  const unidentified = speakers.filter((speaker) => isGeneratedLabel(speaker.label)).length;
 
   // Deep link from search or an action item: the line itself, or the line
   // spoken at the linked time. Load pages until it is present, then show it.
@@ -401,8 +394,8 @@ export default function PageContent({
           }
           return ok;
         }}
-        participants={participants}
-        unidentified={unidentified}
+        people={speakers.map((speaker) => speaker.label)}
+        onPersonClick={(label, anchor) => setCardTarget({ speaker: label, segmentId: '', rect: anchor.getBoundingClientRect() })}
         onExport={() => setExportOpen(true)}
         onCopyTranscript={copyOperations.handleCopyTranscript}
         onCopySummary={copyOperations.handleCopySummary}
@@ -419,27 +412,6 @@ export default function PageContent({
         className={cn('flex min-h-0 min-w-0 flex-1 overflow-hidden', stacked ? 'flex-col' : 'flex-row', draggingSplit && 'select-none')}
       >
         <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-label="Transcript">
-          <div className="flex h-12 shrink-0 items-center gap-2 overflow-x-auto border-b border-af-border px-4 no-scrollbar">
-            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-af-text-4">Speakers</span>
-            {speakers.length === 0 ? (
-              <span className="text-xs text-af-text-4">None yet</span>
-            ) : (
-              speakers.map((speaker) => (
-                <button
-                  key={speaker.label}
-                  type="button"
-                  onClick={(event) =>
-                    setCardTarget({ speaker: speaker.label, segmentId: '', rect: event.currentTarget.getBoundingClientRect() })
-                  }
-                  className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-af-border bg-af-panel-2 px-2.5 text-xs text-af-text-2 transition-colors hover:border-af-border-strong hover:text-af-text"
-                >
-                  <span className={cn('h-2 w-2 rounded-full', speakerDot(speaker.label))} />
-                  <span className="max-w-[10rem] truncate">{displaySpeaker(speaker.label, userName)}</span>
-                  <span className="tabular-nums text-af-text-4">{speaker.count}</span>
-                </button>
-              ))
-            )}
-          </div>
           <div className="min-h-0 flex-1">
             <VirtualizedTranscriptView
               segments={transcriptSegments}

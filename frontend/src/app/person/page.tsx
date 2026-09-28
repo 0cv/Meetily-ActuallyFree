@@ -15,15 +15,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
-  CalendarDays,
-  CircleCheck,
   GitMerge,
-  LockKeyhole,
   Mail,
   MoreHorizontal,
   Pencil,
   Phone,
-  Sparkles,
   Trash2,
   UserRound,
 } from 'lucide-react';
@@ -34,7 +30,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { EmptyState, Skeleton } from '@/components/ui/surface';
+import { EmptyState, Skeleton, Panel } from '@/components/ui/surface';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -70,21 +66,6 @@ function speakingTime(seconds: number): string {
   return hours > 0 ? `${hours} h ${minutes % 60} min` : `${minutes} min`;
 }
 
-function Card({ title, icon, action, children, className }: { title: string; icon: React.ReactNode; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
-  return (
-    <section className={cn('rounded-2xl border border-af-border bg-af-panel-2/50 p-4', className)}>
-      <header className="mb-2 flex min-h-7 items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-[13px] font-semibold text-af-text">
-          <span className="text-af-text-3 [&_svg]:size-4">{icon}</span>
-          {title}
-        </h2>
-        {action}
-      </header>
-      {children}
-    </section>
-  );
-}
-
 function PrivateNotes({ personId, initial }: { personId: string; initial: string }) {
   const [notes, setNotes] = useState(initial);
   const saver = useAutosave<string>(async (value) => {
@@ -92,9 +73,8 @@ function PrivateNotes({ personId, initial }: { personId: string; initial: string
   });
   useEffect(() => setNotes(initial), [initial]);
   return (
-    <Card
+    <Panel
       title="Private notes"
-      icon={<LockKeyhole />}
       action={saver.state !== 'idle' ? <span className="text-[11px] text-af-text-4">{saveStateLabel(saver.state)}</span> : undefined}
     >
       <Textarea
@@ -108,7 +88,7 @@ function PrivateNotes({ personId, initial }: { personId: string; initial: string
         className="resize-y text-[13px] leading-relaxed"
       />
       <p className="mt-2 text-[11px] leading-relaxed text-af-text-4">Only for you. Saved as you type, and never sent to AI.</p>
-    </Card>
+    </Panel>
   );
 }
 
@@ -286,9 +266,8 @@ function PersonPageInner() {
 
         <div className="mt-6 grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="flex min-w-0 flex-col gap-4">
-            <Card
+            <Panel
               title="Action items"
-              icon={<CircleCheck />}
               action={
                 doneCount > 0 ? (
                   <button
@@ -323,9 +302,9 @@ function PersonPageInner() {
                   className="-mx-2"
                 />
               )}
-            </Card>
+            </Panel>
 
-            <Card title="Meetings together" icon={<CalendarDays />} action={profile ? <span className="text-xs tabular-nums text-af-text-4">{profile.meetings.length}</span> : undefined}>
+            <Panel title="Meetings together" action={profile ? <span className="text-xs tabular-nums text-af-text-4">{profile.meetings.length}</span> : undefined}>
               {!profile ? (
                 <Skeleton className="h-24" />
               ) : profile.meetings.length === 0 ? (
@@ -358,12 +337,12 @@ function PersonPageInner() {
                   })}
                 </ul>
               )}
-            </Card>
+            </Panel>
           </div>
 
           <div className="flex min-w-0 flex-col gap-4">
             {profile && <PrivateNotes personId={profile.id} initial={profile.notes ?? ''} />}
-            <Card title={`Ask about ${first || 'them'}`} icon={<Sparkles />} className="flex h-[28rem] flex-col p-0 pt-4 [&>header]:px-4">
+            <Panel title={`Ask about ${first || 'them'}`} className="flex h-[28rem] flex-col p-0 pt-4 [&>header]:px-4">
               <ChatThread
                 historyKey={`person:${personId}`}
                 ask={ask}
@@ -375,7 +354,7 @@ function PersonPageInner() {
                 footnote="Uses your summary model. Cloud providers receive their lines and meeting summaries to answer."
                 className="min-h-0 flex-1"
               />
-            </Card>
+            </Panel>
           </div>
         </div>
       </div>

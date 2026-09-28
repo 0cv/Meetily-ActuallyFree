@@ -89,7 +89,6 @@ function ContactsInner() {
     <div className="h-full overflow-y-auto bg-af-panel">
       <div className="mx-auto w-full max-w-5xl px-8 pb-32 pt-10 animate-af-rise">
         <PageHeader
-          icon={<Contact />}
           title="Contacts"
           description="Everyone you've named in a meeting, and anyone you add yourself. Pick them when naming speakers, and their meetings and action items gather on their page."
           actions={

@@ -525,15 +525,14 @@ const Sidebar: React.FC = () => {
             ) : (
               sections.map((section) => (
                 <div key={section.key} className="mt-2 first:mt-0">
-                  <div className="flex items-center gap-1.5 px-2 pb-0.5 pt-1.5">
+                  <div className="flex items-center gap-1.5 pb-0.5 pl-8 pr-2 pt-1.5">
                     {section.groupId ? (
                       <button
                         type="button"
                         onClick={() => router.push(`/groups?id=${encodeURIComponent(section.groupId!)}`)}
-                        className="flex min-w-0 items-center gap-1.5 rounded text-[11px] font-semibold text-af-text-3 transition-colors hover:text-af-text"
+                        className="min-w-0 truncate rounded text-[11px] font-semibold text-af-text-4 transition-colors hover:text-af-text-2"
                       >
-                        <GroupDot color={section.color} />
-                        <span className="truncate">{section.title}</span>
+                        {section.title}
                       </button>
                     ) : (
                       <span className="truncate text-[11px] font-semibold text-af-text-4">{section.title}</span>
@@ -544,8 +543,7 @@ const Sidebar: React.FC = () => {
                     <MeetingRow
                       key={meeting.id}
                       meeting={meeting}
-                      groupColor={groupById(meeting.group_id)?.color}
-                      showGroupDot={groupBy === 'date'}
+                      groupName={groupBy === 'date' ? groupById(meeting.group_id)?.name ?? null : null}
                       showTimeOnly={groupBy === 'date' && (section.title === 'Today' || section.title === 'Yesterday')}
                       active={meeting.id === activeMeetingId}
                       selected={selectedIds.has(meeting.id)}
@@ -677,8 +675,8 @@ const Sidebar: React.FC = () => {
 
 interface MeetingRowProps {
   meeting: CurrentMeeting;
-  groupColor?: string | null;
-  showGroupDot: boolean;
+  /** Shown in the details line when meetings are listed by date. */
+  groupName?: string | null;
   showTimeOnly: boolean;
   active: boolean;
   selected: boolean;
@@ -695,8 +693,7 @@ interface MeetingRowProps {
 
 function MeetingRow({
   meeting,
-  groupColor,
-  showGroupDot,
+  groupName,
   showTimeOnly,
   active,
   selected,
@@ -713,7 +710,7 @@ function MeetingRow({
   const { groups } = useWorkspace();
   const date = parseDate(meeting.created_at);
   const title = displayTitle(meeting.title, meeting.created_at);
-  const meta = [date ? (showTimeOnly ? formatTime(date) : formatShortDate(date)) : null, formatDuration(meeting.duration_seconds) || null]
+  const meta = [groupName, date ? (showTimeOnly ? formatTime(date) : formatShortDate(date)) : null, formatDuration(meeting.duration_seconds) || null]
     .filter(Boolean)
     .join(' · ');
   const [draft, setDraft] = useState(title);
@@ -750,7 +747,7 @@ function MeetingRow({
         selected ? 'bg-af-accent/[0.12]' : active ? 'bg-af-active' : 'hover:bg-af-hover',
       )}
     >
-      <span className="relative flex h-4 w-4 shrink-0 items-center justify-center" onClick={(event) => event.stopPropagation()}>
+      <span className="flex h-4 w-4 shrink-0 items-center justify-center" onClick={(event) => event.stopPropagation()}>
         <Checkbox
           checked={selected}
           onClick={(event) => {
@@ -758,15 +755,8 @@ function MeetingRow({
             onToggle(event.shiftKey);
           }}
           aria-label={selected ? `Deselect ${title}` : `Select ${title}`}
-          className={cn('absolute transition-opacity', selecting || selected ? 'opacity-100' : 'opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100')}
+          className={cn('transition-opacity', selecting || selected ? 'opacity-100' : 'opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100')}
         />
-        <span className={cn('transition-opacity', selecting || selected ? 'opacity-0' : 'group-hover/row:opacity-0')}>
-          {showGroupDot && groupColor ? (
-            <GroupDot color={groupColor} />
-          ) : (
-            <span className={cn('block h-1.5 w-1.5 rounded-full', active ? 'bg-af-accent' : 'bg-af-text-4/60')} />
-          )}
-        </span>
       </span>
 
       <div className="min-w-0 flex-1">
