@@ -1,4 +1,4 @@
-﻿// audio/recording_commands.rs
+// audio/recording_commands.rs
 //
 // Slim Tauri command layer for recording functionality.
 // Delegates to transcription and recording modules for actual implementation.
@@ -254,16 +254,18 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
     let mut manager = RecordingManager::new();
 
     // Load recording preferences to get auto_save AND device preferences
-    let (auto_save, preferred_mic_name, preferred_system_name, recordings_folder) =
+    let (auto_save, preferred_mic_name, preferred_system_name, recordings_folder, per_app_enabled, per_app_targets) =
         match super::recording_preferences::load_recording_preferences(&app).await {
             Ok(prefs) => {
-                info!("ðŸ“‹ Loaded recording preferences: auto_save={}, preferred_mic={:?}, preferred_system={:?}",
-                      prefs.auto_save, prefs.preferred_mic_device, prefs.preferred_system_device);
+                info!("📋 Loaded recording preferences: auto_save={}, preferred_mic={:?}, preferred_system={:?}, per_app={}, targets={}",
+                      prefs.auto_save, prefs.preferred_mic_device, prefs.preferred_system_device, prefs.per_app_recording_enabled, prefs.per_app_targets.len());
                 (
                     prefs.auto_save,
                     prefs.preferred_mic_device,
                     prefs.preferred_system_device,
                     prefs.save_folder,
+                    prefs.per_app_recording_enabled,
+                    prefs.per_app_targets,
                 )
             }
             Err(e) => {
@@ -273,10 +275,13 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
                     None,
                     None,
                     super::recording_preferences::get_default_recordings_folder(),
+                    false,
+                    Vec::new(),
                 )
             }
         };
     manager.set_recordings_folder(recordings_folder);
+    manager.set_per_app_config(per_app_enabled, per_app_targets);
 
     // ============================================================================
     // MICROPHONE DEVICE RESOLUTION: Preference â†’ Default â†’ Error
@@ -436,7 +441,9 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
         .map_err(|error| { crate::diarization::online::stop(); map_recording_start_error(&app, error) })?;
 
     #[cfg(target_os = "windows")]
-    start_windows_audio_route_monitor(&app, &manager, resolved_system_device_name);
+    if !per_app_enabled {
+        start_windows_audio_route_monitor(&app, &manager, resolved_system_device_name);
+    }
 
     // Store the manager globally to keep it alive
     {
@@ -662,6 +669,10 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
     };
     let auto_save = preferences.auto_save;
     manager.set_recordings_folder(preferences.save_folder);
+    manager.set_per_app_config(
+        preferences.per_app_recording_enabled,
+        preferences.per_app_targets.clone(),
+    );
 
     // Always ensure a meeting name is set so incremental saver initializes
     let effective_meeting_name = meeting_name.clone().unwrap_or_else(|| {
@@ -688,7 +699,9 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
         .map_err(|error| { crate::diarization::online::stop(); map_recording_start_error(&app, error) })?;
 
     #[cfg(target_os = "windows")]
-    start_windows_audio_route_monitor(&app, &manager, resolved_system_device_name);
+    if !preferences.per_app_recording_enabled {
+        start_windows_audio_route_monitor(&app, &manager, resolved_system_device_name);
+    }
 
     // Store the manager globally to keep it alive
     {

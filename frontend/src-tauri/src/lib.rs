@@ -267,6 +267,27 @@ fn read_audio_file(file_path: String) -> Result<Vec<u8>, String> {
 }
 
 #[tauri::command]
+async fn get_meeting_playback_audio<R: Runtime>(
+    app: AppHandle<R>,
+    state: tauri::State<'_, state::AppState>,
+    meeting_id: String,
+) -> Result<Option<String>, String> {
+    let folder: Option<String> = sqlx::query_scalar("SELECT folder_path FROM meetings WHERE id = ?")
+        .bind(meeting_id)
+        .fetch_optional(state.db_manager.pool())
+        .await.map_err(|error| error.to_string())?.flatten();
+    let Some(folder) = folder else { return Ok(None); };
+    for name in ["audio.mp4", "audio.m4a", "audio.wav", "audio.mp3", "audio.webm"] {
+        let file = std::path::Path::new(&folder).join(name);
+        if file.is_file() {
+            app.asset_protocol_scope().allow_file(&file).map_err(|error| error.to_string())?;
+            return Ok(Some(file.to_string_lossy().into_owned()));
+        }
+    }
+    Ok(None)
+}
+
+#[tauri::command]
 async fn save_transcript(file_path: String, content: String) -> Result<(), String> {
     log_info!("Saving transcript to: {}", file_path);
 
@@ -619,6 +640,15 @@ pub fn run() {
             is_recording,
             get_transcription_status,
             read_audio_file,
+            get_meeting_playback_audio,
+            audio::waveform::get_waveform_peaks,
+            whisper_engine::labs::get_whisper_strict_silence,
+            whisper_engine::labs::set_whisper_strict_silence,
+            diarization::voice_profiles::get_voice_profiles_enabled,
+            diarization::voice_profiles::set_voice_profiles_enabled,
+            diarization::voice_profiles::enroll_voice_profile,
+            diarization::voice_profiles::list_voice_profiles,
+            diarization::voice_profiles::delete_voice_profile,
             save_transcript,
             analytics::commands::init_analytics,
             analytics::commands::disable_analytics,
@@ -664,6 +694,8 @@ pub fn run() {
             whisper_engine::commands::whisper_delete_corrupted_model,
             // Parakeet engine commands
             parakeet_engine::commands::parakeet_init,
+            parakeet_engine::labs::get_parakeet_gpu_enabled,
+            parakeet_engine::labs::set_parakeet_gpu_enabled,
             parakeet_engine::commands::parakeet_get_available_models,
             parakeet_engine::commands::parakeet_load_model,
             parakeet_engine::commands::parakeet_get_current_model,
@@ -858,6 +890,8 @@ pub fn run() {
             audio::recording_preferences::open_recordings_folder,
             audio::recording_preferences::discard_recording_folder,
             audio::recording_preferences::select_recording_folder,
+            audio::recording_preferences::get_recordable_apps,
+            audio::recording_preferences::select_custom_app_executable,
             audio::recording_preferences::get_available_audio_backends,
             audio::recording_preferences::get_current_audio_backend,
             audio::recording_preferences::set_audio_backend,

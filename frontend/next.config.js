@@ -38,6 +38,9 @@ const nextConfig = {
 
   // Add webpack configuration for Tauri
   webpack: (config, { isServer }) => {
+    config.output = config.output || {};
+    config.output.chunkLoadTimeout = 300000; // 5 minutes to prevent ChunkLoadError timeout during cold dev server startup
+
     if (!isServer) {
       config.output = config.output || {};
       config.output.chunkLoadTimeout = 300000;

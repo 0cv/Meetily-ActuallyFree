@@ -172,7 +172,7 @@ export function SetupOverviewStep() {
                 {accelerationLabel}
               </p>
               <p className="mt-1 text-xs leading-5 text-af-text-2">
-                {accelerationDescription} Live Parakeet transcription uses the CPU.
+                {accelerationDescription} Live Parakeet uses the CPU by default; DirectML acceleration is optional in Labs.
               </p>
             </div>
           </div>

@@ -45,6 +45,20 @@ const binDir = path.resolve(__dirname, '../node_modules/.bin');
 const pathKey = Object.keys(process.env).find(k => k.toLowerCase() === 'path') || 'PATH';
 env[pathKey] = `${binDir}${path.delimiter}${process.env[pathKey] || ''}`;
 
+if (platform === 'win32') {
+  const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+  const nsisDir = path.join(localAppData, 'tauri', 'NSIS');
+  if (fs.existsSync(nsisDir)) {
+    env[pathKey] = `${nsisDir}${path.delimiter}${env[pathKey]}`;
+  }
+  if (!env.LIBCLANG_PATH && fs.existsSync('C:\\Program Files\\LLVM\\bin')) {
+    env.LIBCLANG_PATH = 'C:\\Program Files\\LLVM\\bin';
+  }
+  if (!env.BINDGEN_EXTRA_CLANG_ARGS && fs.existsSync('C:\\Program Files\\LLVM\\lib\\clang\\18\\include')) {
+    env.BINDGEN_EXTRA_CLANG_ARGS = '-I"C:/Program Files/LLVM/lib/clang/18/include"';
+  }
+}
+
 if (platform === 'linux' && feature === 'cuda') {
   console.log('🐧 Linux/CUDA detected: Setting CMAKE flags for NVIDIA GPU');
   env.CMAKE_CUDA_ARCHITECTURES = '75';

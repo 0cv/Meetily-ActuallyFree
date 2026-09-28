@@ -139,12 +139,69 @@ Whisper's CUDA/Vulkan/CPU backend selection. Read `onnx_runtime.rs`,
 `frontend/src-tauri/build/onnxruntime.rs`, and the Sortformer session builder before
 changing runtime loading or execution-provider settings.
 
+Labs Parakeet GPU acceleration is a separate native preference in
+`parakeet_engine/labs.rs`. It reloads the selected Parakeet model and places the
+encoder session on DirectML device 0; the decoder and preprocessor remain on
+CPU. Provider initialization errors are reported to Settings and the prior
+preference/model is restored. This does not change Nemotron or Whisper's
+backend. `get_local_stack_status` reports the native preference to the Local
+stack UI; its previous Parakeet CPU pill was fixed text. An ignored test with
+the installed v3 INT8 model and synthetic silence confirms encoder nodes run
+on both DirectML and CPU; real speech performance remains unqualified.
+
 The universal Windows build script is
 `frontend/scripts/build-universal-windows.ps1`. It packages CPU/Vulkan/CUDA app
 variants; the runtime payload must match the one validated in tests. Validate with
 `node frontend/scripts/verify-windows-release.mjs`.
 
 ## 6. Tests, qualification, and historical notes
+
+### Home meeting library
+
+`frontend/src/app/home/page.tsx` renders the date-sorted meeting library and is
+the Tauri startup route (`/home`). The recording-ready screen remains `/`; the
+sidebar's New Recording action opens it. `SidebarProvider` owns the shared meeting
+list and refresh/error state. `api_get_meetings` in `api/api.rs` batches saved
+summaries and transcript labels, returning raw summary data, a plain-text preview,
+and distinct custom speaker names in first-spoken order alongside date/duration.
+Generated/source labels are excluded using `is_person_name`; these names are only
+meeting display snapshots, not inferred cross-meeting identities. Home and meeting
+details share the legacy/Markdown/BlockNote topic classifier in
+`frontend/src/lib/summary-buckets.ts`. Home groups full-width meeting cards by
+local date, connects each day's cards with a timeline, and filters title, named
+participants, summary, and topics with the search field. Cards show a short
+summary paragraph and at most three short Key Topics labels. Topic bullets with
+label/explanation markup display only the label; the full summary is retained.
+Missing summaries remain an explicit empty state. Cards link to the existing meeting detail route; Home
+refreshes its list on entry after a summary is saved. `StartupTranscriptRecovery`
+now mounts in the shared layout so IndexedDB recovery checks still run when Home
+opens first. Tray/notification start events from Home route to `/` with the
+auto-start flag for the recording hook. Topic extraction remains heuristic and
+depends on a recognizable Key Topics heading or legacy section. Verification
+covers frontend/native builds and the Windows installer payload; a local installer
+is not a published release.
+
+### Speaker colors in transcripts
+
+`speakerUtils.ts` supplies the shared dot/text palette for the live and post-call
+virtualized transcript and the detected-speakers sidebar. The Tailwind scan must
+include `src/utils`, where the palette class names are declared, or named speakers
+can render without a dot or text color in production. Both transcript views
+assign palette slots by first-spoken meeting order. A rename changes the display
+label in place and retains its slot; `You` stays blue. The palette has eight
+remote slots, so meetings with more than eight remote speakers reuse colors.
+The focused `tests/lib/speaker-colors.test.mjs` checks slot continuity on rename;
+the Next production CSS output must also contain every dot palette class.
+
+Labs roadmap features 1, 3, 7, 8, and 12 are mapped in
+[LABS_MACWHISPER_FEATURES.md](LABS_MACWHISPER_FEATURES.md). Read it before
+changing meeting detection, recorded audio seeking, named voice enrollment,
+Whisper silence thresholds, or the clean transcript display. The Labs settings
+page stores frontend preferences; the Whisper and voice-profile switches also
+persist in native app data so they survive a WebView reload. Named profiles use
+WeSpeaker embeddings in Pyannote live sessions and as a separate identity
+matcher for Nemotron live and both post-call paths. Nemotron remains the selected
+diarizer; its channel numbers never establish persistent identity.
 
 From `frontend/`, run mock-heavy groups separately:
 

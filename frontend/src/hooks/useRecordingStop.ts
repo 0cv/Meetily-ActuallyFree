@@ -82,6 +82,8 @@ export function useRecordingStop(
       return;
     }
     stopInProgressRef.current = true;
+    sessionStorage.removeItem('labsAutoRecordingProcess');
+    sessionStorage.removeItem('labsAutoStopPending');
 
     // Accidental taps: under 10s → discard, no meeting note.
     const MIN_MEETING_SECS = 10;

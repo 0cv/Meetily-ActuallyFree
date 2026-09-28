@@ -29,6 +29,7 @@ import { UpdateCheckProvider } from '@/components/UpdateCheckProvider'
 import { RecordingPostProcessingProvider } from '@/contexts/RecordingPostProcessingProvider'
 import { ImportDialogProvider } from '@/contexts/ImportDialogContext'
 import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioFormats'
+import { loadLabsPreferences } from '@/lib/labs'
 import { getPendingCrashReport, type PendingCrashReport } from '@/services/crashReportService'
 import { WorkspaceProvider } from '@/contexts/WorkspaceContext'
 import { RouteWarmup } from '@/components/RouteWarmup'
@@ -298,10 +299,10 @@ export default function RootLayout({
   // Meeting Detection: prompt to start recording when a meeting app is detected.
   useEffect(() => {
     if (!startupResolved || startupError || pendingCrashReport) return
-    const unlisten = listen<{ app: string; process: string; notify: boolean }>(
+    const unlisten = listen<{ app: string; process: string; notify: boolean; active_media: boolean }>(
       'meeting-detected',
       (event) => {
-        const { app, notify } = event.payload;
+        const { app, notify, active_media, process } = event.payload;
         console.log('[Layout] meeting-detected:', event.payload);
 
         const startRecording = () => {
@@ -313,6 +314,16 @@ export default function RootLayout({
           }
           startRecordingAnywhere.current();
         };
+
+        if (loadLabsPreferences().meetingAutomation && active_media && !showOnboarding) {
+          void invoke<{ is_recording?: boolean }>('get_recording_state').then((state) => {
+            if (!state.is_recording) {
+              sessionStorage.setItem('labsAutoStartPending', process);
+              startRecording();
+            }
+          }).catch((error) => console.error('Could not check recording state for meeting automation:', error));
+          return;
+        }
 
         // OS toast with a Start recording button (Windows native path).
         if (notify) {
@@ -345,9 +356,27 @@ export default function RootLayout({
       startRecordingAnywhere.current();
     });
 
+    const unlistenEnd = listen<{ process: string }>('meeting-ended', (event) => {
+      if (!loadLabsPreferences().meetingAutomation) return;
+      if (sessionStorage.getItem('labsAutoRecordingProcess') !== event.payload.process) return;
+      void invoke<{ is_recording?: boolean }>('get_recording_state').then((state) => {
+        if (!state.is_recording) {
+          sessionStorage.removeItem('labsAutoRecordingProcess');
+          return;
+        }
+        sessionStorage.setItem('labsAutoStopPending', 'true');
+        if (window.location.pathname === '/') {
+          window.dispatchEvent(new Event('stop-recording-from-labs'));
+        } else {
+          window.location.assign('/');
+        }
+      }).catch(console.error);
+    });
+
     return () => {
       unlisten.then((fn) => fn());
       unlistenStart.then((fn) => fn());
+      unlistenEnd.then((fn) => fn());
     };
   }, [showOnboarding, startupResolved, startupError, pendingCrashReport]);
 
