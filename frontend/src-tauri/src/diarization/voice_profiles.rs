@@ -16,7 +16,12 @@ const MODEL: &str = "wespeaker-resnet34-LM/lda-128";
 const MATCH_THRESHOLD: f32 = 0.80;
 const MATCH_MARGIN: f32 = 0.08;
 const MAX_PROFILES: usize = 50;
-const MAX_TURNS: usize = 8;
+/// Clear turns learned from one meeting, spread across it.
+const LEARN_TURNS: usize = 20;
+/// Turns compared per voice when matching during diarization.
+const MATCH_TURNS: usize = 8;
+/// Meetings a voice is learned from; the oldest share drops off first.
+const MAX_SOURCES: usize = 12;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VoiceProfile {
@@ -25,6 +30,20 @@ pub struct VoiceProfile {
     pub embedding: Vec<f32>,
     pub samples: u32,
     pub model: String,
+    /// Each meeting's share of the voice, so learning from a meeting again
+    /// replaces its share instead of counting it twice. A profile saved before
+    /// shares were kept has none, and counts as one earlier share.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sources: Vec<VoiceSource>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct VoiceSource {
+    /// Empty for the share of a profile saved before shares were kept.
+    pub meeting_id: String,
+    /// Sum of the meeting's turn embeddings.
+    pub sum: Vec<f32>,
+    pub turns: u32,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -32,6 +51,80 @@ pub struct VoiceProfileInfo {
     pub person_id: String,
     pub name: String,
     pub samples: u32,
+    /// Meetings the voice was learned from.
+    pub meetings: u32,
+}
+
+impl VoiceProfile {
+    fn info(&self) -> VoiceProfileInfo {
+        VoiceProfileInfo {
+            person_id: self.person_id.clone(),
+            name: self.name.clone(),
+            samples: self.samples,
+            meetings: self.sources.len().max(1) as u32,
+        }
+    }
+
+    /// The meeting shares the voice was built from.
+    fn shares(&self) -> Vec<VoiceSource> {
+        if !self.sources.is_empty() {
+            return self.sources.clone();
+        }
+        vec![VoiceSource {
+            meeting_id: String::new(),
+            sum: self.embedding.iter().map(|value| value * self.samples as f32).collect(),
+            turns: self.samples,
+        }]
+    }
+}
+
+/// Up to `count` items, evenly spaced from first to last, so a long meeting
+/// is learned from all of it rather than its opening minutes.
+fn spread<T: Copy>(items: &[T], count: usize) -> Vec<T> {
+    if items.len() <= count {
+        return items.to_vec();
+    }
+    (0..count).map(|index| items[index * items.len() / count]).collect()
+}
+
+fn share_of(meeting_id: &str, vectors: &[Vec<f32>]) -> VoiceSource {
+    let mut sum = vec![0.0f32; 128];
+    for vector in vectors {
+        for (target, value) in sum.iter_mut().zip(vector) { *target += *value; }
+    }
+    VoiceSource { meeting_id: meeting_id.to_string(), sum, turns: vectors.len() as u32 }
+}
+
+/// Adds shares to a voice's earlier ones. A meeting learned again replaces
+/// its earlier share; past `MAX_SOURCES`, the oldest shares drop off.
+fn merge_shares(mut earlier: Vec<VoiceSource>, added: Vec<VoiceSource>) -> Vec<VoiceSource> {
+    for share in added {
+        if !share.meeting_id.is_empty() {
+            earlier.retain(|existing| existing.meeting_id != share.meeting_id);
+        }
+        earlier.push(share);
+    }
+    if earlier.len() > MAX_SOURCES {
+        let extra = earlier.len() - MAX_SOURCES;
+        earlier.drain(..extra);
+    }
+    earlier
+}
+
+/// A voice is the direction of the mean of every turn it was learned from.
+fn build_profile(person_id: String, name: String, sources: Vec<VoiceSource>) -> Result<VoiceProfile> {
+    let turns: u32 = sources.iter().map(|source| source.turns).sum();
+    if turns < 2 {
+        bail!("{name} needs at least two clear turns of 2 to 15 seconds, with nobody talking over them.");
+    }
+    let mut embedding = vec![0.0f32; 128];
+    for source in sources.iter().filter(|source| source.sum.len() == 128) {
+        for (target, value) in embedding.iter_mut().zip(&source.sum) { *target += *value; }
+    }
+    let norm = embedding.iter().map(|value| value * value).sum::<f32>().sqrt();
+    if norm <= 1e-6 { bail!("Voice embedding is empty"); }
+    for value in &mut embedding { *value /= norm; }
+    Ok(VoiceProfile { person_id, name, embedding, samples: turns, model: MODEL.into(), sources })
 }
 
 fn path() -> PathBuf {
@@ -101,7 +194,7 @@ pub fn match_offline_speakers(track: &Path, segments: &[super::DiarizationSegmen
             && other.start < segment.end && other.end > segment.start);
         if remote_overlap || !(2.0..=15.0).contains(&duration) { continue; }
         let entries = vectors.entry(segment.speaker).or_default();
-        if entries.len() >= MAX_TURNS { continue; }
+        if entries.len() >= MATCH_TURNS { continue; }
         let first = (segment.start * 16_000.0) as usize;
         let last = (segment.end * 16_000.0) as usize;
         if first >= last || last > audio.len() { continue; }
@@ -209,29 +302,6 @@ pub fn best_match<'a>(embedding: &[f32], profiles: &'a [VoiceProfile]) -> Option
     (score >= MATCH_THRESHOLD && score - runner_up >= MATCH_MARGIN).then_some(profile)
 }
 
-fn enroll_from_track(track: &Path, turns: &[(f64, f64)], person_id: String, name: String) -> Result<VoiceProfile> {
-    let audio = crate::audio::decoder::decode_audio_file(track)?.to_whisper_format();
-    let mut models = DiarizationModels::load(&super::diarization_model_dir())?;
-    let mut vectors = Vec::new();
-    for &(start, end) in turns.iter().take(MAX_TURNS) {
-        let first = (start * 16_000.0) as usize;
-        let last = (end * 16_000.0) as usize;
-        if first >= last || last > audio.len() { continue; }
-        if let Ok(vector) = models.embed(&audio[first..last]) {
-            if vector.len() == 128 { vectors.push(vector); }
-        }
-    }
-    if vectors.len() < 2 { bail!("At least two clear speaker turns are required for enrollment"); }
-    let mut mean = vec![0.0f32; 128];
-    for vector in &vectors {
-        for (target, value) in mean.iter_mut().zip(vector) { *target += *value; }
-    }
-    let norm = mean.iter().map(|value| value * value).sum::<f32>().sqrt();
-    if norm <= 1e-6 { bail!("Voice embedding is empty"); }
-    for value in &mut mean { *value /= norm; }
-    Ok(VoiceProfile { person_id, name, embedding: mean, samples: vectors.len() as u32, model: MODEL.into() })
-}
-
 /// Why a voice could not be learned. `Unavailable` holds for every meeting
 /// (the feature is off, the models are missing, the list is full), so there
 /// is no point trying another one.
@@ -248,8 +318,29 @@ impl From<EnrollError> for String {
     }
 }
 
-/// Learns a named speaker's voice from one saved meeting's call audio.
-async fn enroll(pool: &SqlitePool, meeting_id: &str, speaker: &str) -> Result<VoiceProfileInfo, EnrollError> {
+/// Embeds up to `LEARN_TURNS` clean turns of one meeting's call audio.
+fn embed_turns(track: &Path, turns: &[(f64, f64)]) -> Result<Vec<Vec<f32>>> {
+    let audio = crate::audio::decoder::decode_audio_file(track)?.to_whisper_format();
+    let mut models = DiarizationModels::load(&super::diarization_model_dir())?;
+    let mut vectors = Vec::new();
+    for &(start, end) in turns.iter().take(LEARN_TURNS) {
+        let first = (start * 16_000.0) as usize;
+        let last = (end * 16_000.0) as usize;
+        if first >= last || last > audio.len() { continue; }
+        if let Ok(vector) = models.embed(&audio[first..last]) {
+            if vector.len() == 128 { vectors.push(vector); }
+        }
+    }
+    Ok(vectors)
+}
+
+/// One meeting's share of a named speaker's voice, with the contact it
+/// belongs to.
+async fn meeting_share(
+    pool: &SqlitePool,
+    meeting_id: &str,
+    speaker: &str,
+) -> Result<(String, String, VoiceSource), EnrollError> {
     use EnrollError::{Meeting, Unavailable};
     let failed = |error: sqlx::Error| Meeting(error.to_string());
     if !enabled() {
@@ -301,42 +392,66 @@ async fn enroll(pool: &SqlitePool, meeting_id: &str, speaker: &str) -> Result<Vo
     let others: Vec<(f64, f64)> = rows.iter().filter(|(label, _, _)| label != speaker)
         .filter_map(|(_, start, end)| Some((start.as_ref()?.to_owned(), end.as_ref()?.to_owned())))
         .collect();
-    let turns: Vec<(f64, f64)> = rows.iter().filter(|(label, _, _)| label == speaker)
+    let clear: Vec<(f64, f64)> = rows.iter().filter(|(label, _, _)| label == speaker)
         .filter_map(|(_, start, end)| Some((start.as_ref()?.to_owned(), end.as_ref()?.to_owned())))
         .filter(|(start, end)| start.is_finite() && end.is_finite() && *start >= 0.0 && end - start >= 2.0 && end - start <= 15.0)
         .filter(|(start, end)| !others.iter().any(|(other_start, other_end)| other_start < end && other_end > start))
-        .take(MAX_TURNS).collect();
-    if turns.len() < 2 {
-        return Err(Meeting(format!(
-            "{name} needs at least two clear turns of 2 to 15 seconds, with nobody talking over them, in this meeting."
-        )));
+        .collect();
+    let turns = spread(&clear, LEARN_TURNS);
+    let no_clear_turn = || Meeting(format!(
+        "{name} has no clear turn of 2 to 15 seconds, with nobody talking over them, in this meeting."
+    ));
+    if turns.is_empty() {
+        return Err(no_clear_turn());
     }
-    let profile = tokio::task::spawn_blocking(move || enroll_from_track(&track, &turns, person_id, name))
+    let vectors = tokio::task::spawn_blocking(move || embed_turns(&track, &turns))
         .await.map_err(|error| Meeting(error.to_string()))?.map_err(|error| Meeting(error.to_string()))?;
-    let info = VoiceProfileInfo { person_id: profile.person_id.clone(), name: profile.name.clone(), samples: profile.samples };
+    if vectors.is_empty() {
+        return Err(no_clear_turn());
+    }
+    Ok((person_id, name, share_of(meeting_id, &vectors)))
+}
+
+/// Adds (or, with `replace`, rebuilds from) meeting shares of a contact's
+/// voice and saves it.
+fn store_shares(person_id: &str, name: &str, shares: Vec<VoiceSource>, replace: bool) -> Result<VoiceProfileInfo, EnrollError> {
+    use EnrollError::{Meeting, Unavailable};
     let _guard = PROFILE_WRITE.lock().map_err(|_| Unavailable("Voice profile lock poisoned".into()))?;
     let mut profiles = load().map_err(|error| Unavailable(error.to_string()))?;
-    profiles.retain(|existing| existing.person_id != profile.person_id);
-    if profiles.len() >= MAX_PROFILES {
+    let existing = profiles.iter().position(|profile| profile.person_id == person_id);
+    let earlier = match existing {
+        Some(index) if !replace => profiles[index].shares(),
+        _ => Vec::new(),
+    };
+    let profile = build_profile(person_id.to_string(), name.to_string(), merge_shares(earlier, shares))
+        .map_err(|error| Meeting(error.to_string()))?;
+    if existing.is_none() && profiles.len() >= MAX_PROFILES {
         return Err(Unavailable(format!("Meetily keeps up to {MAX_PROFILES} voices. Forget one to learn another.")));
     }
-    profiles.push(profile);
+    let info = profile.info();
+    match existing {
+        Some(index) => profiles[index] = profile,
+        None => profiles.push(profile),
+    }
     save(&profiles).map_err(|error| Unavailable(error.to_string()))?;
     Ok(info)
 }
 
-/// Learns the voice of a named speaker in one meeting.
+/// Learns a named speaker's voice from one meeting. A voice learned before
+/// keeps its other meetings; this meeting's share is added or replaced.
 #[tauri::command]
 pub async fn enroll_voice_profile(
     state: tauri::State<'_, crate::state::AppState>,
     meeting_id: String,
     speaker: String,
 ) -> Result<VoiceProfileInfo, String> {
-    enroll(state.db_manager.pool(), &meeting_id, &speaker).await.map_err(String::from)
+    let (person_id, name, share) = meeting_share(state.db_manager.pool(), &meeting_id, &speaker).await?;
+    Ok(store_shares(&person_id, &name, vec![share], false)?)
 }
 
-/// Learns a contact's voice from the meeting given, or else from their most
-/// recent meetings, stopping at the first with enough clear call audio.
+/// Learns a contact's voice. With a meeting, that meeting's audio is added to
+/// the voice; without one, the voice is rebuilt from all their recent
+/// meetings, so it picks up everything recorded since it was first learned.
 #[tauri::command]
 pub async fn enroll_person_voice(
     state: tauri::State<'_, crate::state::AppState>,
@@ -351,27 +466,32 @@ pub async fn enroll_person_voice(
         "SELECT ps.meeting_id, ps.speaker_label FROM person_speakers ps \
          JOIN meetings m ON m.id = ps.meeting_id \
          WHERE ps.person_id = ? AND (? IS NULL OR ps.meeting_id = ?) \
-         ORDER BY m.created_at DESC LIMIT 12",
-    ).bind(&person_id).bind(&meeting_id).bind(&meeting_id)
+         ORDER BY m.created_at DESC LIMIT ?",
+    ).bind(&person_id).bind(&meeting_id).bind(&meeting_id).bind(MAX_SOURCES as i64)
         .fetch_all(pool).await.map_err(|error| error.to_string())?;
     if meetings.is_empty() {
         return Err(format!("{name} is not named as a speaker in a saved meeting yet."));
     }
     let tried = meetings.len();
+    let mut shares = Vec::new();
     let mut last_problem = String::new();
-    for (meeting, label) in meetings {
-        match enroll(pool, &meeting, &label).await {
-            Ok(info) => return Ok(info),
+    // Oldest first, so the newest meetings are the ones a full list keeps.
+    for (meeting, label) in meetings.into_iter().rev() {
+        match meeting_share(pool, &meeting, &label).await {
+            Ok((_, _, share)) => shares.push(share),
             Err(EnrollError::Unavailable(message)) => return Err(message),
             Err(EnrollError::Meeting(message)) => last_problem = message,
         }
     }
-    if tried == 1 {
-        return Err(last_problem);
+    if shares.is_empty() {
+        if tried == 1 {
+            return Err(last_problem);
+        }
+        return Err(format!(
+            "None of {name}'s last {tried} meetings has clear call audio of them. Learning a voice needs meetings recorded with Save audio on, where they speak for turns of 2 to 15 seconds."
+        ));
     }
-    Err(format!(
-        "None of {name}'s last {tried} meetings has enough clear call audio of them. Learning a voice needs a meeting recorded with Save audio on, where they speak for at least two turns of 2 to 15 seconds."
-    ))
+    Ok(store_shares(&person_id, &name, shares, meeting_id.is_none())?)
 }
 
 /// Voices Meetily knows, each under its contact's current name. A voice whose
@@ -386,9 +506,7 @@ pub async fn list_voice_profiles(state: tauri::State<'_, crate::state::AppState>
     if reconcile_with_contacts(&mut profiles, &people) {
         save(&profiles).map_err(|error| error.to_string())?;
     }
-    Ok(profiles.into_iter().map(|profile| VoiceProfileInfo {
-        person_id: profile.person_id, name: profile.name, samples: profile.samples,
-    }).collect())
+    Ok(profiles.iter().map(VoiceProfile::info).collect())
 }
 
 #[tauri::command]
@@ -415,17 +533,19 @@ fn rename(profiles: &mut [VoiceProfile], person_id: &str, name: &str) -> bool {
     changed
 }
 
-/// The kept contact keeps its own voice, or takes over the merged one's.
+/// The kept contact learns from both voices' meetings, or takes over the
+/// merged contact's voice when it had none.
 fn merge(profiles: &mut Vec<VoiceProfile>, source_id: &str, target_id: &str, target_name: &str) -> bool {
-    if !profiles.iter().any(|profile| profile.person_id == source_id) {
+    let Some(index) = profiles.iter().position(|profile| profile.person_id == source_id) else {
         return rename(profiles, target_id, target_name);
-    }
-    if profiles.iter().any(|profile| profile.person_id == target_id) {
-        profiles.retain(|profile| profile.person_id != source_id);
-    } else {
-        for profile in profiles.iter_mut().filter(|profile| profile.person_id == source_id) {
-            profile.person_id = target_id.to_string();
+    };
+    let source = profiles.remove(index);
+    if let Some(target) = profiles.iter_mut().find(|profile| profile.person_id == target_id) {
+        if let Ok(combined) = build_profile(target_id.to_string(), target_name.to_string(), merge_shares(target.shares(), source.shares())) {
+            *target = combined;
         }
+    } else {
+        profiles.push(VoiceProfile { person_id: target_id.to_string(), ..source });
     }
     rename(profiles, target_id, target_name);
     true
@@ -480,14 +600,23 @@ mod tests {
     #[test]
     fn matching_requires_margin_and_correct_dimension() {
         let mut vector = vec![0.0; 128]; vector[0] = 1.0;
-        let profile = VoiceProfile { person_id: "p1".into(), name: "Alice".into(), embedding: vector.clone(), samples: 2, model: MODEL.into() };
+        let profile = VoiceProfile { person_id: "p1".into(), name: "Alice".into(), embedding: vector.clone(), samples: 2, model: MODEL.into(), sources: Vec::new() };
         assert_eq!(best_match(&vector, &[profile.clone()]).unwrap().name, "Alice");
         assert!(best_match(&vector, &[profile.clone(), profile]).is_none());
         assert!(best_match(&[1.0, 0.0], &[]).is_none());
     }
 
     fn voice(person_id: &str, name: &str) -> VoiceProfile {
-        VoiceProfile { person_id: person_id.into(), name: name.into(), embedding: vec![0.0; 128], samples: 2, model: MODEL.into() }
+        let mut embedding = vec![0.0; 128];
+        embedding[0] = 1.0;
+        VoiceProfile { person_id: person_id.into(), name: name.into(), embedding, samples: 2, model: MODEL.into(), sources: Vec::new() }
+    }
+
+    /// A share of `turns` turns pointing along axis `axis`.
+    fn share(meeting_id: &str, axis: usize, turns: u32) -> VoiceSource {
+        let mut sum = vec![0.0; 128];
+        sum[axis] = turns as f32;
+        VoiceSource { meeting_id: meeting_id.into(), sum, turns }
     }
 
     #[test]
@@ -500,17 +629,19 @@ mod tests {
     }
 
     #[test]
-    fn merging_contacts_keeps_one_voice_under_the_kept_contact() {
+    fn merging_contacts_combines_their_voices() {
         // Only the merged contact had a voice: it moves to the kept contact.
         let mut profiles = vec![voice("dup", "Al")];
         assert!(merge(&mut profiles, "dup", "kept", "Alice"));
         assert_eq!((profiles[0].person_id.as_str(), profiles[0].name.as_str()), ("kept", "Alice"));
 
-        // Both had one: the kept contact's own voice stays.
+        // Both had one: the kept contact learns from both.
         let mut profiles = vec![voice("dup", "Al"), voice("kept", "Alice")];
         assert!(merge(&mut profiles, "dup", "kept", "Alice"));
         assert_eq!(profiles.len(), 1);
         assert_eq!(profiles[0].person_id, "kept");
+        assert_eq!(profiles[0].samples, 4);
+        assert_eq!(profiles[0].info().meetings, 2);
 
         // Neither had one: nothing to save.
         let mut profiles = vec![voice("other", "Bob")];
@@ -530,5 +661,54 @@ mod tests {
         assert_eq!(profiles.len(), 1);
         assert_eq!(profiles[0].name, "Alice Smith");
         assert!(!reconcile_with_contacts(&mut profiles, &people));
+    }
+
+    #[test]
+    fn learning_from_a_meeting_again_replaces_its_share() {
+        let first = build_profile("p1".into(), "Alice".into(), merge_shares(Vec::new(), vec![share("m1", 0, 4)])).unwrap();
+        let again = merge_shares(first.shares(), vec![share("m1", 0, 6)]);
+        assert_eq!(again.len(), 1);
+        assert_eq!(build_profile("p1".into(), "Alice".into(), again).unwrap().samples, 6);
+    }
+
+    #[test]
+    fn a_new_meeting_adds_to_the_voice() {
+        let first = build_profile("p1".into(), "Alice".into(), vec![share("m1", 0, 3)]).unwrap();
+        let updated = build_profile("p1".into(), "Alice".into(), merge_shares(first.shares(), vec![share("m2", 1, 3)])).unwrap();
+        assert_eq!((updated.samples, updated.info().meetings), (6, 2));
+        // Equal turns on two axes point between them.
+        assert!((updated.embedding[0] - updated.embedding[1]).abs() < 1e-6);
+    }
+
+    #[test]
+    fn an_older_profile_counts_as_one_earlier_share() {
+        let legacy = voice("p1", "Alice");
+        let shares = merge_shares(legacy.shares(), vec![share("m1", 1, 2)]);
+        assert_eq!(shares.len(), 2);
+        assert_eq!(shares[0].meeting_id, "");
+        assert_eq!(shares[0].turns, 2);
+    }
+
+    #[test]
+    fn only_the_latest_meetings_are_kept() {
+        let shares: Vec<_> = (0..MAX_SOURCES + 3).map(|index| share(&format!("m{index}"), 0, 1)).collect();
+        let kept = merge_shares(Vec::new(), shares);
+        assert_eq!(kept.len(), MAX_SOURCES);
+        assert_eq!(kept[0].meeting_id, "m3");
+    }
+
+    #[test]
+    fn turns_are_taken_from_across_the_meeting() {
+        let turns: Vec<u32> = (0..100).collect();
+        let picked = spread(&turns, 20);
+        assert_eq!(picked.len(), 20);
+        assert_eq!((picked[0], picked[19]), (0, 95));
+        assert_eq!(spread(&turns[..5], 20).len(), 5);
+    }
+
+    #[test]
+    fn a_voice_needs_two_clear_turns() {
+        assert!(build_profile("p1".into(), "Alice".into(), vec![share("m1", 0, 1)]).is_err());
+        assert!(build_profile("p1".into(), "Alice".into(), vec![share("m1", 0, 1), share("m2", 0, 1)]).is_ok());
     }
 }

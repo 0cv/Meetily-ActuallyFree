@@ -17,7 +17,7 @@ import { usePlatform } from '@/hooks/usePlatform';
 import { useLabs } from '@/hooks/useLabs';
 import { useVoiceProfiles } from '@/hooks/useVoiceProfiles';
 import { setLabsFeature, syncLabsFromBackend, type LabsFeature } from '@/lib/labs-features';
-import { describeVoiceError, forgetVoice } from '@/lib/voice-profiles';
+import { describeVoiceError, describeVoiceSource, forgetVoice } from '@/lib/voice-profiles';
 
 interface Feature {
   key: LabsFeature;
@@ -180,7 +180,7 @@ function LearnedVoices() {
                 {profile.name}
               </Link>
               <span className="shrink-0 text-[11px] tabular-nums text-af-text-4">
-                {profile.samples} turn{profile.samples === 1 ? '' : 's'}
+                {describeVoiceSource(profile)}
               </span>
               <button
                 type="button"

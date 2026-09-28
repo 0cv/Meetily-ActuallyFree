@@ -63,9 +63,10 @@ interface above.
   - Whisper silence guard filters silence and noise more strictly when Whisper
     transcribes.
   - Parakeet on the GPU runs Parakeet's encoder through DirectML on Windows.
-  - Voice profiles learn a contact's voice on their page or from the speaker card,
-    and later meetings name a matching voice. Renaming, merging or deleting a contact
-    updates or removes their voice.
+  - Voice profiles learn a contact's voice from their recorded meetings, and later
+    meetings name a matching voice. Update voice on a contact's page relearns it from
+    all their recent meetings, and the speaker card adds one meeting's audio. Renaming,
+    merging or deleting a contact updates or removes their voice.
 - Unnamed voices keep distinct colours in a meeting, and keep them when renamed.
 
 ## 0.2.17 - 2026-09-25

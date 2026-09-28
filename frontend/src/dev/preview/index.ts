@@ -72,7 +72,12 @@ const state = {
     notify: true,
   },
   labs: { whisperStrictSilence: false, voiceProfiles: false, parakeetGpu: false },
-  voices: [{ person_id: 'person-tom', samples: 6 }] as Array<{ person_id: string; samples: number }>,
+  voices: [{ person_id: 'person-tom', samples: 6, meetings: 1, from: ['meeting-acme-kickoff'] }] as Array<{
+    person_id: string;
+    samples: number;
+    meetings: number;
+    from: string[];
+  }>,
 };
 
 const RUNNING_APPS = [
@@ -435,7 +440,7 @@ function handle(cmd: string, args: Args): unknown {
       return new Promise((resolve) => setTimeout(() => resolve(null), 600));
     case 'list_voice_profiles':
       return state.voices
-        .map((voice) => ({ ...voice, name: state.people.find((person) => person.id === voice.person_id)?.displayName }))
+        .map(({ from: _from, ...voice }) => ({ ...voice, name: state.people.find((person) => person.id === voice.person_id)?.displayName }))
         .filter((voice) => voice.name);
     case 'enroll_person_voice':
     case 'enroll_voice_profile': {
@@ -444,8 +449,15 @@ function handle(cmd: string, args: Args): unknown {
           ? state.people.find((entry) => entry.id === args.personId)
           : state.people.find((entry) => entry.displayName === args.speaker);
       if (!person) return Promise.reject('Only a named speaker on the call can have a voice profile.');
-      state.voices = [...state.voices.filter((voice) => voice.person_id !== person.id), { person_id: person.id, samples: 5 }];
-      return new Promise((resolve) => setTimeout(() => resolve({ person_id: person.id, name: person.displayName, samples: 5 }), 900));
+      // Like the app: one meeting adds its share, no meeting relearns from all of theirs.
+      const earlier = state.voices.find((voice) => voice.person_id === person.id)?.from ?? [];
+      const theirs = state.links.filter((link) => link.personId === person.id).map((link) => link.meetingId);
+      const from = cmd === 'enroll_voice_profile' ? [...new Set([...earlier, args.meetingId as string])] : theirs;
+      const voice = { person_id: person.id, samples: from.length * 4, meetings: from.length, from };
+      state.voices = [...state.voices.filter((entry) => entry.person_id !== person.id), voice];
+      return new Promise((resolve) =>
+        setTimeout(() => resolve({ person_id: person.id, name: person.displayName, samples: voice.samples, meetings: voice.meetings }), 900),
+      );
     }
     case 'delete_voice_profile':
       state.voices = state.voices.filter((voice) => voice.person_id !== args.personId);

@@ -21,9 +21,13 @@ used:
   of a plain track and adds 0.5× and 0.75×. Seeking from a line's timestamp
   and following playback work without Labs.
 - Named voice profiles: a Voice panel on each contact's page learns a voice
-  from their recent meetings, relearns it, or forgets it; the speaker card on a
-  meeting page offers Remember voice. Renaming, merging or deleting a contact
-  updates or removes their voice.
+  from all their recent meetings (up to twelve), updates it the same way so new
+  meetings count, or forgets it; the speaker card on a meeting page adds that
+  meeting's audio (Remember voice, or Update voice once one exists). A profile
+  keeps each meeting's share, so learning from a meeting again replaces its
+  share instead of counting it twice; profiles saved before shares were kept
+  count as one earlier share. Renaming, merging or deleting a contact updates,
+  combines or removes their voice.
 - Whisper silence guard and Parakeet GPU: tagged on the engine they change in
   Settings > Transcription.
 - Clean transcript: a Clean/Verbatim switch in the meeting player. With Labs
@@ -72,9 +76,10 @@ is bounded to 24 hours. No word-level karaoke claim is made.
 The existing `voiceprint.rs` belongs to the microphone user only. New
 `voice_profiles.rs` stores opt-in WeSpeaker post-LDA embeddings for explicitly
 named people, keyed by the existing `people` and `person_speakers` identity.
-Enrollment uses the separate system track and up to eight non-overlapping,
-2–15 second turns bearing that person's saved speaker label. It requires at
-least two successful embeddings. The model runs on a blocking worker; capture
+Enrollment uses the separate system track and, from each meeting, up to twenty
+non-overlapping 2–15 second turns bearing that person's saved speaker label,
+spread across the meeting. A voice keeps a share per meeting (up to twelve) and
+is the mean of all their turns; it requires at least two successful embeddings. The model runs on a blocking worker; capture
 does no inference. Profiles are saved in local app data, can be listed and
 deleted in Labs, and matching is disabled by default.
 

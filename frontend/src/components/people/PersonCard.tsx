@@ -18,7 +18,7 @@ import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useUserName } from '@/hooks/useUserName';
 import { useLabs } from '@/hooks/useLabs';
 import { useVoiceProfiles } from '@/hooks/useVoiceProfiles';
-import { describeVoiceError, learnSpeakerVoice } from '@/lib/voice-profiles';
+import { describeVoiceError, describeVoiceSource, learnSpeakerVoice } from '@/lib/voice-profiles';
 import { listActionItems, type ActionItem } from '@/lib/workspace-api';
 import { formatRelativePast, parseDate } from '@/lib/dates';
 import { displaySpeaker, isUserSpeaker, speakerDot } from '@/utils/speakerUtils';
@@ -83,16 +83,20 @@ export function PersonCard({
   const voice = contact ? voices?.find((profile) => profile.person_id === contact.id) : undefined;
   const canLearnVoice = !!contact && !!meetingId && labs.voiceProfiles && voices !== null;
 
+  // Adds this meeting's audio to the voice (or starts it).
   const learnVoice = async () => {
     if (!contact || !meetingId || learning) return;
+    const updating = !!voice;
     setLearning(true);
     try {
       const profile = await learnSpeakerVoice(meetingId, speaker);
-      toast.success(`Learned ${profile.name}'s voice`, {
-        description: `From ${profile.samples} clear turns. Later meetings name a matching voice after them.`,
+      toast.success(`${updating ? 'Updated' : 'Learned'} ${profile.name}'s voice`, {
+        description: updating
+          ? `Now from ${describeVoiceSource(profile)}, including this one.`
+          : `From ${describeVoiceSource(profile)}. Later meetings name a matching voice after them.`,
       });
     } catch (error) {
-      toast.error(`Could not learn ${contact.displayName}'s voice`, { description: describeVoiceError(error) });
+      toast.error(`Could not ${updating ? 'update' : 'learn'} ${contact.displayName}'s voice`, { description: describeVoiceError(error) });
     } finally {
       setLearning(false);
     }
@@ -141,7 +145,7 @@ export function PersonCard({
             {canLearnVoice && voice && (
               <p className="flex items-center gap-1.5 px-4 pb-3 text-[11px] text-af-text-3">
                 <Fingerprint className="h-3.5 w-3.5 text-af-accent" />
-                Voice remembered from {voice.samples} turn{voice.samples === 1 ? '' : 's'}
+                Voice learned from {describeVoiceSource(voice)}
               </p>
             )}
 
@@ -217,10 +221,10 @@ export function PersonCard({
                   Merge
                 </Button>
               )}
-              {canLearnVoice && !voice && (
+              {canLearnVoice && (
                 <Button size="sm" variant="ghost" onClick={() => void learnVoice()} loading={learning}>
                   <Fingerprint />
-                  Remember voice
+                  {voice ? 'Update voice' : 'Remember voice'}
                 </Button>
               )}
             </div>
