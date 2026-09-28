@@ -7,14 +7,72 @@
  * reports both BlockNote JSON (exact) and markdown (for search, export, AI).
  */
 import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import type { Block, PartialBlock } from '@blocknote/core';
-import { useCreateBlockNote } from '@blocknote/react';
+import { GridSuggestionMenuController, SuggestionMenuController, useCreateBlockNote } from '@blocknote/react';
 import { BlockNoteView } from '@blocknote/shadcn';
 import '@blocknote/shadcn/style.css';
 import { cn } from '@/lib/utils';
 import { themeInfo, useAppTheme } from '@/lib/app-theme';
 import { blocksToMarkdownSafely } from '@/lib/blocknote-markdown';
 import { BlockNoteLayerProvider, blockNoteMenus, useBlockNoteLayer } from '@/components/editor/blocknote-menus';
+
+/** Space between a menu and the line, and between a menu and the window's edge. */
+const MENU_GAP = 10;
+const MENU_EDGE = 8;
+/** A suggestion menu's height when there is room for all of it. */
+const MENU_HEIGHT = 360;
+
+/**
+ * Opens a suggestion menu below the line when it fits there (or there is more
+ * room below than above), otherwise above the line. BlockNote decides this
+ * from the menu's measured height, which is only a sliver when it opens (its
+ * items load a moment later), so near the bottom of the window the menu stayed
+ * below the line, squeezed to nothing. The room on screen decides it here.
+ */
+const placeAgainstWindow = {
+  name: 'placeAgainstWindow',
+  fn({
+    x,
+    rects,
+    elements,
+  }: {
+    x: number;
+    rects: { floating: { width: number } };
+    elements: { reference: { getBoundingClientRect(): { top: number; bottom: number } }; floating: HTMLElement };
+  }) {
+    const line = elements.reference.getBoundingClientRect();
+    const below = window.innerHeight - line.bottom - MENU_GAP - MENU_EDGE;
+    const above = line.top - MENU_GAP - MENU_EDGE;
+    const opensBelow = below >= MENU_HEIGHT || below >= above;
+    // Above the line the menu hangs from its bottom edge (globals.css), so it
+    // stays against the line while its items load or filter.
+    elements.floating.dataset.afMenuSide = opensBelow ? 'below' : 'above';
+    elements.floating.style.maxHeight = `${Math.max(0, Math.min(MENU_HEIGHT, opensBelow ? below : above))}px`;
+    return {
+      x: Math.max(MENU_EDGE, Math.min(x, window.innerWidth - rects.floating.width - MENU_EDGE)),
+      y: opensBelow ? line.bottom + MENU_GAP : line.top - MENU_GAP,
+    };
+  },
+};
+
+const suggestionMenuPlacement = { strategy: 'fixed' as const, placement: 'bottom-start' as const, middleware: [placeAgainstWindow] };
+
+/**
+ * The slash menu ("/" and the + button) and the emoji picker, drawn in the
+ * page-level layer so the notes panel cannot clip them. BlockNote's defaults
+ * otherwise; its own copies are turned off below.
+ */
+function EditorSuggestionMenus({ layer }: { layer: HTMLElement | null }) {
+  if (!layer) return null;
+  return createPortal(
+    <>
+      <SuggestionMenuController triggerCharacter="/" floatingOptions={suggestionMenuPlacement} />
+      <GridSuggestionMenuController triggerCharacter=":" columns={10} minQueryLength={2} floatingOptions={suggestionMenuPlacement} />
+    </>,
+    layer,
+  );
+}
 
 export interface NotesContent {
   json: Block[];
@@ -95,7 +153,16 @@ export function NotesEditor({
   return (
     <div className={cn('af-notes-editor', className)}>
       <BlockNoteLayerProvider value={menuLayer}>
-        <BlockNoteView editor={editor} editable={editable} theme={dark ? 'dark' : 'light'} shadCNComponents={blockNoteMenus} />
+        <BlockNoteView
+          editor={editor}
+          editable={editable}
+          theme={dark ? 'dark' : 'light'}
+          shadCNComponents={blockNoteMenus}
+          slashMenu={false}
+          emojiPicker={false}
+        >
+          <EditorSuggestionMenus layer={menuLayer} />
+        </BlockNoteView>
       </BlockNoteLayerProvider>
     </div>
   );

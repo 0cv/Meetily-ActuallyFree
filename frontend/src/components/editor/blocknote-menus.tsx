@@ -1,17 +1,20 @@
 'use client';
 
 /**
- * BlockNote draws its menus inline, inside the editor, so a block menu near the
- * notes panel's edge was clipped by the panel or drawn under the divider. These
- * are the app's own menu components, rendered into a layer at the top of the
- * page instead. The layer carries BlockNote's container classes so its theme
- * variables and colour swatches still apply.
+ * BlockNote draws its menus and tooltips inline, inside the editor, so near the
+ * notes panel's edge they were clipped by the panel or drawn under the divider.
+ * These are the app's own menu and tooltip components, rendered above the page
+ * instead: menus into a layer at the top of the page that carries BlockNote's
+ * container classes (so its theme variables and colour swatches still apply),
+ * tooltips like every other tooltip in the app.
  */
 import * as React from 'react';
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
+import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { Check } from 'lucide-react';
 import type { BlockNoteView } from '@blocknote/shadcn';
 import { cn } from '@/lib/utils';
+import { TooltipProvider, tooltipMotion, tooltipSurface } from '@/components/ui/tooltip';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -112,6 +115,33 @@ const CheckboxItem = React.forwardRef<
 ));
 CheckboxItem.displayName = 'BlockNoteMenuCheckboxItem';
 
+/** Toolbar tooltips wait like the app's others instead of opening instantly. */
+function ToolbarTooltipProvider({ children }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  return <TooltipProvider>{children}</TooltipProvider>;
+}
+
+/** Portaled, so the formatting toolbar's tooltips are never clipped. */
+const ToolbarTooltipContent = React.forwardRef<
+  React.ElementRef<typeof TooltipPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
+>(({ className, sideOffset = 6, ...props }, ref) => (
+  <TooltipPrimitive.Portal>
+    <TooltipPrimitive.Content
+      ref={ref}
+      sideOffset={sideOffset}
+      // BlockNote puts the action and its shortcut in two spans.
+      className={cn(
+        tooltipSurface,
+        tooltipMotion,
+        'flex flex-col items-center text-center [&>span+span]:mt-0.5 [&>span+span]:text-[11px] [&>span+span]:font-normal [&>span+span]:text-af-text-3',
+        className,
+      )}
+      {...props}
+    />
+  </TooltipPrimitive.Portal>
+));
+ToolbarTooltipContent.displayName = 'BlockNoteToolbarTooltipContent';
+
 type ShadCNOverrides = NonNullable<React.ComponentProps<typeof BlockNoteView>['shadCNComponents']>;
 
 /** Pass as `shadCNComponents` to BlockNoteView, inside a BlockNoteLayerProvider. */
@@ -127,5 +157,11 @@ export const blockNoteMenus = {
     DropdownMenuSubContent: SubContent,
     DropdownMenuSubTrigger,
     DropdownMenuTrigger,
+  },
+  Tooltip: {
+    Tooltip: TooltipPrimitive.Root,
+    TooltipContent: ToolbarTooltipContent,
+    TooltipProvider: ToolbarTooltipProvider,
+    TooltipTrigger: TooltipPrimitive.Trigger,
   },
 } as unknown as ShadCNOverrides;

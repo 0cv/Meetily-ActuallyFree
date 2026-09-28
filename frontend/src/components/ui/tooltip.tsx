@@ -17,6 +17,13 @@ const TooltipTrigger = TooltipPrimitive.Trigger
 export const tooltipSurface =
   "z-[80] max-w-xs rounded-md border border-af-border-strong bg-af-elevated px-2.5 py-1.5 text-xs font-medium leading-snug text-af-text shadow-lg"
 
+/** How every tooltip opens and closes. */
+export const tooltipMotion = cn(
+  "origin-[--radix-tooltip-content-transform-origin] animate-in fade-in-0 zoom-in-95 duration-150",
+  "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
+  "data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1"
+)
+
 const TooltipContent = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
@@ -25,13 +32,7 @@ const TooltipContent = React.forwardRef<
     <TooltipPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
-      className={cn(
-        tooltipSurface,
-        "origin-[--radix-tooltip-content-transform-origin] animate-in fade-in-0 zoom-in-95 duration-150",
-        "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
-        "data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1",
-        className
-      )}
+      className={cn(tooltipSurface, tooltipMotion, className)}
       {...props}
     />
   </TooltipPrimitive.Portal>

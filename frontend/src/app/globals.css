@@ -736,6 +736,12 @@ html.minibar-window body {
   height: 0;
   z-index: 60;
 }
+/* A slash or emoji menu opened above the line (NotesEditor) hangs from its
+   bottom edge, and its empty frame takes no room below the line. */
+.af-blocknote-layer [data-af-menu-side='above'] {
+  height: 0;
+  align-items: flex-end;
+}
 
 /* Block menu, slash menu and formatting toolbar: the same surface, rows and
    motion as the app's own menus. */
