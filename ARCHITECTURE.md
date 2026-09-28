@@ -419,7 +419,8 @@ exactly this confusion; it has been deleted along with `SettingTabs.tsx`,
 The label also has to survive the Rust side: `MeetingTranscript` must include
 `speaker`, and every place constructing it must set it.
 
-`InsightTabs` renders the complete stored Markdown as its authoritative summary.
+`components/meeting/MeetingDocument.tsx` renders the complete stored Markdown
+(`completeSummaryMarkdown` in `lib/summary-markdown.ts`) as its authoritative summary.
 English-keyword action/topic shortcuts are supplemental only; never make them the
 sole visible representation, because custom and non-English headings do not map
 reliably to those buckets. Preserve Markdown whitespace, nesting, and table syntax.
