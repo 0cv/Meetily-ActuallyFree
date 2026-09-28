@@ -244,16 +244,18 @@ function handle(cmd: string, args: Args): unknown {
   switch (cmd) {
     // ---- App shell -------------------------------------------------------
     case 'get_onboarding_status':
+      // `?preview=onboarding` shows first-run setup instead of the app.
       return {
         version: '1',
-        completed: true,
-        current_step: 5,
+        completed: !window.location.search.includes('preview=onboarding'),
+        current_step: window.location.search.includes('preview=onboarding') ? 1 : 5,
         model_status: { parakeet: 'downloaded', summary: 'downloaded' },
         last_updated: now(),
       };
     case 'get_pending_crash_report':
-    case 'get_cuda_reconfiguration_status':
       return null;
+    case 'get_cuda_reconfiguration_status':
+      return { reconfigurationRequired: false, compiledBackend: 'cpu', setupDownloadUrl: null };
     case 'check_first_launch':
     case 'get_check_updates_on_launch':
       return false;
