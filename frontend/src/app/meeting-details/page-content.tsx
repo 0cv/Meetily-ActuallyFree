@@ -444,8 +444,9 @@ export default function PageContent({
           </div>
         )}
 
+        {/* Above the divider, so the editor's toolbar and slash menu can overlap it. */}
         <aside
-          className={cn('flex min-h-0 min-w-0 flex-col', stacked ? 'flex-1 border-t border-af-border' : 'shrink-0')}
+          className={cn('relative z-20 flex min-h-0 min-w-0 flex-col', stacked ? 'flex-1 border-t border-af-border' : 'shrink-0')}
           style={stacked ? undefined : { width: documentWidth }}
           aria-label="Notes and summary"
         >

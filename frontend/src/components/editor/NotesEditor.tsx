@@ -14,6 +14,7 @@ import '@blocknote/shadcn/style.css';
 import { cn } from '@/lib/utils';
 import { themeInfo, useAppTheme } from '@/lib/app-theme';
 import { blocksToMarkdownSafely } from '@/lib/blocknote-markdown';
+import { BlockNoteLayerProvider, blockNoteMenus, useBlockNoteLayer } from '@/components/editor/blocknote-menus';
 
 export interface NotesContent {
   json: Block[];
@@ -41,6 +42,8 @@ export function NotesEditor({
   onReady,
 }: NotesEditorProps) {
   const [theme] = useAppTheme();
+  const dark = themeInfo(theme).dark;
+  const menuLayer = useBlockNoteLayer(dark);
   const loaded = useRef(false);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -91,7 +94,9 @@ export function NotesEditor({
 
   return (
     <div className={cn('af-notes-editor', className)}>
-      <BlockNoteView editor={editor} editable={editable} theme={themeInfo(theme).dark ? 'dark' : 'light'} />
+      <BlockNoteLayerProvider value={menuLayer}>
+        <BlockNoteView editor={editor} editable={editable} theme={dark ? 'dark' : 'light'} shadCNComponents={blockNoteMenus} />
+      </BlockNoteLayerProvider>
     </div>
   );
 }

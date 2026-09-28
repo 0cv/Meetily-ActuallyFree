@@ -719,6 +719,18 @@ html.minibar-window body {
 }
 .bn-container.bn-shadcn .bn-menu-dropdown,
 .bn-container.bn-shadcn .bn-suggestion-menu { padding: 4px; gap: 1px; }
+/* The editor's block menus render into this page-level layer (see
+   components/editor/blocknote-menus.tsx). It takes no space; its menus are
+   fixed to the viewport above every panel. */
+.bn-container.af-blocknote-layer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0 !important;
+  height: 0;
+  z-index: 60;
+}
+
 /* Slash menu rows: BlockNote repeats the row class on the icon, title and
    subtitle, so rows are matched by role. */
 .bn-container.bn-shadcn .bn-menu-item,
