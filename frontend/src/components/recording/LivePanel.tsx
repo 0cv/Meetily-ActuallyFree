@@ -13,7 +13,7 @@ import { Hint } from '@/components/ui/tooltip';
 import { NotesEditor, type NotesContent } from '@/components/editor/NotesEditor';
 import { ChatThread } from '@/components/chat/ChatThread';
 import { useUserName } from '@/hooks/useUserName';
-import { displaySpeaker, isUserSpeaker, speakerDot } from '@/utils/speakerUtils';
+import { displaySpeaker, isUserSpeaker, speakerDot, speakerKey } from '@/utils/speakerUtils';
 import { buildLiveContext, lineAt, type LiveLine } from '@/lib/live-context';
 import { readLiveNotes, writeLiveNotes } from '@/lib/live-session';
 import type { DetectedSpeaker } from '@/types';
@@ -33,7 +33,21 @@ function SpeakersTab({
 }) {
   const userName = useUserName();
   const total = speakers.reduce((sum, speaker) => sum + speaker.segmentCount, 0);
-  const sorted = useMemo(() => [...speakers].sort((a, b) => b.segmentCount - a.segmentCount), [speakers]);
+  // One row per person: labels that all mean the user, or differ only in case, share a row.
+  const sorted = useMemo(() => {
+    const byPerson = new Map<string, DetectedSpeaker>();
+    for (const speaker of [...speakers].sort((a, b) => b.segmentCount - a.segmentCount)) {
+      const key = speaker.isUser ? speakerKey('You') : speakerKey(speaker.name);
+      const kept = byPerson.get(key);
+      byPerson.set(
+        key,
+        kept
+          ? { ...kept, segmentCount: kept.segmentCount + speaker.segmentCount, lastSpokeAt: Math.max(kept.lastSpokeAt ?? 0, speaker.lastSpokeAt ?? 0) || undefined }
+          : speaker,
+      );
+    }
+    return [...byPerson.values()];
+  }, [speakers]);
 
   if (speakers.length === 0) {
     return (

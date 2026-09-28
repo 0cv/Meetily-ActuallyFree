@@ -5,7 +5,7 @@
  * group, the people who spoke (click one to name or open them), Export, and a
  * ⋯ menu for everything else.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
@@ -43,7 +43,7 @@ import { useConfig } from '@/contexts/ConfigContext';
 import { formatDuration, parseDate } from '@/lib/dates';
 import { timeRange } from '@/lib/meeting-titles';
 import { useUserName } from '@/hooks/useUserName';
-import { isUserSpeaker } from '@/utils/speakerUtils';
+import { isUserSpeaker, speakerKey } from '@/utils/speakerUtils';
 
 const isGenericSpeaker = (label: string) => /^speaker d+$/i.test(label.trim()) || /^guest$/i.test(label.trim());
 
@@ -91,6 +91,17 @@ export function MeetingHeader({
   const router = useRouter();
   const userName = useUserName();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // One chip per person: every label that means the user ("You", "You (mic)")
+  // and names that differ only in case collapse to their first label.
+  const uniquePeople = useMemo(() => {
+    const seen = new Set<string>();
+    return people.filter((label) => {
+      const key = speakerKey(label);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [people]);
   const [identifyOpen, setIdentifyOpen] = useState(false);
   const [expected, setExpected] = useState('');
   const [identifying, setIdentifying] = useState(false);
@@ -139,9 +150,9 @@ export function MeetingHeader({
             {durationSeconds ? <span className="tabular-nums">{formatDuration(durationSeconds)}</span> : null}
             <GroupPicker value={groupId} onChange={onGroupChange} placeholder="Add to group" />
           </div>
-          {people.length > 0 && (
+          {uniquePeople.length > 0 && (
             <ul aria-label="People in this meeting" className="-ml-1 mt-2 flex flex-wrap items-center gap-0.5">
-              {people.map((label) => {
+              {uniquePeople.map((label) => {
                 const unnamed = isGenericSpeaker(label);
                 return (
                   <li key={label}>
