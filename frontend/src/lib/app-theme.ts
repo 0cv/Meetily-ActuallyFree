@@ -38,9 +38,9 @@ export const THEMES: ThemeInfo[] = [
   {
     id: 'charcoal',
     label: 'Charcoal',
-    description: 'Charcoal brown with caramel accents.',
+    description: 'Warm charcoal with clay accents.',
     dark: true,
-    swatch: ['#110e0c', '#1a1613', '#28221d', '#efe6dc', '#e3a35f'],
+    swatch: ['#141211', '#1b1917', '#262321', '#f0ede9', '#de8462'],
   },
 ];
 
