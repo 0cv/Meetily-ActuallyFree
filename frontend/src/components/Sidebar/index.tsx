@@ -52,6 +52,9 @@ import { groupColorVar } from '@/lib/group-colors';
 import { createGroupFromPicker, GroupDot, groupOptions } from '@/components/groups/GroupBits';
 import { openGroupEditor } from '@/components/groups/GroupEditor';
 import { Hint } from '@/components/ui/tooltip';
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { VisuallyHidden } from '@/components/ui/visually-hidden';
+import { About } from '@/components/About';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Kbd } from '@/components/ui/surface';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -317,23 +320,39 @@ const Sidebar: React.FC = () => {
       />
 
       <div className="flex h-full w-full min-w-0 flex-col overflow-hidden">
-        {/* Wordmark and collapse button. Collapsed, the button takes the
-            wordmark's place, so the row keeps its height and nothing below it
-            moves. The row also drags the window (the app draws its own title
-            bar on Windows). */}
-        <div data-tauri-drag-region="deep" className={cn('flex h-14 shrink-0 items-center px-3', expanded && 'gap-1')}>
-          <div
-            className={cn(
-              'grid min-w-0 items-center transition-[grid-template-columns,opacity] motion-reduce:transition-none',
-              RAIL_EASE,
-              expanded ? 'flex-1 grid-cols-[1fr] opacity-100 delay-75 duration-200' : 'grid-cols-[0fr] opacity-0 duration-150',
-            )}
-          >
-            <div className="min-w-0 select-none overflow-hidden pl-2">
-              <span className="block truncate text-[13px] font-semibold leading-tight tracking-tight text-af-text">Meetily</span>
-              <span className="block truncate text-[11px] leading-tight text-af-accent">Actually Free</span>
-            </div>
-          </div>
+        {/* Wordmark (opens About) and the collapse button. The button is pinned
+            to the rail's right edge, so it glides with the rail as it opens and
+            closes and lands in the icon column when collapsed; its two icons
+            cross-fade. The row keeps its height, so nothing below it moves, and
+            its empty space drags the window (the app draws its own title bar on
+            Windows). */}
+        <div data-tauri-drag-region="deep" className="relative flex h-14 shrink-0 items-center px-3">
+          <Dialog aria-describedby={undefined}>
+            <DialogTrigger asChild>
+              <button
+                type="button"
+                aria-label="About Meetily"
+                tabIndex={expanded ? undefined : -1}
+                aria-hidden={expanded ? undefined : true}
+                className={cn(
+                  'mr-11 flex h-10 min-w-0 flex-1 items-center rounded-lg px-2 text-left transition-[opacity,background-color] hover:bg-af-hover motion-reduce:transition-none',
+                  RAIL_EASE,
+                  expanded ? 'opacity-100 delay-75 duration-200' : 'pointer-events-none opacity-0 duration-150',
+                )}
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-[13px] font-semibold leading-tight tracking-tight text-af-text">Meetily</span>
+                  <span className="block truncate text-[11px] leading-tight text-af-accent">Actually Free</span>
+                </span>
+              </button>
+            </DialogTrigger>
+            <DialogContent>
+              <VisuallyHidden>
+                <DialogTitle>About Meetily</DialogTitle>
+              </VisuallyHidden>
+              <About />
+            </DialogContent>
+          </Dialog>
           <RailTip show={!expanded} label="Expand sidebar">
             <button
               type="button"
@@ -341,13 +360,18 @@ const Sidebar: React.FC = () => {
               aria-label={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
               aria-expanded={expanded}
               className={cn(
-                'flex h-9 shrink-0 items-center justify-center rounded-lg text-af-text-3 transition-[width,background-color,color] duration-300 hover:bg-af-hover hover:text-af-text motion-reduce:transition-none',
+                'absolute right-3 top-1/2 flex h-9 w-10 -translate-y-1/2 items-center justify-center rounded-lg text-af-text-3 transition-colors hover:bg-af-hover hover:text-af-text',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-af-accent/60',
-                RAIL_EASE,
-                expanded ? 'w-8' : 'w-10',
               )}
             >
-              {expanded ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-[18px] w-[18px]" />}
+              <span className="relative h-[18px] w-[18px]">
+                <PanelLeftClose
+                  className={cn('absolute inset-0 h-[18px] w-[18px] transition-opacity duration-200', expanded ? 'opacity-100' : 'opacity-0')}
+                />
+                <PanelLeftOpen
+                  className={cn('absolute inset-0 h-[18px] w-[18px] transition-opacity duration-200', expanded ? 'opacity-0' : 'opacity-100')}
+                />
+              </span>
             </button>
           </RailTip>
         </div>

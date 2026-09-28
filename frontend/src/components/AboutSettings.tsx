@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Image from "next/image"
 import { invoke } from "@tauri-apps/api/core"
 import { Github, Shield, Cpu, Heart } from "lucide-react"
 
@@ -35,9 +36,7 @@ export function AboutSettings() {
       {/* Identity card */}
       <div className="rounded-2xl border border-af-border bg-af-panel-2/40 p-5">
         <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-af-panel-2 text-white text-2xl font-bold shadow-sm">
-            M
-          </div>
+          <Image src="/logo-collapsed.png" alt="Meetily" width={56} height={56} className="h-14 w-14 shrink-0 rounded-2xl shadow-sm" />
           <div>
             <h3 className="text-lg font-semibold text-af-text">Meetily · Actually Free</h3>
             <p className="text-sm text-af-text-2">
