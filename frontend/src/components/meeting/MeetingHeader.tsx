@@ -82,7 +82,6 @@ export function MeetingHeader({
   onTranscriptChanged,
 }: MeetingHeaderProps) {
   const router = useRouter();
-  const { betaFeatures } = useConfig();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [identifyOpen, setIdentifyOpen] = useState(false);
   const [expected, setExpected] = useState('');
@@ -187,7 +186,7 @@ export function MeetingHeader({
                   Identify speakers again
                 </DropdownMenuItem>
               )}
-              {betaFeatures.importAndRetranscribe && folderPath && (
+              {folderPath && (
                 <DropdownMenuItem onSelect={() => setEnhanceOpen(true)}>
                   <Wand2 />
                   Enhance transcript
@@ -261,7 +260,7 @@ export function MeetingHeader({
         </DialogContent>
       </Dialog>
 
-      {betaFeatures.importAndRetranscribe && folderPath && (
+      {folderPath && (
         <RetranscribeDialog
           open={enhanceOpen}
           onOpenChange={setEnhanceOpen}

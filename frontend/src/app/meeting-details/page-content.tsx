@@ -106,7 +106,7 @@ export default function PageContent({
   const [identity, setIdentity] = useState<{ speaker: string; transcriptId: string | null } | null>(null);
   const [regenerateRequest, setRegenerateRequest] = useState<{ open: boolean; context: string; reason?: string } | null>(null);
 
-  const meetingData = useMeetingData({ meeting, summaryData, onMeetingUpdated });
+  const meetingData = useMeetingData({ meeting, summaryData });
   const templates = useTemplates();
   const meetingOperations = useMeetingOperations({ meeting });
   const audio = useMeetingAudio(meeting.id);
@@ -219,13 +219,10 @@ export default function PageContent({
     }
   };
 
-  const summaryRefStub = useRef<any>(null);
   const copyOperations = useCopyOperations({
     meeting,
-    transcripts: meetingData.transcripts,
     meetingTitle: title,
     aiSummary: meetingData.aiSummary,
-    blockNoteSummaryRef: summaryRefStub,
   });
 
   // Auto-generate after a recording (or when the policy asks for it).

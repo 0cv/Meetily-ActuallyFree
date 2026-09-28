@@ -13,6 +13,7 @@ import { BlockNoteView } from '@blocknote/shadcn';
 import '@blocknote/shadcn/style.css';
 import { cn } from '@/lib/utils';
 import { themeInfo, useAppTheme } from '@/lib/app-theme';
+import { blocksToMarkdownSafely } from '@/lib/blocknote-markdown';
 
 export interface NotesContent {
   json: Block[];
@@ -76,16 +77,15 @@ export function NotesEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor]);
 
+  // If converting to markdown ever fails, keep the last good markdown rather
+  // than saving an empty one next to the (still correct) blocks.
+  const lastMarkdown = useRef(initialMarkdown ?? '');
   useEffect(() => {
     return editor.onChange(async () => {
       if (!loaded.current || !onChangeRef.current) return;
-      let markdown = '';
-      try {
-        markdown = await editor.blocksToMarkdownLossy(editor.document);
-      } catch (error) {
-        console.error('Could not convert notes to markdown', error);
-      }
-      onChangeRef.current?.({ json: editor.document, markdown });
+      const result = await blocksToMarkdownSafely(editor, editor.document, { source: 'notes-editor', fallbackMarkdown: lastMarkdown.current });
+      if (result.ok && result.markdown !== undefined) lastMarkdown.current = result.markdown;
+      onChangeRef.current?.({ json: editor.document, markdown: result.markdown ?? lastMarkdown.current });
     });
   }, [editor]);
 

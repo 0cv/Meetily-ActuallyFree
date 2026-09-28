@@ -114,9 +114,9 @@ export default function CrashReportDialog({ report, onResolved }: CrashReportDia
         onPointerDownOutside={(event) => event.preventDefault()}
         className="max-h-[calc(100vh-2rem)] max-w-[520px] gap-0 overflow-y-auto border-[var(--af-border)] bg-[var(--af-panel)] p-0 shadow-2xl"
       >
-        <div className="border-b border-[var(--af-border)] bg-gradient-to-br from-red-500/10 via-transparent to-transparent px-6 py-5">
+        <div className="border-b border-[var(--af-border)] bg-af-panel-2 via-transparent to-transparent px-6 py-5">
           <DialogHeader className="text-left">
-            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-red-400/25 bg-red-500/10 text-red-300">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-af-danger/35 bg-af-danger/10 text-af-danger">
               <ShieldCheck className="h-5 w-5" />
             </div>
             <DialogTitle className="text-xl text-[var(--af-text)]">

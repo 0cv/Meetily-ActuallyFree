@@ -5,37 +5,40 @@
  * and meeting details.
  */
 
+// Speaker colors come from the theme's group palette (--af-c-*), which each
+// theme tunes for its own background. The class strings stay literal so
+// Tailwind can see them.
 export const speakerDotPalette = [
-  'bg-purple-500',
-  'bg-emerald-500',
-  'bg-amber-500',
-  'bg-pink-500',
-  'bg-cyan-500',
-  'bg-indigo-500',
-  'bg-rose-500',
-  'bg-teal-500',
+  'bg-[var(--af-c-violet)]',
+  'bg-[var(--af-c-green)]',
+  'bg-[var(--af-c-amber)]',
+  'bg-[var(--af-c-pink)]',
+  'bg-[var(--af-c-teal)]',
+  'bg-[var(--af-c-sky)]',
+  'bg-[var(--af-c-red)]',
+  'bg-[var(--af-c-orange)]',
 ];
 
 export const speakerTextPalette = [
-  'text-purple-600 dark:text-purple-400',
-  'text-emerald-600 dark:text-emerald-400',
-  'text-amber-600 dark:text-amber-400',
-  'text-pink-600 dark:text-pink-400',
-  'text-cyan-600 dark:text-cyan-400',
-  'text-indigo-600 dark:text-indigo-400',
-  'text-rose-600 dark:text-rose-400',
-  'text-teal-600 dark:text-teal-400',
+  'text-[var(--af-c-violet)]',
+  'text-[var(--af-c-green)]',
+  'text-[var(--af-c-amber)]',
+  'text-[var(--af-c-pink)]',
+  'text-[var(--af-c-teal)]',
+  'text-[var(--af-c-sky)]',
+  'text-[var(--af-c-red)]',
+  'text-[var(--af-c-orange)]',
 ];
 
 export const speakerBgLightPalette = [
-  'bg-purple-500/10 border-purple-500/20 text-purple-600 dark:text-purple-400',
-  'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400',
-  'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400',
-  'bg-pink-500/10 border-pink-500/20 text-pink-600 dark:text-pink-400',
-  'bg-cyan-500/10 border-cyan-500/20 text-cyan-600 dark:text-cyan-400',
-  'bg-indigo-500/10 border-indigo-500/20 text-indigo-600 dark:text-indigo-400',
-  'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400',
-  'bg-teal-500/10 border-teal-500/20 text-teal-600 dark:text-teal-400',
+  'bg-[color-mix(in_srgb,var(--af-c-violet)_12%,transparent)] border-[color-mix(in_srgb,var(--af-c-violet)_28%,transparent)] text-[var(--af-c-violet)]',
+  'bg-[color-mix(in_srgb,var(--af-c-green)_12%,transparent)] border-[color-mix(in_srgb,var(--af-c-green)_28%,transparent)] text-[var(--af-c-green)]',
+  'bg-[color-mix(in_srgb,var(--af-c-amber)_12%,transparent)] border-[color-mix(in_srgb,var(--af-c-amber)_28%,transparent)] text-[var(--af-c-amber)]',
+  'bg-[color-mix(in_srgb,var(--af-c-pink)_12%,transparent)] border-[color-mix(in_srgb,var(--af-c-pink)_28%,transparent)] text-[var(--af-c-pink)]',
+  'bg-[color-mix(in_srgb,var(--af-c-teal)_12%,transparent)] border-[color-mix(in_srgb,var(--af-c-teal)_28%,transparent)] text-[var(--af-c-teal)]',
+  'bg-[color-mix(in_srgb,var(--af-c-sky)_12%,transparent)] border-[color-mix(in_srgb,var(--af-c-sky)_28%,transparent)] text-[var(--af-c-sky)]',
+  'bg-[color-mix(in_srgb,var(--af-c-red)_12%,transparent)] border-[color-mix(in_srgb,var(--af-c-red)_28%,transparent)] text-[var(--af-c-red)]',
+  'bg-[color-mix(in_srgb,var(--af-c-orange)_12%,transparent)] border-[color-mix(in_srgb,var(--af-c-orange)_28%,transparent)] text-[var(--af-c-orange)]',
 ];
 
 export function isUserSpeaker(speaker?: string | null): boolean {
@@ -74,7 +77,7 @@ export function speakerPaletteIndex(speaker: string): number {
 export function speakerDot(speaker?: string | null): string {
   if (!speaker) return 'bg-af-text-4';
   if (isUserSpeaker(speaker)) return 'bg-af-accent';
-  if (/^guest\b/i.test(speaker)) return 'bg-purple-500';
+  if (/^guest\b/i.test(speaker)) return speakerDotPalette[0];
   return speakerDotPalette[speakerPaletteIndex(speaker)];
 }
 
@@ -82,7 +85,7 @@ export function speakerDot(speaker?: string | null): string {
 export function speakerColor(speaker?: string | null): string {
   if (!speaker) return 'text-af-text-3';
   if (isUserSpeaker(speaker)) return 'text-af-accent';
-  if (/^guest\b/i.test(speaker)) return 'text-purple-500';
+  if (/^guest\b/i.test(speaker)) return speakerTextPalette[0];
   return speakerTextPalette[speakerPaletteIndex(speaker)];
 }
 
@@ -90,7 +93,7 @@ export function speakerColor(speaker?: string | null): string {
 export function speakerBadgeClass(speaker?: string | null): string {
   if (!speaker) return 'bg-af-panel-2 border-af-border text-af-text-2';
   if (isUserSpeaker(speaker)) return 'bg-af-accent/10 border-af-accent/25 text-af-accent';
-  if (/^guest\b/i.test(speaker)) return 'bg-purple-500/10 border-purple-500/25 text-purple-600 dark:text-purple-400';
+  if (/^guest\b/i.test(speaker)) return speakerBgLightPalette[0];
   return speakerBgLightPalette[speakerPaletteIndex(speaker)];
 }
 

@@ -622,48 +622,6 @@ html.minibar-window body {
 }
 
 /* ============================================================
-   Legacy compatibility (temporary)
-   Screens that still use stock light-theme utility classes get
-   mapped onto the active theme here. Each screen drops out of this
-   layer as it moves to the shared components; delete this block
-   once nothing matches it.
-   ============================================================ */
-.bg-white { background-color: var(--af-panel) !important; }
-.bg-gray-50, .bg-slate-50, .bg-neutral-50, .bg-gray-100 { background-color: var(--af-panel-2) !important; }
-.bg-gray-200, .bg-gray-300 { background-color: var(--af-hover) !important; }
-.text-black, .text-gray-900, .text-gray-800, .text-gray-700 { color: var(--af-text) !important; }
-.text-gray-600, .text-gray-500 { color: var(--af-text-2) !important; }
-.text-gray-400, .text-gray-300 { color: var(--af-text-3) !important; }
-.border-gray-100, .border-gray-200, .border-gray-300 { border-color: var(--af-border) !important; }
-.hover\:bg-gray-50:hover, .hover\:bg-gray-100:hover, .hover\:bg-gray-200:hover, .hover\:bg-gray-300:hover { background-color: var(--af-hover) !important; }
-.hover\:text-gray-900:hover, .hover\:text-gray-800:hover, .hover\:text-gray-700:hover { color: var(--af-text) !important; }
-.bg-blue-50, .bg-blue-100 { background-color: var(--af-accent-soft) !important; }
-.bg-blue-200, .hover\:bg-blue-100:hover, .hover\:bg-blue-200:hover { background-color: var(--af-hover) !important; }
-.text-blue-500, .text-blue-600, .text-blue-700, .text-blue-800 { color: var(--af-accent) !important; }
-.border-blue-200, .border-blue-300, .border-blue-400, .border-blue-500 { border-color: rgb(var(--af-accent-rgb) / 0.45) !important; }
-.bg-blue-500, .bg-blue-600 { background-color: var(--af-accent) !important; color: var(--af-on-accent) !important; }
-.hover\:bg-blue-600:hover, .hover\:bg-blue-700:hover { background-color: var(--af-accent-hover) !important; }
-.bg-green-50 { background-color: var(--af-success-soft) !important; }
-.text-green-800, .text-green-700 { color: var(--af-success) !important; }
-.bg-red-50 { background-color: var(--af-danger-soft) !important; }
-.text-red-800, .text-red-700 { color: var(--af-danger) !important; }
-.bg-amber-50, .bg-yellow-50, .bg-orange-50 { background-color: var(--af-warning-soft) !important; }
-[class*='from-blue-50'],
-[class*='from-purple-50'],
-[class*='from-red-50'],
-[class*='from-orange-50'],
-[class*='from-green-50'],
-[class*='to-purple-50'],
-[class*='to-orange-50'] {
-  background-image: none !important;
-  background-color: var(--af-panel-2) !important;
-  color: var(--af-text) !important;
-}
-[class*='border-red-200'],
-[class*='border-purple-200'],
-[class*='border-green-200'] { border-color: var(--af-border) !important; }
-
-/* ============================================================
    Reduced motion
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {

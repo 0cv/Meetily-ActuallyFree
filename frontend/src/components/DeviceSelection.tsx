@@ -220,7 +220,7 @@ export function DeviceSelection({
   return (
     <div className="flex flex-col gap-3">
       {error && (
-        <p className="text-xs text-red-300">{error}</p>
+        <p className="text-xs text-af-danger">{error}</p>
       )}
       <AudioDeviceCard
         kind="mic"

@@ -275,9 +275,9 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
 
     return (
         <div className="space-y-6 pb-6">
-            <section className="space-y-4 rounded-xl border border-[var(--af-border)] bg-[var(--af-panel-2)] p-4 text-[var(--af-text)] sm:p-5">
+            <section className="space-y-4 rounded-2xl border border-af-border bg-af-panel-2/40 p-5 text-af-text">
                 <div className="flex items-start gap-3">
-                    <Radio className="mt-0.5 h-5 w-5 shrink-0 text-blue-500" />
+                    <Radio className="mt-0.5 h-5 w-5 shrink-0 text-af-accent" />
                     <div className="min-w-0 flex-1">
                         <h3 className="font-semibold">Live transcription</h3>
                         <p className="mt-1 text-sm text-muted-foreground">
@@ -288,7 +288,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
 
                 <div
                     className={`space-y-4 rounded-xl border p-4 transition-colors ${installedParakeetModel && !isSavingLive ? 'cursor-pointer hover:border-[var(--af-accent)]' : ''} ${uiProvider === 'parakeet'
-                    ? 'border-[var(--af-accent)] bg-[var(--af-accent-soft)] ring-1 ring-blue-500/20'
+                    ? 'border-[var(--af-accent)] bg-[var(--af-accent-soft)] ring-1 ring-af-accent/50'
                     : 'border-[var(--af-border-strong)] bg-[var(--af-panel-2)]'}`}
                     role={installedParakeetModel ? 'button' : undefined}
                     tabIndex={installedParakeetModel ? 0 : undefined}
@@ -307,11 +307,11 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                 >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="flex min-w-0 items-start gap-3">
-                            <Zap className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+                            <Zap className="mt-0.5 h-5 w-5 shrink-0 text-af-warning" />
                             <div>
                                 <div className="flex flex-wrap items-center gap-2">
                                     <h4 className="font-semibold">Parakeet</h4>
-                                    <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-500">
+                                    <span className="rounded-full bg-af-success/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-af-success">
                                         Recommended for live
                                     </span>
                                 </div>
@@ -321,7 +321,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                             </div>
                         </div>
                         {uiProvider === 'parakeet' ? (
-                            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-blue-500/40 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-400">
+                            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-af-accent/40 bg-af-accent/10 px-2.5 py-1 text-xs font-medium text-af-accent">
                                 <CheckCircle2 className="h-3.5 w-3.5" /> Selected for live
                             </span>
                         ) : installedParakeetModel ? (
@@ -343,7 +343,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
 
                 <div
                     className={`space-y-4 rounded-xl border p-4 transition-colors ${liveWhisperModel && !isSavingLive ? 'cursor-pointer hover:border-[var(--af-accent)]' : ''} ${uiProvider === 'localWhisper'
-                    ? 'border-[var(--af-accent)] bg-[var(--af-accent-soft)] ring-1 ring-blue-500/20'
+                    ? 'border-[var(--af-accent)] bg-[var(--af-accent-soft)] ring-1 ring-af-accent/50'
                     : 'border-[var(--af-border-strong)] bg-[var(--af-panel-2)]'}`}
                     role={liveWhisperModel ? 'button' : undefined}
                     tabIndex={liveWhisperModel ? 0 : undefined}
@@ -362,11 +362,11 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                 >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="flex min-w-0 items-start gap-3">
-                            <Languages className="mt-0.5 h-5 w-5 shrink-0 text-violet-400" />
+                            <Languages className="mt-0.5 h-5 w-5 shrink-0 text-af-accent" />
                             <div>
                                 <div className="flex flex-wrap items-center gap-2">
                                     <h4 className="font-semibold">Whisper</h4>
-                                    <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-400">
+                                    <span className="rounded-full bg-af-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-af-accent">
                                         Better for post-call
                                     </span>
                                 </div>
@@ -376,7 +376,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                             </div>
                         </div>
                         {uiProvider === 'localWhisper' ? (
-                            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-blue-500/40 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-400">
+                            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-af-accent/40 bg-af-accent/10 px-2.5 py-1 text-xs font-medium text-af-accent">
                                 <CheckCircle2 className="h-3.5 w-3.5" /> Selected for live
                             </span>
                         ) : liveWhisperModel ? (
@@ -403,13 +403,13 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                 <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--af-border-strong)] bg-[var(--af-panel)] p-4">
                     <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 font-semibold">
-                            <Zap className="h-4 w-4 text-amber-400" />
+                            <Zap className="h-4 w-4 text-af-warning" />
                             Faster transcription
                         </div>
                         <p className="mt-1 text-xs text-[var(--af-text-2)]">
                             Streams transcript chunks frequently (~3.5s with rapid 350ms pause detection) for lower latency.
                         </p>
-                        <p className="mt-1.5 text-xs text-amber-500/90 font-medium">
+                        <p className="mt-1.5 text-xs text-af-warning font-medium">
                             Disclaimer: This may cause additional speakers to show up when using diarization.
                         </p>
                     </div>
@@ -421,9 +421,9 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                 </div>
             </section>
 
-            <section ref={postCallSectionRef} className="scroll-mt-6 space-y-4 rounded-xl border border-[var(--af-border)] bg-[var(--af-panel-2)] p-4 text-[var(--af-text)] sm:p-5">
+            <section ref={postCallSectionRef} className="scroll-mt-6 space-y-4 rounded-2xl border border-af-border bg-af-panel-2/40 p-5 text-af-text">
                 <div className="flex items-start gap-3">
-                    <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-violet-500" />
+                    <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-af-accent" />
                     <div className="min-w-0 flex-1">
                         <h3 className="font-semibold">Post-call retranscription</h3>
                         <p className="mt-1 text-sm text-muted-foreground">
@@ -434,7 +434,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
 
                 <div
                     className={`space-y-3 rounded-xl border p-4 transition-colors ${postCallWhisperModel && !isLoadingPostCall && !isSavingPostCall ? 'cursor-pointer hover:border-[var(--af-accent)]' : ''} ${effectivePostCallProvider === 'whisper'
-                    ? 'border-[var(--af-accent)] bg-[var(--af-accent-soft)] ring-1 ring-blue-500/20'
+                    ? 'border-[var(--af-accent)] bg-[var(--af-accent-soft)] ring-1 ring-af-accent/50'
                     : 'border-[var(--af-border-strong)] bg-[var(--af-panel-2)]'}`}
                     role={postCallWhisperModel ? 'button' : undefined}
                     tabIndex={postCallWhisperModel ? 0 : undefined}
@@ -453,14 +453,14 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                 >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="flex min-w-0 items-start gap-3">
-                            <Languages className="mt-0.5 h-5 w-5 shrink-0 text-violet-400" />
+                            <Languages className="mt-0.5 h-5 w-5 shrink-0 text-af-accent" />
                             <div>
                                 <div className="flex flex-wrap items-center gap-2">
                                     <h4 className="font-semibold">Whisper</h4>
-                                    <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-400">
+                                    <span className="rounded-full bg-af-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-af-accent">
                                         Recommended for post-call
                                     </span>
-                                    <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-400">
+                                    <span className="rounded-full bg-af-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-af-accent">
                                         Vocabulary hints
                                     </span>
                                 </div>
@@ -470,7 +470,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                             </div>
                         </div>
                         {effectivePostCallProvider === 'whisper' ? (
-                            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-blue-500/40 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-400">
+                            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-af-accent/40 bg-af-accent/10 px-2.5 py-1 text-xs font-medium text-af-accent">
                                 <CheckCircle2 className="h-3.5 w-3.5" /> Selected for post-call
                             </span>
                         ) : postCallWhisperModel ? (
@@ -495,7 +495,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
 
                 <div
                     className={`space-y-3 rounded-xl border p-4 transition-colors ${installedParakeetModel && !isLoadingPostCall && !isSavingPostCall ? 'cursor-pointer hover:border-[var(--af-accent)]' : ''} ${effectivePostCallProvider === 'parakeet'
-                    ? 'border-[var(--af-accent)] bg-[var(--af-accent-soft)] ring-1 ring-blue-500/20'
+                    ? 'border-[var(--af-accent)] bg-[var(--af-accent-soft)] ring-1 ring-af-accent/50'
                     : 'border-[var(--af-border-strong)] bg-[var(--af-panel-2)]'}`}
                     role={installedParakeetModel ? 'button' : undefined}
                     tabIndex={installedParakeetModel ? 0 : undefined}
@@ -514,11 +514,11 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                 >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="flex min-w-0 items-start gap-3">
-                            <Zap className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+                            <Zap className="mt-0.5 h-5 w-5 shrink-0 text-af-warning" />
                             <div>
                                 <div className="flex flex-wrap items-center gap-2">
                                     <h4 className="font-semibold">Parakeet</h4>
-                                    <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-500">
+                                    <span className="rounded-full bg-af-success/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-af-success">
                                         Fast and accurate
                                     </span>
                                 </div>
@@ -528,7 +528,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                             </div>
                         </div>
                         {effectivePostCallProvider === 'parakeet' ? (
-                            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-blue-500/40 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-400">
+                            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-af-accent/40 bg-af-accent/10 px-2.5 py-1 text-xs font-medium text-af-accent">
                                 <CheckCircle2 className="h-3.5 w-3.5" /> Selected for post-call
                             </span>
                         ) : installedParakeetModel ? (
@@ -543,9 +543,9 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
 
                 <div className="min-h-5 text-xs">
                     {postCallError ? (
-                        <span className="text-red-500">{postCallError}</span>
+                        <span className="text-af-danger">{postCallError}</span>
                     ) : postCallSaved ? (
-                        <span className="inline-flex items-center gap-1 text-emerald-600"><Check className="h-3.5 w-3.5" /> Post-call default saved</span>
+                        <span className="inline-flex items-center gap-1 text-af-success"><Check className="h-3.5 w-3.5" /> Post-call default saved</span>
                     ) : postCallConfig.provider === 'live' ? (
                         <span className="text-[var(--af-text-3)]">This currently follows your live model. Choosing either card makes post-call selection independent.</span>
                     ) : null}
@@ -572,7 +572,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
 
             <section className={`space-y-3 rounded-xl border border-[var(--af-border)] bg-[var(--af-panel-2)] p-4 text-[var(--af-text)] ${whisperIsActive ? '' : 'opacity-60'}`}>
                 <div className="flex items-start gap-3">
-                    <BookOpen className={`mt-0.5 h-4 w-4 shrink-0 ${whisperIsActive ? 'text-blue-500' : 'text-muted-foreground'}`} />
+                    <BookOpen className={`mt-0.5 h-4 w-4 shrink-0 ${whisperIsActive ? 'text-af-accent' : 'text-muted-foreground'}`} />
                     <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                             <Label htmlFor="whisper-vocabulary" className="text-sm font-medium">Global vocabulary hints</Label>
@@ -605,9 +605,9 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                 <div className="flex items-center justify-between gap-3">
                     <div className="min-h-5 text-xs">
                         {vocabularyError ? (
-                            <span className="text-red-500">{vocabularyError}</span>
+                            <span className="text-af-danger">{vocabularyError}</span>
                         ) : vocabularySaved ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-600"><Check className="h-3.5 w-3.5" /> Saved</span>
+                            <span className="inline-flex items-center gap-1 text-af-success"><Check className="h-3.5 w-3.5" /> Saved</span>
                         ) : (
                             <span className="text-muted-foreground">{vocabulary.length}/1000 characters</span>
                         )}

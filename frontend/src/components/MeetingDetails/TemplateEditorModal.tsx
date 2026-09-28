@@ -98,12 +98,12 @@ export function TemplateEditorModal({
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div
-        className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+        className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-af-panel shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
-          <h2 className="text-lg font-semibold text-gray-800">Custom summary templates</h2>
-          <button onClick={onClose} className="rounded px-2 py-1 text-gray-500 hover:bg-gray-100">✕</button>
+        <div className="flex items-center justify-between border-b border-af-border px-5 py-3">
+          <h2 className="text-lg font-semibold text-af-text">Custom summary templates</h2>
+          <button onClick={onClose} className="rounded px-2 py-1 text-af-text-3 hover:bg-af-panel-2">✕</button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
@@ -111,49 +111,49 @@ export function TemplateEditorModal({
           <div className="space-y-3">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Template name</label>
+                <label className="mb-1 block text-xs font-medium text-af-text-2">Template name</label>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Client Discovery Call"
-                  className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:border-blue-400 focus:outline-none"
+                  className="w-full rounded-lg border border-af-border px-2 py-1.5 text-sm focus:border-af-accent/40 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Description</label>
+                <label className="mb-1 block text-xs font-medium text-af-text-2">Description</label>
                 <input
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="What is this template for?"
-                  className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:border-blue-400 focus:outline-none"
+                  className="w-full rounded-lg border border-af-border px-2 py-1.5 text-sm focus:border-af-accent/40 focus:outline-none"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-gray-600">Sections</label>
+                <label className="text-xs font-medium text-af-text-2">Sections</label>
                 <button
                   onClick={() => setSections((p) => [...p, emptySection()])}
-                  className="rounded px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
+                  className="rounded px-2 py-1 text-xs font-medium text-af-accent hover:bg-af-accent/10"
                 >
                   ＋ Add section
                 </button>
               </div>
 
               {sections.map((s, i) => (
-                <div key={i} className="rounded-lg border border-gray-200 p-3">
+                <div key={i} className="rounded-lg border border-af-border p-3">
                   <div className="mb-2 flex items-center gap-2">
                     <input
                       value={s.title}
                       onChange={(e) => updateSection(i, { title: e.target.value })}
                       placeholder="Section title (e.g. Action Items)"
-                      className="flex-1 rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-400 focus:outline-none"
+                      className="flex-1 rounded border border-af-border px-2 py-1 text-sm focus:border-af-accent/40 focus:outline-none"
                     />
                     <select
                       value={s.format}
                       onChange={(e) => updateSection(i, { format: e.target.value as Format })}
-                      className="rounded border border-gray-200 px-2 py-1 text-sm"
+                      className="rounded border border-af-border px-2 py-1 text-sm"
                       title="How the model should format this section"
                     >
                       <option value="list">List</option>
@@ -164,7 +164,7 @@ export function TemplateEditorModal({
                     {sections.length > 1 && (
                       <button
                         onClick={() => setSections((p) => p.filter((_, idx) => idx !== i))}
-                        className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50"
+                        className="rounded px-2 py-1 text-xs text-af-danger hover:bg-af-danger/10"
                         title="Remove section"
                       >
                         ✕
@@ -176,20 +176,20 @@ export function TemplateEditorModal({
                     onChange={(e) => updateSection(i, { instruction: e.target.value })}
                     rows={2}
                     placeholder="Instruction for the AI — e.g. 'List concrete action items with an owner'"
-                    className="w-full resize-none rounded border border-gray-200 px-2 py-1 text-sm focus:border-blue-400 focus:outline-none"
+                    className="w-full resize-none rounded border border-af-border px-2 py-1 text-sm focus:border-af-accent/40 focus:outline-none"
                   />
                 </div>
               ))}
             </div>
 
             <div className="flex justify-end gap-2 pt-1">
-              <button onClick={reset} className="rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
+              <button onClick={reset} className="rounded-lg px-3 py-2 text-sm text-af-text-2 hover:bg-af-panel-2">
                 Clear
               </button>
               <button
                 onClick={save}
                 disabled={saving}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:bg-gray-300"
+                className="rounded-lg bg-af-accent px-4 py-2 text-sm font-medium text-af-on-accent disabled:bg-af-hover"
               >
                 {saving ? 'Saving…' : 'Save template'}
               </button>
@@ -197,20 +197,20 @@ export function TemplateEditorModal({
           </div>
 
           {/* Existing templates */}
-          <div className="mt-6 border-t border-gray-100 pt-4">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <div className="mt-6 border-t border-af-border pt-4">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-af-text-3">
               Your templates
             </h3>
             <div className="space-y-1">
               {availableTemplates.map((t) => (
-                <div key={t.id} className="flex items-center justify-between rounded-lg px-2 py-1.5 hover:bg-gray-50">
+                <div key={t.id} className="flex items-center justify-between rounded-lg px-2 py-1.5 hover:bg-af-panel-2">
                   <div className="min-w-0">
-                    <div className="truncate text-sm text-gray-800">{t.name}</div>
-                    <div className="truncate text-xs text-gray-400">{t.description}</div>
+                    <div className="truncate text-sm text-af-text">{t.name}</div>
+                    <div className="truncate text-xs text-af-text-4">{t.description}</div>
                   </div>
                   <button
                     onClick={() => del(t.id, t.name)}
-                    className="ml-3 shrink-0 rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50"
+                    className="ml-3 shrink-0 rounded px-2 py-1 text-xs text-af-danger hover:bg-af-danger/10"
                     title="Delete (custom templates only)"
                   >
                     Delete
@@ -218,7 +218,7 @@ export function TemplateEditorModal({
                 </div>
               ))}
             </div>
-            <p className="mt-2 text-xs text-gray-400">
+            <p className="mt-2 text-xs text-af-text-4">
               Built-in templates can&apos;t be deleted. Saving a template with the same name as a built-in overrides it.
             </p>
           </div>
