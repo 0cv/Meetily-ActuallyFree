@@ -8,6 +8,7 @@ import { usePlatform } from '@/hooks/usePlatform';
 import { MACOS_SYSTEM_AUDIO_VERIFIED_KEY } from '@/hooks/usePermissionCheck';
 import { OnboardingContainer } from '../OnboardingContainer';
 import { Mic, Volume2, RefreshCw } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface AudioDevice {
   name: string;
@@ -280,9 +281,6 @@ export function AudioTestStep() {
     </div>
   );
 
-  const selectClass =
-    'w-full rounded-lg border border-[var(--af-border)] bg-[var(--af-panel-2)] px-3 py-2 text-sm text-[var(--af-text)] outline-none focus:border-[var(--af-accent)]';
-
   return (
     <OnboardingContainer
       title="Test your audio"
@@ -313,17 +311,7 @@ export function AudioTestStep() {
             </span>
           </div>
           {inputs.length > 0 ? (
-            <select
-              className={selectClass}
-              value={micName}
-              onChange={(e) => void onMicChange(e.target.value)}
-            >
-              {inputs.map((d) => (
-                <option key={d.name} value={d.name}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
+            <DeviceSelect label="Microphone" value={micName} devices={inputs} onChange={(name) => void onMicChange(name)} />
           ) : (
             <p className="text-xs text-[var(--af-text-3)]">No microphones found</p>
           )}
@@ -344,17 +332,7 @@ export function AudioTestStep() {
               Current default output (change it in System Settings)
             </p>
           ) : outputs.length > 0 ? (
-            <select
-              className={selectClass}
-              value={sysName}
-              onChange={(e) => void onSysChange(e.target.value)}
-            >
-              {outputs.map((d) => (
-                <option key={d.name} value={d.name}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
+            <DeviceSelect label="System audio device" value={sysName} devices={outputs} onChange={(name) => void onSysChange(name)} />
           ) : (
             <p className="text-xs text-[var(--af-text-3)]">No playback devices found</p>
           )}
@@ -394,3 +372,30 @@ function shortName(name: string): string {
 }
 
 export default AudioTestStep;
+
+function DeviceSelect({
+  label,
+  value,
+  devices,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  devices: Array<{ name: string }>;
+  onChange: (name: string) => void;
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger aria-label={label}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {devices.map((device) => (
+          <SelectItem key={device.name} value={device.name}>
+            {device.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}

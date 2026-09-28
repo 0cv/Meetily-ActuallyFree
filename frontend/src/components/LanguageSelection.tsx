@@ -3,6 +3,7 @@ import { Globe } from 'lucide-react';
 import Analytics from '@/lib/analytics';
 import { toast } from 'sonner';
 import { useConfig } from '@/contexts/ConfigContext';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export interface Language {
   code: string;
@@ -183,19 +184,21 @@ export function LanguageSelection({
       </div>
 
       <div className="space-y-2">
-        <select
-          value={selectedLanguage}
-          onChange={(e) => handleLanguageChange(e.target.value)}
-          disabled={disabled || saving}
-          className="w-full px-3 py-2 text-sm bg-af-panel border border-af-border-strong rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-af-accent/50 focus:border-af-accent/40 disabled:bg-af-panel-2 disabled:text-af-text-3"
-        >
-          {availableLanguages.map((language) => (
-            <option key={language.code} value={language.code}>
-              {language.name}
-              {language.code !== 'auto' && language.code !== 'auto-translate' && ` (${language.code})`}
-            </option>
-          ))}
-        </select>
+        <Select value={selectedLanguage} onValueChange={handleLanguageChange} disabled={disabled || saving}>
+          <SelectTrigger aria-label="Transcription language">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {availableLanguages.map((language) => (
+              <SelectItem key={language.code} value={language.code}>
+                {language.name}
+                {language.code !== 'auto' && language.code !== 'auto-translate' && (
+                  <span className="ml-1.5 text-af-text-4">{language.code}</span>
+                )}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         {/* Parakeet language limitation warning */}
         {isParakeet && (

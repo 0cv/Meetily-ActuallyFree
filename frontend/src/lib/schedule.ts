@@ -66,6 +66,46 @@ export function formatTime(minutes: number): string {
   return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
 }
 
+/** A time of day as the user's locale writes it: "9:30 AM" or "09:30". */
+export function displayTime(minutes: number): string {
+  const clamped = ((Math.round(minutes) % 1440) + 1440) % 1440;
+  return new Date(2000, 0, 1, Math.floor(clamped / 60), clamped % 60).toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+export function usesTwelveHourClock(): boolean {
+  const cycle = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions().hourCycle;
+  return cycle === 'h12' || cycle === 'h11';
+}
+
+/**
+ * Reads a typed time: "9", "930", "9:30", "9.30pm", "21:30", "noon". Without
+ * am/pm on a 12-hour clock, a lone 1 to 6 means the afternoon, when meetings
+ * happen. Returns minutes after midnight, or null when it is not a time.
+ */
+export function parseTypedTime(input: string, twelveHour = true): number | null {
+  const text = input.trim().toLowerCase().replace(/[\s.]/g, '');
+  if (!text) return null;
+  if (text === 'noon') return 12 * 60;
+  if (text === 'midnight') return 0;
+  const match = /^(\d{1,2})(?:[:h]?(\d{2}))?(am?|pm?)?$/.exec(text);
+  if (!match) return null;
+  let hours = Number(match[1]);
+  const minutes = match[2] ? Number(match[2]) : 0;
+  if (minutes > 59) return null;
+  if (match[3]) {
+    if (hours < 1 || hours > 12) return null;
+    hours = (hours % 12) + (match[3].startsWith('p') ? 12 : 0);
+  } else if (hours > 23) {
+    return null;
+  } else if (twelveHour && match[1].length === 1 && hours >= 1 && hours <= 6) {
+    hours += 12;
+  }
+  return hours * 60 + minutes;
+}
+
 function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
@@ -255,11 +295,7 @@ export function describeSchedule(schedule: GroupSchedule): string {
     : schedule.weekdays.length === 1
       ? WEEKDAY_NAMES[schedule.weekdays[0]]
       : schedule.weekdays.map((day) => WEEKDAY_SHORT[day]).join(', ');
-  const minutes = parseTime(schedule.time) ?? 0;
-  const time = new Date(2000, 0, 1, Math.floor(minutes / 60), minutes % 60).toLocaleTimeString(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  const time = displayTime(parseTime(schedule.time) ?? 0);
   return `${schedule.cadence === 'biweekly' ? 'Every other' : 'Every'} ${days} at ${time}`;
 }
 

@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { TimePicker } from '@/components/ui/time-picker';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ColorSwatches } from '@/components/groups/GroupBits';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
@@ -260,11 +261,9 @@ function GroupEditorDialog({
                   })}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Input
-                    type="time"
+                  <TimePicker
                     value={schedule.time}
-                    onChange={(event) => setSchedule((current) => ({ ...current, time: event.target.value }))}
-                    className="w-32"
+                    onChange={(time) => setSchedule((current) => ({ ...current, time }))}
                     aria-label="Start time"
                   />
                   <div className="inline-flex rounded-lg border border-af-border bg-af-panel-2 p-[3px]">

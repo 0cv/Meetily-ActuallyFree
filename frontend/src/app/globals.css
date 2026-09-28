@@ -276,6 +276,16 @@
     color: var(--af-text-4);
   }
 
+  /* Native number spinners ignore the theme; arrow keys still step the value. */
+  input[type='number'] {
+    appearance: textfield;
+  }
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
   h1, h2, h3,
   .text-xl, .text-2xl, .text-3xl, .text-4xl {
     letter-spacing: -0.015em;
@@ -616,9 +626,215 @@ html.minibar-window body {
 .bn-block-outer { max-width: 100% !important; }
 .bn-default-styles { max-width: none !important; }
 [data-node-type] { overflow: visible !important; }
+/* BlockNote draws its own menus (the + and drag handle beside a line, the block
+   menu, slash menu and formatting toolbar) from shadcn variables scoped to
+   .bn-shadcn. Point them at the active theme. */
+:root .bn-shadcn,
+:root .bn-shadcn.dark,
+:root[data-theme='midnight'] .bn-shadcn {
+  --background: 220.0 23.1% 7.6%;
+  --foreground: 212.0 42.9% 93.1%;
+  --card: 220.0 23.8% 12.4%;
+  --card-foreground: 212.0 42.9% 93.1%;
+  --popover: 220.0 23.8% 12.4%;
+  --popover-foreground: 212.0 42.9% 93.1%;
+  --primary: 218.5 85.8% 58.6%;
+  --primary-foreground: 0.0 0.0% 100.0%;
+  --secondary: 221.5 23.6% 10.8%;
+  --secondary-foreground: 212.0 42.9% 93.1%;
+  --muted: 221.5 23.6% 10.8%;
+  --muted-foreground: 217.7 14.8% 53.5%;
+  --accent: 220.0 22.4% 13.1%;
+  --accent-foreground: 212.0 42.9% 93.1%;
+  --destructive: 2.6 72.2% 56.3%;
+  --destructive-foreground: 0.0 0.0% 100.0%;
+  --border: 218.2 20.0% 21.6%;
+  --input: 218.2 20.0% 21.6%;
+  --ring: 218.5 85.8% 58.6%;
+  --radius: 0.625rem;
+}
+:root[data-theme='vanilla'] .bn-shadcn,
+:root[data-theme='vanilla'] .bn-shadcn.dark {
+  --background: 38.2 52.4% 95.9%;
+  --foreground: 35.3 25.4% 13.1%;
+  --card: 37.5 100.0% 98.4%;
+  --card-foreground: 35.3 25.4% 13.1%;
+  --popover: 37.5 100.0% 98.4%;
+  --popover-foreground: 35.3 25.4% 13.1%;
+  --primary: 222.4 63.0% 49.8%;
+  --primary-foreground: 0.0 0.0% 100.0%;
+  --secondary: 37.5 40.0% 92.2%;
+  --secondary-foreground: 35.3 25.4% 13.1%;
+  --muted: 37.5 40.0% 92.2%;
+  --muted-foreground: 33.3 12.3% 42.9%;
+  --accent: 38.2 36.7% 88.2%;
+  --accent-foreground: 35.3 25.4% 13.1%;
+  --destructive: 6.4 63.7% 46.5%;
+  --destructive-foreground: 0.0 0.0% 100.0%;
+  --border: 37.3 27.8% 73.9%;
+  --input: 37.3 27.8% 73.9%;
+  --ring: 222.4 63.0% 49.8%;
+  --radius: 0.625rem;
+}
+:root[data-theme='charcoal'] .bn-shadcn,
+:root[data-theme='charcoal'] .bn-shadcn.dark {
+  --background: 25.7 15.6% 8.8%;
+  --foreground: 31.6 37.3% 90.0%;
+  --card: 27.3 15.9% 13.5%;
+  --card-foreground: 31.6 37.3% 90.0%;
+  --popover: 27.3 15.9% 13.5%;
+  --popover-foreground: 31.6 37.3% 90.0%;
+  --primary: 30.9 70.2% 63.1%;
+  --primary-foreground: 28.2 41.5% 8.0%;
+  --secondary: 26.7 15.3% 11.6%;
+  --secondary-foreground: 31.6 37.3% 90.0%;
+  --muted: 26.7 15.3% 11.6%;
+  --muted-foreground: 34.1 14.7% 50.8%;
+  --accent: 25.0 16.2% 14.5%;
+  --accent-foreground: 31.6 37.3% 90.0%;
+  --destructive: 2.6 72.2% 56.3%;
+  --destructive-foreground: 0.0 0.0% 100.0%;
+  --border: 26.7 16.4% 21.6%;
+  --input: 26.7 16.4% 21.6%;
+  --ring: 30.9 70.2% 63.1%;
+  --radius: 0.625rem;
+}
+
 .bn-container [data-placeholder]::before,
 .bn-container .bn-inline-content:has(> .ProseMirror-trailingBreak:only-child)::before {
   color: var(--af-text-4) !important;
+}
+
+/* Block menu, slash menu and formatting toolbar: the same surface, rows and
+   motion as the app's own menus. */
+.bn-container.bn-shadcn .bn-menu-dropdown,
+.bn-container.bn-shadcn .bn-suggestion-menu,
+.bn-container.bn-shadcn .bn-popover-content,
+.bn-container.bn-shadcn .bn-toolbar {
+  border: 1px solid var(--af-border-strong);
+  border-radius: 12px;
+  background: var(--af-elevated);
+  color: var(--af-text);
+  box-shadow: var(--af-shadow-lg);
+}
+.bn-container.bn-shadcn .bn-menu-dropdown,
+.bn-container.bn-shadcn .bn-suggestion-menu { padding: 4px; gap: 1px; }
+/* Slash menu rows: BlockNote repeats the row class on the icon, title and
+   subtitle, so rows are matched by role. */
+.bn-container.bn-shadcn .bn-menu-item,
+.bn-container.bn-shadcn .bn-suggestion-menu [role='option'] {
+  gap: 10px;
+  min-height: 30px;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 13px;
+  color: var(--af-text-2);
+  cursor: default;
+  transition: background-color 100ms ease, color 100ms ease;
+}
+.bn-container.bn-shadcn .bn-suggestion-menu [role='option'] { padding: 5px 8px; }
+.bn-container.bn-shadcn .bn-menu-item:focus,
+.bn-container.bn-shadcn .bn-menu-item[data-highlighted],
+.bn-container.bn-shadcn .bn-menu-item[data-state='open'],
+.bn-container.bn-shadcn .bn-suggestion-menu [role='option']:hover,
+.bn-container.bn-shadcn .bn-suggestion-menu [role='option'][aria-selected='true'] {
+  background: var(--af-hover);
+  color: var(--af-text);
+}
+.bn-container.bn-shadcn .bn-suggestion-menu [role='option'] * { background: none; }
+.bn-container.bn-shadcn .bn-menu-item svg { width: 16px; height: 16px; color: var(--af-text-3); }
+.bn-container.bn-shadcn .bn-suggestion-menu { width: 264px; }
+.bn-container.bn-shadcn .bn-suggestion-menu-label {
+  padding: 8px 8px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--af-text-4);
+}
+.bn-container.bn-shadcn .bn-suggestion-menu [role='option'] > [data-position='left'] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px solid var(--af-border);
+  border-radius: 7px;
+  background: var(--af-panel);
+  color: var(--af-text-3);
+  transition: color 100ms ease, border-color 100ms ease;
+}
+.bn-container.bn-shadcn .bn-suggestion-menu [role='option'][aria-selected='true'] > [data-position='left'] {
+  border-color: var(--af-border-strong);
+  color: var(--af-text);
+}
+.bn-container.bn-shadcn .bn-suggestion-menu [role='option'] > [data-position='left'] svg { width: 16px; height: 16px; }
+.bn-container.bn-shadcn .bn-suggestion-menu .bn-suggestion-menu-item-small[role='option'] > [data-position='left'] {
+  width: auto;
+  height: auto;
+  border: 0;
+  background: none;
+}
+.bn-container.bn-shadcn .bn-suggestion-menu [role='option'] .bn-text-base { font-size: 13px; font-weight: 500; line-height: 1.35; color: var(--af-text); }
+.bn-container.bn-shadcn .bn-suggestion-menu [role='option'] .bn-text-xs { font-size: 11.5px; line-height: 1.35; color: var(--af-text-3); }
+.bn-container.bn-shadcn .bn-suggestion-menu [role='option'] > [data-position='right'] > * {
+  border: 0;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--af-text-4);
+}
+.bn-container.bn-shadcn .bn-toolbar { padding: 3px; gap: 1px; border-radius: 10px; }
+.bn-container.bn-shadcn .bn-toolbar button {
+  height: 28px;
+  min-width: 28px;
+  padding: 0 6px;
+  border-radius: 7px;
+  color: var(--af-text-3);
+  transition: background-color 100ms ease, color 100ms ease;
+}
+.bn-container.bn-shadcn .bn-toolbar button:hover { background: var(--af-hover); color: var(--af-text); }
+.bn-container.bn-shadcn .bn-toolbar button[data-state='on'],
+.bn-container.bn-shadcn .bn-toolbar button[aria-pressed='true'] { background: var(--af-active); color: var(--af-text); }
+.bn-container.bn-shadcn .bn-toolbar svg { width: 16px; height: 16px; }
+.bn-container.bn-shadcn .bn-suggestion-menu,
+.bn-container.bn-shadcn .bn-toolbar { animation: af-bn-pop 160ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes af-bn-pop {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+}
+
+/* The + and drag handle beside the hovered line: small, quiet, and centred on
+   its first line. Heights below match the notes type scale (14px body at 1.65,
+   headings 20.8 / 17.6 / 16px at 1.35, 3px block padding). */
+.af-notes-editor .bn-side-menu {
+  height: 29px;
+  gap: 0;
+  animation: af-bn-handle 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.af-notes-editor .bn-side-menu[data-block-type='heading'][data-level='1'] { height: 34px; }
+.af-notes-editor .bn-side-menu[data-block-type='heading'][data-level='2'] { height: 30px; }
+.af-notes-editor .bn-side-menu[data-block-type='heading'][data-level='3'] { height: 28px; }
+.af-notes-editor .bn-shadcn .bn-side-menu .bn-button {
+  width: 20px;
+  height: 22px;
+  min-width: 0;
+  padding: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--af-text-4);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.af-notes-editor .bn-shadcn .bn-side-menu .bn-button[draggable='true'] { width: 16px; cursor: grab; }
+.af-notes-editor .bn-shadcn .bn-side-menu .bn-button[draggable='true']:active { cursor: grabbing; }
+.af-notes-editor .bn-shadcn .bn-side-menu .bn-button:hover,
+.af-notes-editor .bn-shadcn .bn-side-menu .bn-button[data-state='open'] {
+  background: var(--af-hover);
+  color: var(--af-text-2);
+}
+.af-notes-editor .bn-shadcn .bn-side-menu .bn-button svg { width: 16px; height: 16px; }
+@keyframes af-bn-handle {
+  from { opacity: 0; transform: translateX(3px); }
 }
 
 /* ============================================================
@@ -630,6 +846,9 @@ html.minibar-window body {
   .af-name-scroll { animation: none !important; }
   .af-spinner { animation-duration: 1.4s; }
   .af-skeleton { animation: none; }
+  .bn-container.bn-shadcn .bn-side-menu,
+  .bn-container.bn-shadcn .bn-suggestion-menu,
+  .bn-container.bn-shadcn .bn-toolbar { animation: none; }
 }
 
 /* Notes editor: keep the block handles in a slim gutter left of the text so
@@ -638,7 +857,6 @@ html.minibar-window body {
 .af-notes-editor .bn-editor { padding-inline: 36px 4px !important; padding-block: 2px !important; }
 .af-notes-editor .bn-block-content { font-size: 14px; line-height: 1.65; }
 .af-notes-editor [data-content-type='heading'] { letter-spacing: -0.012em; }
-.af-notes-editor .bn-side-menu { opacity: 0.7; }
 /* Document headings sized for a side column, not a full page. */
 .af-notes-editor [data-content-type='heading'] { --level: 1.3em; }
 .af-notes-editor [data-content-type='heading'][data-level='2'] { --level: 1.1em; }
@@ -647,7 +865,9 @@ html.minibar-window body {
 .af-notes-editor [data-prev-level='2'] { --prev-level: 1.1em; }
 .af-notes-editor [data-prev-level='3'] { --prev-level: 1em; }
 .af-notes-editor .bn-block-content[data-content-type='heading'] { font-weight: 650 !important; line-height: 1.35; }
-.af-notes-editor .bn-block-group > .bn-block-outer:not(:first-child) > .bn-block > .bn-block-content[data-content-type='heading'] { padding-top: 14px; }
+/* Space above headings sits outside the block, so the side menu (placed at the
+   block's top edge) stays level with the heading text. */
+.af-notes-editor .bn-block-group > .bn-block-outer:not(:first-child):has(> .bn-block > .bn-block-content[data-content-type='heading']) { margin-top: 11px; }
 .af-notes-editor [data-content-type='table'] th,
 .af-notes-editor [data-content-type='table'] td { border-color: var(--af-border); font-size: 13px; }
 .af-notes-editor [data-content-type='table'] th { background: var(--af-panel-2); font-weight: 600; }

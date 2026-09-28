@@ -6,6 +6,7 @@ import {
   describeSchedule,
   effectiveSchedule,
   nextOccurrence,
+  parseTypedTime,
   upcomingGroupMeetings,
   MIN_OCCURRENCES,
   type GroupSchedule,
@@ -217,5 +218,40 @@ describe('upcomingGroupMeetings', () => {
     const held = [...standups, { groupId: 'standup', startedAt: at(2026, 10, 8, 12, 2) }];
     const [next] = upcomingGroupMeetings([{ id: 'standup', schedule: null }], held, thursday);
     assert.equal(next.at.getDate(), 15);
+  });
+});
+
+describe('parseTypedTime', () => {
+  const minutes = (hours: number, mins = 0) => hours * 60 + mins;
+
+  test('reads hours, minutes and am/pm in the usual spellings', () => {
+    assert.equal(parseTypedTime('9'), minutes(9));
+    assert.equal(parseTypedTime('930'), minutes(9, 30));
+    assert.equal(parseTypedTime('9:30'), minutes(9, 30));
+    assert.equal(parseTypedTime('9:30 pm'), minutes(21, 30));
+    assert.equal(parseTypedTime('9.30 P.M.'), minutes(21, 30));
+    assert.equal(parseTypedTime('9p'), minutes(21));
+    assert.equal(parseTypedTime('12am'), minutes(0));
+    assert.equal(parseTypedTime('12 pm'), minutes(12));
+    assert.equal(parseTypedTime('21:30'), minutes(21, 30));
+    assert.equal(parseTypedTime('0930'), minutes(9, 30));
+    assert.equal(parseTypedTime('9h30'), minutes(9, 30));
+    assert.equal(parseTypedTime('noon'), minutes(12));
+    assert.equal(parseTypedTime('midnight'), 0);
+  });
+
+  test('a lone 1 to 6 means the afternoon on a 12-hour clock only', () => {
+    assert.equal(parseTypedTime('3'), minutes(15));
+    assert.equal(parseTypedTime('330'), minutes(15, 30));
+    assert.equal(parseTypedTime('3am'), minutes(3));
+    assert.equal(parseTypedTime('03'), minutes(3));
+    assert.equal(parseTypedTime('7'), minutes(7));
+    assert.equal(parseTypedTime('3', false), minutes(3));
+  });
+
+  test('rejects anything that is not a time', () => {
+    for (const text of ['', ' ', 'soon', '24', '9:60', '13pm', '0am', '12345', '9:5', 'nine']) {
+      assert.equal(parseTypedTime(text), null, text);
+    }
   });
 });
