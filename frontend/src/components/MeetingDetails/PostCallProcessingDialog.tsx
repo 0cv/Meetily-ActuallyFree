@@ -16,6 +16,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { useDiarizationEngine } from '@/hooks/useDiarizationEngine';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 
 import { toast } from 'sonner';
@@ -64,12 +65,12 @@ async function resolveEnhancementModel(
     invoke<RawModelInfo[]>('parakeet_get_available_models').catch(() => []),
   ]);
   const available: ModelChoice[] = [
-    ...whisperModels
-      .filter((model) => model.status === 'Available')
-      .map((model) => ({ provider: 'whisper' as const, name: model.name })),
     ...parakeetModels
       .filter((model) => model.status === 'Available' && isVisibleParakeetModel(model.name))
       .map((model) => ({ provider: 'parakeet' as const, name: model.name })),
+    ...whisperModels
+      .filter((model) => model.status === 'Available')
+      .map((model) => ({ provider: 'whisper' as const, name: model.name })),
   ];
   const normalizedProvider = configuredProvider === 'localWhisper'
     ? 'whisper'
@@ -83,7 +84,9 @@ async function resolveEnhancementModel(
     if (sameProvider) return sameProvider;
     throw new Error(`No downloaded ${normalizedProvider} model is available for enhancement.`);
   }
-  const localDefault = available.find((model) => model.provider === 'parakeet') ?? available[0];
+  const localDefault = available.find((model) => model.provider === 'parakeet')
+    ?? available.find((model) => model.provider === 'whisper')
+    ?? available[0];
   if (localDefault) return localDefault;
   throw new Error('No downloaded transcription model is available for post-call enhancement.');
 }
@@ -192,6 +195,7 @@ export function PostCallProcessingDialog({
 }) {
   const { selectedLanguage, transcriptModelConfig } = useConfig();
   const [stage, setStage] = useState<Stage>(enabled ? 'prompt' : 'idle');
+  const { engine, isNemotron, error: engineError } = useDiarizationEngine(stage !== 'idle');
   const [speakerCount, setSpeakerCount] = useState('2');
   const [autoDetectSpeakers, setAutoDetectSpeakers] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -284,7 +288,7 @@ export function PostCallProcessingDialog({
   };
 
   const getSelectedSpeakerCount = (): number | null | undefined => {
-    if (autoDetectSpeakers) return null;
+    if (isNemotron || autoDetectSpeakers) return null;
     const count = Number(speakerCount);
     if (!Number.isInteger(count) || count < 1 || count > 20) {
       setError('Enter the total number of speakers, from 1 to 20.');
@@ -372,12 +376,16 @@ export function PostCallProcessingDialog({
           ? 'Improving the transcript'
           : stage === 'error'
             ? 'Could not finish that step'
-            : 'How many people spoke?'
+            : isNemotron
+              ? 'Identify speakers with Nemotron'
+              : 'How many people spoke?'
       }
       detail={
         isWorking
           ? message
-          : 'Include yourself. A real count labels speakers more accurately.'
+          : isNemotron
+            ? 'Nemotron finds up to 8 speakers on its own and refines the live labels from the full recording.'
+            : 'Include yourself. A real count labels speakers more accurately.'
       }
     >
       {isWorking ? (
@@ -389,52 +397,65 @@ export function PostCallProcessingDialog({
         </div>
       ) : (
         <div className="space-y-3">
-          <div className="grid grid-cols-4 gap-2">
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((count) => (
-              <button
-                key={count}
-                type="button"
-                className={choiceClass(!autoDetectSpeakers && speakerCount === String(count))}
-                onClick={() => {
-                  setSpeakerCount(String(count));
-                  setAutoDetectSpeakers(false);
-                  setError(null);
-                }}
-              >
-                {count}
-              </button>
-            ))}
-            <button
-              type="button"
-              className={`col-span-4 ${choiceClass(autoDetectSpeakers)}`}
-              onClick={() => {
-                setAutoDetectSpeakers(true);
-                setError(null);
-              }}
-            >
+          {engineError && <p role="alert" className="text-sm text-af-danger">{engineError}</p>}
+          {!engine && !engineError && (
+            <p role="status" className="text-sm text-af-text-3">Loading diarization settings…</p>
+          )}
+          {isNemotron && (
+            <div className={cn(choiceClass(true), 'pointer-events-none flex items-center justify-center')}>
               Auto-detect
-            </button>
-          </div>
-          <input
-            type="number"
-            min={1}
-            max={20}
-            value={autoDetectSpeakers ? '' : speakerCount}
-            placeholder={autoDetectSpeakers ? 'Speakers will be detected automatically' : undefined}
-            onFocus={() => setAutoDetectSpeakers(false)}
-            onChange={(event) => {
-              setSpeakerCount(event.target.value);
-              setAutoDetectSpeakers(false);
-            }}
-            className={cn(fieldClass, 'h-9')}
-            aria-label="Total number of speakers"
-          />
+            </div>
+          )}
+          {engine && !isNemotron && (
+            <>
+              <div className="grid grid-cols-4 gap-2">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((count) => (
+                  <button
+                    key={count}
+                    type="button"
+                    className={choiceClass(!autoDetectSpeakers && speakerCount === String(count))}
+                    onClick={() => {
+                      setSpeakerCount(String(count));
+                      setAutoDetectSpeakers(false);
+                      setError(null);
+                    }}
+                  >
+                    {count}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className={`col-span-4 ${choiceClass(autoDetectSpeakers)}`}
+                  onClick={() => {
+                    setAutoDetectSpeakers(true);
+                    setError(null);
+                  }}
+                >
+                  Auto-detect
+                </button>
+              </div>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={autoDetectSpeakers ? '' : speakerCount}
+                placeholder={autoDetectSpeakers ? 'Speakers will be detected automatically' : undefined}
+                onFocus={() => setAutoDetectSpeakers(false)}
+                onChange={(event) => {
+                  setSpeakerCount(event.target.value);
+                  setAutoDetectSpeakers(false);
+                }}
+                className={cn(fieldClass, 'h-9')}
+                aria-label="Total number of speakers"
+              />
+            </>
+          )}
           {error && <p className="text-sm text-af-danger">{error}</p>}
           <div className="flex items-center justify-end gap-2">
             <Button variant="ghost" onClick={() => { void (stage === 'error' ? continueWithLiveTranscript() : skipEnhancement()); }}>
               Keep live transcript
             </Button>
-            <Button onClick={() => { void start(); }}>
+            <Button disabled={!engine} onClick={() => { void start(); }}>
               {stage === 'error' ? 'Retry' : 'Continue'}
             </Button>
           </div>

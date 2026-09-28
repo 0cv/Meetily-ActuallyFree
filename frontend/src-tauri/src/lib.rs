@@ -1,4 +1,4 @@
-﻿use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex as StdMutex;
 // Removed unused import
@@ -776,6 +776,11 @@ pub fn run() {
             diarization::diarize_meeting,
             diarization::rename_meeting_speaker,
             diarization::reassign_transcript_speaker,
+            diarization::get_diarization_engine,
+            diarization::set_diarization_engine,
+            diarization::diarization_get_status,
+            diarization::set_diarization_config,
+            diarization::open_diarization_model_directory,
             minibar::enter_compact_mode,
             minibar::exit_compact_mode,
             minibar::is_compact_mode,

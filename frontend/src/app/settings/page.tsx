@@ -19,6 +19,7 @@ import { TranscriptSettings } from '@/components/TranscriptSettings';
 import { DiarizationSettings } from '@/components/DiarizationSettings';
 import { SummaryModelSettings } from '@/components/SummaryModelSettings';
 import { MeetingDetectionSettings } from '@/components/MeetingDetectionSettings';
+import { OptionalModelDownloads } from '@/components/OptionalModelDownloads';
 import { LocalStackStatus } from '@/components/LocalStackStatus';
 import { AboutSettings } from '@/components/AboutSettings';
 
@@ -156,6 +157,7 @@ function SettingsInner() {
               <>
                 <TranscriptSettings transcriptModelConfig={transcriptModelConfig} setTranscriptModelConfig={setTranscriptModelConfig} />
                 <DiarizationSettings />
+                <OptionalModelDownloads />
               </>
             )}
             {active === 'summaries' && <SummaryModelSettings />}

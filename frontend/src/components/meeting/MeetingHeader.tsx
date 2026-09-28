@@ -44,6 +44,7 @@ import { formatDuration, parseDate } from '@/lib/dates';
 import { timeRange } from '@/lib/meeting-titles';
 import { useUserName } from '@/hooks/useUserName';
 import { isUserSpeaker, speakerKey } from '@/utils/speakerUtils';
+import { useDiarizationEngine } from '@/hooks/useDiarizationEngine';
 
 const isGenericSpeaker = (label: string) => /^speaker d+$/i.test(label.trim()) || /^guest$/i.test(label.trim());
 
@@ -104,6 +105,8 @@ export function MeetingHeader({
   }, [people]);
   const [identifyOpen, setIdentifyOpen] = useState(false);
   const [expected, setExpected] = useState('');
+  // Nemotron finds the speaker count itself; only pyannote takes a count.
+  const { engine, isNemotron, error: engineError } = useDiarizationEngine(identifyOpen);
   const [identifying, setIdentifying] = useState(false);
   const [diarizeAvailable, setDiarizeAvailable] = useState(false);
   const [enhanceOpen, setEnhanceOpen] = useState(false);
@@ -126,7 +129,7 @@ export function MeetingHeader({
     try {
       const result = await invoke<{ num_speakers: number; labeled: number }>('diarize_meeting', {
         meetingId,
-        numSpeakers: Number.isFinite(count) && count > 0 ? count : null,
+        numSpeakers: !isNemotron && Number.isFinite(count) && count > 0 ? count : null,
       });
       toast.success(result.num_speakers > 0 ? `Found ${result.num_speakers} speaker${result.num_speakers === 1 ? '' : 's'}` : 'No speakers detected', {
         id: toastId,
@@ -138,7 +141,7 @@ export function MeetingHeader({
     } finally {
       setIdentifying(false);
     }
-  }, [expected, meetingId, onTranscriptChanged]);
+  }, [expected, isNemotron, meetingId, onTranscriptChanged]);
 
   return (
     <header className="shrink-0 border-b border-af-border px-5 pb-3 pt-4">
@@ -260,8 +263,17 @@ export function MeetingHeader({
               <AudioLines className="h-4 w-4 text-af-accent" />
               Identify speakers again
             </DialogTitle>
-            <DialogDescription>How many people spoke, including you? Leave it blank to let the app decide.</DialogDescription>
+            <DialogDescription>
+              {isNemotron
+                ? 'Nemotron finds up to 8 speakers on its own and refines the live labels from the full recording.'
+                : 'How many people spoke, including you? Leave it blank to let the app decide.'}
+            </DialogDescription>
           </DialogHeader>
+          {engineError ? (
+            <p role="alert" className="text-sm text-af-danger">{engineError}</p>
+          ) : !engine ? (
+            <p role="status" className="text-sm text-af-text-3">Loading speaker settings…</p>
+          ) : !isNemotron && (
           <div className="space-y-3">
             <Input
               type="number"
@@ -270,7 +282,7 @@ export function MeetingHeader({
               autoFocus
               value={expected}
               onChange={(event) => setExpected(event.target.value)}
-              onKeyDown={(event) => event.key === 'Enter' && void identify()}
+              onKeyDown={(event) => event.key === 'Enter' && engine && void identify()}
               placeholder="Detect automatically"
             />
             <div className="flex flex-wrap gap-1.5">
@@ -289,11 +301,14 @@ export function MeetingHeader({
               ))}
             </div>
           </div>
+          )}
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIdentifyOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={() => void identify()}>{expected ? `Find ${expected} speakers` : 'Detect automatically'}</Button>
+            <Button onClick={() => void identify()} disabled={!engine}>
+              {!isNemotron && expected ? `Find ${expected} speakers` : 'Detect automatically'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

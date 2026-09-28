@@ -2,10 +2,11 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Spinner } from '@/components/ui/spinner';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { Mic, Sparkles, Check,  Download } from 'lucide-react';
+import { Mic, Sparkles, Check, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { OnboardingContainer } from '../OnboardingContainer';
 import { useOnboarding } from '@/contexts/OnboardingContext';
+import { OptionalModelDownloads } from '@/components/OptionalModelDownloads';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getSummaryModelSizeLabel, getSummaryModelSizeMb } from '@/lib/onboarding-summary-model';
@@ -337,30 +338,7 @@ export function DownloadProgressStep() {
     }
   };
 
-  const handleContinue = async () => {
-    // Verify actual model availability (catches state drift)
-    try {
-      await invoke('parakeet_init');
-      const actuallyAvailable = await invoke<boolean>('parakeet_has_available_models');
-
-      if (actuallyAvailable && !parakeetDownloaded) {
-        console.log('[DownloadProgressStep] Model available but state not updated');
-        setParakeetDownloaded(true);
-        setParakeetState((prev) => ({
-          ...prev,
-          status: 'completed',
-          progress: 100,
-        }));
-      } else if (!actuallyAvailable && parakeetState.status === 'error') {
-        toast.error('Transcription engine required', {
-          description: 'Please retry the download before continuing.',
-        });
-        return;
-      }
-    } catch (error) {
-      console.warn('[DownloadProgressStep] Failed to verify model:', error);
-    }
-
+  const handleContinue = () => {
     // Check if downloads are complete for toast notification
     const downloadsComplete = parakeetState.status === 'completed' &&
       summaryState.status === 'completed';
@@ -470,7 +448,7 @@ export function DownloadProgressStep() {
   return (
     <OnboardingContainer
       title="Getting things ready"
-      description="You can start using Meetily after downloading the Transcription Engine."
+      description="Finish setup while models download in the background. Recording becomes available when the transcription engine is ready."
       step={3}
       totalSteps={isMac ? 4 : 3}
     >
@@ -495,6 +473,7 @@ export function DownloadProgressStep() {
             getSummaryModelSizeLabel(selectedSummaryModel || recommendedSummaryModel),
             'MiB'
           )}
+          <OptionalModelDownloads activeOnly />
         </div>
 
         {/* Info Message - Only show when Parakeet is downloaded */}
@@ -524,13 +503,13 @@ export function DownloadProgressStep() {
         <div className="w-full max-w-xs">
           <Button
             onClick={handleContinue}
-            disabled={!parakeetDownloaded || isCompleting}
+            disabled={isCompleting}
             className="w-full h-11 bg-af-elevated hover:bg-af-elevated text-white disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {(isCompleting || !parakeetDownloaded) ? (
+            {isCompleting ? (
               <Spinner className="w-4 h-4 mr-2 " />
             ) : (
-              'Continue'
+              'Continue — downloads run in background'
             )}
           </Button>
         </div>

@@ -23,6 +23,7 @@ import { OllamaDownloadProvider } from '@/contexts/OllamaDownloadContext'
 import { TranscriptProvider } from '@/contexts/TranscriptContext'
 import { ConfigProvider, useConfig } from '@/contexts/ConfigContext'
 import { OnboardingProvider } from '@/contexts/OnboardingContext'
+import { OptionalModelDownloadsProvider } from '@/contexts/OptionalModelDownloadsContext'
 import { DownloadProgressToastProvider } from '@/components/shared/DownloadProgressToast'
 import { UpdateCheckProvider } from '@/components/UpdateCheckProvider'
 import { RecordingPostProcessingProvider } from '@/contexts/RecordingPostProcessingProvider'
@@ -235,6 +236,15 @@ export default function RootLayout({
   }, [])
 
   // Disable context menu in production
+  useEffect(() => {
+    let disposed = false;
+    let stop: UnlistenFn | undefined;
+    void listen<string>('live-diarization-error', event => {
+      toast.error('Live speaker labeling unavailable', { description: event.payload, duration: 10000 });
+    }).then(unlisten => { if (disposed) unlisten(); else stop = unlisten; });
+    return () => { disposed = true; stop?.(); };
+  }, []);
+
   useEffect(() => {
     if (process.env.NODE_ENV === 'production') {
       const handleContextMenu = (e: MouseEvent) => e.preventDefault();
@@ -472,6 +482,7 @@ export default function RootLayout({
                   <OllamaDownloadProvider>
                     <OnboardingProvider>
                       <WorkspaceProvider>
+                      <OptionalModelDownloadsProvider>
                       <SidebarProvider>
                         <TooltipProvider>
                           <AppTooltipGuard />
@@ -513,6 +524,7 @@ export default function RootLayout({
                           </RecordingPostProcessingProvider>
                         </TooltipProvider>
                       </SidebarProvider>
+                      </OptionalModelDownloadsProvider>
                       </WorkspaceProvider>
                     </OnboardingProvider>
                   </OllamaDownloadProvider>
