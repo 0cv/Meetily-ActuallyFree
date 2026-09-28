@@ -70,7 +70,6 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import Logo from '../Logo';
 
 const RAIL_EASE = 'ease-[cubic-bezier(0.22,1,0.36,1)]';
 const GROUP_BY_KEY = 'af-sidebar-group-by';
@@ -318,37 +317,42 @@ const Sidebar: React.FC = () => {
       />
 
       <div className="flex h-full w-full min-w-0 flex-col overflow-hidden">
-        {/* Brand + collapse */}
-        <div className="flex shrink-0 items-center gap-1 px-3 pb-2 pt-3">
-          <div className="min-w-0 flex-1">
-            <Logo expanded={expanded} />
+        {/* Wordmark and collapse button. Collapsed, the button takes the
+            wordmark's place, so the row keeps its height and nothing below it
+            moves. The row also drags the window (the app draws its own title
+            bar on Windows). */}
+        <div data-tauri-drag-region="deep" className={cn('flex h-14 shrink-0 items-center px-3', expanded && 'gap-1')}>
+          <div
+            className={cn(
+              'grid min-w-0 items-center transition-[grid-template-columns,opacity] motion-reduce:transition-none',
+              RAIL_EASE,
+              expanded ? 'flex-1 grid-cols-[1fr] opacity-100 delay-75 duration-200' : 'grid-cols-[0fr] opacity-0 duration-150',
+            )}
+          >
+            <div className="min-w-0 select-none overflow-hidden pl-2">
+              <span className="block truncate text-[13px] font-semibold leading-tight tracking-tight text-af-text">Meetily</span>
+              <span className="block truncate text-[11px] leading-tight text-af-accent">Actually Free</span>
+            </div>
           </div>
-          <button
+          <RailTip show={!expanded} label="Expand sidebar">
+            <button
               type="button"
               onClick={toggleRail}
               aria-label={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
               aria-expanded={expanded}
               className={cn(
-                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-af-text-3 transition-[opacity,background-color,color] hover:bg-af-hover hover:text-af-text',
+                'flex h-9 shrink-0 items-center justify-center rounded-lg text-af-text-3 transition-[width,background-color,color] duration-300 hover:bg-af-hover hover:text-af-text motion-reduce:transition-none',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-af-accent/60',
-                !expanded && 'hidden',
+                RAIL_EASE,
+                expanded ? 'w-8' : 'w-10',
               )}
             >
-              <PanelLeftClose className="h-4 w-4" />
+              {expanded ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-[18px] w-[18px]" />}
             </button>
+          </RailTip>
         </div>
 
         <div className="flex shrink-0 flex-col gap-1.5 px-3">
-          {!expanded && (
-            <RailTip show label="Expand sidebar">
-              <button type="button" onClick={toggleRail} aria-label="Expand sidebar" className={navClass(false)}>
-                <RailIcon>
-                  <PanelLeftOpen />
-                </RailIcon>
-              </button>
-            </RailTip>
-          )}
-
           {/* Recording action */}
           {isRecording ? (
             <RailTip show={!expanded} label={`Back to recording · ${formatClock(elapsed)}`}>
