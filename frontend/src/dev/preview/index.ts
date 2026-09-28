@@ -284,6 +284,10 @@ function handle(cmd: string, args: Args): unknown {
       return [];
     case 'parakeet_get_available_models':
       return [{ name: 'parakeet-tdt-0.6b-v3-int8', status: 'Available', size_mb: 670 }];
+    case 'api_get_post_call_transcript_config':
+      return { provider: 'live', model: '' };
+    case 'api_get_whisper_vocabulary':
+      return { global: '', meeting: '' };
     case 'parakeet_has_available_models':
     case 'parakeet_is_model_loaded':
     case 'builtin_ai_is_model_ready':
