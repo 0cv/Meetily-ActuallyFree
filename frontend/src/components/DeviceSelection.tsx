@@ -335,23 +335,36 @@ function ScrollName({ text, active }: { text: string; active: boolean }) {
   const scrolling = active && distance > 0 && !reduceMotion;
   const duration = Math.max(1.5, distance / 52);
 
+  // One structure for both states, so the name never moves when scrolling
+  // starts: a block-level flex row (an inline box would sit on the text
+  // baseline and drop a few pixels) whose first copy stays put and only stops
+  // truncating, with a second copy after the gap while it scrolls.
   return (
     <span ref={outerRef} className="block h-5 min-w-0 flex-1 overflow-hidden">
-      {scrolling ? (
+      <span
+        className={`flex h-5 items-center ${scrolling ? 'af-name-scroll w-max' : 'w-full'}`}
+        style={
+          scrolling
+            ? {
+                ['--af-shift' as string]: `${distance}px`,
+                animationDuration: `${duration}s`,
+                animationDelay: '40ms',
+              }
+            : undefined
+        }
+      >
         <span
-          className="af-name-scroll inline-flex h-5 w-max items-center"
-          style={{
-            ['--af-shift' as string]: `${distance}px`,
-            animationDuration: `${duration}s`,
-            animationDelay: '40ms',
-          }}
+          ref={textRef}
+          className={`whitespace-nowrap text-[13px] leading-5 text-[var(--af-text)] ${scrolling ? 'shrink-0' : 'min-w-0 truncate'}`}
         >
-          <span ref={textRef} className="inline-block whitespace-nowrap text-[13px] leading-5 text-[var(--af-text)]">{text}</span>
-          <span aria-hidden className="inline-block whitespace-nowrap pl-[32px] text-[13px] leading-5 text-[var(--af-text)]">{text}</span>
+          {text}
         </span>
-      ) : (
-        <span ref={textRef} className="block truncate text-[13px] leading-5 text-[var(--af-text)]">{text}</span>
-      )}
+        {scrolling && (
+          <span aria-hidden className="shrink-0 whitespace-nowrap text-[13px] leading-5 text-[var(--af-text)]" style={{ paddingLeft: NAME_GAP }}>
+            {text}
+          </span>
+        )}
+      </span>
     </span>
   );
 }

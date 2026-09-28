@@ -27,6 +27,8 @@
 }
 
 svg.lucide {
+  /* Moving parts may cross the 24px drawing box by a pixel or two. */
+  overflow: visible;
   transition-property: color, stroke, fill, opacity, transform, translate, rotate, scale;
   transition-duration: 200ms;
   transition-timing-function: var(--af-ease);
@@ -53,6 +55,14 @@ svg.lucide > * {
 }
 :is(.lucide-bell, .lucide-bell-ring) {
   transform-origin: 50% 15%;
+}
+.lucide-settings2 > :nth-child(1) {
+  transform-box: view-box;
+  transform-origin: 20px 7px;
+}
+.lucide-settings2 > :nth-child(2) {
+  transform-box: view-box;
+  transform-origin: 5px 17px;
 }
 
 /* One-shot gestures. Turns end on a symmetric pose, so the reset is invisible. */
@@ -131,9 +141,12 @@ svg.lucide > * {
   @container style(--af-hot: 1) {
     /* Settings: the gear turns one tooth. */
     .lucide-settings:not([class*='animate-']) { animation: af-icon-tooth 700ms var(--af-ease); }
-    /* General settings: the slider knobs slide. */
-    .lucide-settings2 > circle:nth-of-type(1) { translate: -2px 0; }
-    .lucide-settings2 > circle:nth-of-type(2) { translate: 2px 0; }
+    /* General settings: each knob slides along its slider and its track
+       shortens to match, so knob and line never overlap. */
+    .lucide-settings2 > :nth-child(4) { translate: 2px 0; }
+    .lucide-settings2 > :nth-child(1) { scale: 0.778 1; }
+    .lucide-settings2 > :nth-child(3) { translate: -2px 0; }
+    .lucide-settings2 > :nth-child(2) { scale: 0.778 1; }
 
     /* Recording: the mic pulses like a voice. */
     .lucide-mic:not([class*='animate-']) { animation: af-icon-beat 460ms var(--af-ease); }
@@ -196,7 +209,7 @@ svg.lucide > * {
       animation: af-icon-scribble 520ms var(--af-ease);
     }
     /* Delete: the lid lifts. */
-    :is(.lucide-trash2, .lucide-trash) > :is(:nth-child(1), :nth-child(3)) { translate: 0 -1.5px; rotate: -6deg; }
+    :is(.lucide-trash2, .lucide-trash) > :is(:nth-child(1), :nth-child(3)) { translate: 0 -1px; rotate: -6deg; }
 
     /* Regenerate and refresh: the arrows go round. */
     :is(.lucide-refresh-cw, .lucide-refresh-ccw):not([class*='animate-']) { animation: af-icon-half 620ms var(--af-ease); }

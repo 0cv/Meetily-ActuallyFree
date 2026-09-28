@@ -305,6 +305,8 @@ function handle(cmd: string, args: Args): unknown {
       return [
         { name: 'MacBook Pro Microphone', device_type: 'Input' },
         { name: 'Studio Display Microphone', device_type: 'Input' },
+        // Long enough to scroll on hover in the device picker.
+        { name: 'Headset Microphone (Jabra Evolve2 65 – Bluetooth Hands-Free)', device_type: 'Input' },
         { name: 'MacBook Pro Speakers', device_type: 'Output' },
       ];
     case 'get_recording_preferences':
