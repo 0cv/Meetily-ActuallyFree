@@ -110,10 +110,8 @@ impl ContinuousVadProcessor {
             }
         }
         let samples = std::mem::take(&mut self.current_speech);
-        let sum_sq: f32 = samples.iter().map(|&x| x * x).sum();
-        let rms = (sum_sq / samples.len() as f32).sqrt();
         let peak = samples.iter().fold(0.0f32, |m, &x| m.max(x.abs()));
-        if rms < 0.005 && peak < 0.01 {
+        if peak == 0.0 {
             return None;
         }
         Some(SpeechSegment {
@@ -350,7 +348,9 @@ impl ContinuousVadProcessor {
             let rms = (sum_sq / self.current_speech.len() as f32).sqrt();
             let peak = self.current_speech.iter().fold(0.0f32, |m, &x| m.max(x.abs()));
 
-            if rms >= 0.005 || peak >= 0.01 {
+            // Silero already selected speech. A fixed loudness floor
+            // would discard quiet remote voices regardless of confidence.
+            if peak > 0.0 {
                 let start_ms = (self.speech_start_sample as f64 / 16000.0) * 1000.0;
                 let end_ms = (self.processed_samples as f64 / 16000.0) * 1000.0;
 
@@ -448,7 +448,7 @@ impl ContinuousVadProcessor {
                         let rms = (sum_sq / speech_samples.len() as f32).sqrt();
                         let peak = speech_samples.iter().fold(0.0f32, |m, &x| m.max(x.abs()));
 
-                        if rms >= 0.005 || peak >= 0.01 {
+                        if peak > 0.0 {
                             let start_ms = (self.speech_start_sample as f64 / 16000.0) * 1000.0;
                             let duration_ms = (speech_samples.len() as f64 / 16000.0) * 1000.0;
                             let end_ms = start_ms + duration_ms;
@@ -501,7 +501,7 @@ impl ContinuousVadProcessor {
                     let rms = (sum_sq / segment_samples.len() as f32).sqrt();
                     let peak = segment_samples.iter().fold(0.0f32, |m, &x| m.max(x.abs()));
 
-                    if rms < 0.005 && peak < 0.01 {
+                    if peak == 0.0 {
                         debug!("VAD: Dropping silent continuous segment (rms: {:.6}, peak: {:.6}), resetting in_speech", rms, peak);
                         self.current_speech.clear();
                         self.in_speech = false;
@@ -910,6 +910,26 @@ mod tests {
                 .is_empty(),
             "Reset Silero state must not emit the force-finalized utterance again"
         );
+    }
+
+    #[test]
+    fn quiet_detected_speech_survives_finalization() {
+        // Seed an already-detected turn: this tests downstream retention, not
+        // whether Silero can recognize this synthetic constant signal as speech.
+        for (amplitude, retained) in [(0.001, true), (0.0, false)] {
+            let mut processor = ContinuousVadProcessor::new(16000, 800).unwrap();
+            processor.in_speech = true;
+            processor.speech_start_sample = 16000;
+            processor.processed_samples = 32000;
+            processor.current_speech = vec![amplitude; 16000];
+            let segment = processor.finalize_active_speech();
+            assert_eq!(segment.is_some(), retained);
+            if let Some(segment) = segment {
+                assert_eq!(segment.start_timestamp_ms, 1000.0);
+                assert_eq!(segment.end_timestamp_ms, 2000.0);
+                assert_eq!(segment.samples, vec![amplitude; 16000]);
+            }
+        }
     }
 
     #[test]

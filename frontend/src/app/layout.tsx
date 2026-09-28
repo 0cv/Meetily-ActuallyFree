@@ -156,11 +156,11 @@ export default function RootLayout({
   startRecordingAnywhere.current = () => launchRecording((href) => router.push(href))
   const isMinibar = (pathname ?? '').startsWith('/minibar')
   const [showOnboarding, setShowOnboarding] = useState(false)
-  const [onboardingCompleted, setOnboardingCompleted] = useState(true)
-  // These no longer gate the first paint. A slow onboarding command must not
-  // leave the window on a blank startup screen.
-  const startupResolved = true
-  const startupError = null
+  const [onboardingCompleted, setOnboardingCompleted] = useState(false)
+  // Paint a retryable startup screen until native setup status is known.
+  const [startupResolved, setStartupResolved] = useState(false)
+  const [startupError, setStartupError] = useState<string | null>(null)
+  const [startupAttempt, setStartupAttempt] = useState(0)
   const [pendingCrashReport, setPendingCrashReport] = useState<PendingCrashReport | null>(null)
 
   // Import audio state
@@ -203,7 +203,7 @@ export default function RootLayout({
   useEffect(() => {
     let cancelled = false
     const timer = window.setTimeout(() => {
-      cancelled = true
+      if (!cancelled) setStartupError('Setup status is taking longer than expected.')
     }, 8000)
 
     const initializeStartup = async () => {
@@ -211,6 +211,9 @@ export default function RootLayout({
         const status = await invoke<{ completed: boolean } | null>('get_onboarding_status')
         if (cancelled) return
         const isComplete = status?.completed ?? false
+        window.clearTimeout(timer)
+        setStartupError(null)
+        setStartupResolved(true)
         setOnboardingCompleted(isComplete)
         setShowOnboarding(!isComplete)
 
@@ -223,10 +226,10 @@ export default function RootLayout({
           }
         }
       } catch (error) {
-        console.warn('[Layout] Could not resolve Tauri startup state, defaulting to main app:', error)
+        console.warn('[Layout] Could not resolve Tauri startup state:', error)
         if (cancelled) return
-        setOnboardingCompleted(true)
-        setShowOnboarding(false)
+        window.clearTimeout(timer)
+        setStartupError('Unable to check setup status. Please retry.')
       }
     }
 
@@ -235,7 +238,7 @@ export default function RootLayout({
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [])
+  }, [startupAttempt])
 
   // Disable context menu in production
   useEffect(() => {
@@ -495,7 +498,12 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: inlineChunkErrorHandler }} />
       </head>
       <body className="font-sans antialiased">
-        {pendingCrashReport ? (
+        {!startupResolved || startupError ? (
+          <main className="flex h-screen flex-col items-center justify-center gap-4 bg-[var(--af-bg)] text-af-text">
+            <p role="status">{startupError ?? 'Checking setup…'}</p>
+            {startupError && <button onClick={() => { setStartupError(null); setStartupAttempt(value => value + 1); }}>Retry</button>}
+          </main>
+        ) : pendingCrashReport ? (
           <>
             <div className="h-screen bg-[var(--af-bg)]" />
             <CrashReportDialog

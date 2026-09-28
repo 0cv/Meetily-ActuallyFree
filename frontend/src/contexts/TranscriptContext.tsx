@@ -7,7 +7,8 @@ import { useRecordingState } from './RecordingStateContext';
 import { transcriptService } from '@/services/transcriptService';
 import { recordingService } from '@/services/recordingService';
 import { indexedDBService } from '@/services/indexedDBService';
-import { resolveSpeaker, isUserSpeaker, speakerColorIndexMap, speakerKey } from '@/utils/speakerUtils';
+import { isUserSpeaker, speakerColorIndexMap, speakerKey } from '@/utils/speakerUtils';
+import { activeSpeakerMeeting, editedSpeaker, persistSpeakerRename, persistTurnSpeaker } from '@/lib/live-speaker-edits';
 
 interface TranscriptContextType {
   transcripts: Transcript[];
@@ -278,7 +279,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
 
           // Create transcript for buffer with NEW timestamp fields and real-time speaker resolution
           const rawSpeaker = (update as any).source || 'Speaker 1';
-          const effectiveSpeaker = resolveSpeaker(rawSpeaker, speakerMapRef.current);
+          const effectiveSpeaker = editedSpeaker(activeSpeakerMeeting(), update.sequence_id, rawSpeaker);
 
           const newTranscript: Transcript = {
             id: `${Date.now()}-${transcriptCounter++}`,
@@ -362,7 +363,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
             audio_start_time: segment.audio_start_time,
             audio_end_time: segment.audio_end_time,
             duration: segment.duration,
-            speaker: segment.speaker ?? undefined,
+            speaker: editedSpeaker(activeSpeakerMeeting(), segment.sequence_id, segment.speaker ?? undefined),
           }));
 
           setTranscripts(formattedTranscripts);
@@ -394,7 +395,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
     });
 
     const rawSpeaker = (update as any).source || 'Speaker 1';
-    const effectiveSpeaker = resolveSpeaker(rawSpeaker, speakerMapRef.current);
+    const effectiveSpeaker = editedSpeaker(activeSpeakerMeeting(), update.sequence_id, rawSpeaker);
 
     const newTranscript: Transcript = {
       id: update.sequence_id ? update.sequence_id.toString() : Date.now().toString(),
@@ -469,6 +470,11 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
     const trimmedOld = oldName.trim();
     const trimmedNew = newName.trim();
     if (!trimmedOld || !trimmedNew || trimmedOld === trimmedNew) return;
+    try {
+      const id = activeSpeakerMeeting();
+      if (!id) throw new Error('No active meeting');
+      persistSpeakerRename(id, trimmedOld, trimmedNew);
+    } catch { toast.error('Could not save speaker name. Please retry.'); return; }
 
     setSpeakerMap(prev => {
       const next = { ...prev, [trimmedOld]: trimmedNew };
@@ -501,6 +507,12 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
   const reassignSegment = useCallback((segmentId: string, newSpeaker: string) => {
     const nextSpeaker = newSpeaker.trim();
     if (!segmentId) return;
+    try {
+      const id = activeSpeakerMeeting();
+      const turn = transcriptsRef.current.find(t => t.id === segmentId);
+      if (!id || turn?.sequence_id === undefined) throw new Error('No active transcript');
+      persistTurnSpeaker(id, turn.sequence_id, nextSpeaker);
+    } catch { toast.error('Could not save speaker assignment. Please retry.'); return; }
     const speaker = nextSpeaker || undefined;
     transcriptsRef.current = transcriptsRef.current.map((t) =>
       t.id === segmentId ? { ...t, speaker } : t
@@ -518,6 +530,11 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
     const trimmedSource = sourceSpeaker.trim();
     const trimmedTarget = targetSpeaker.trim();
     if (!trimmedSource || !trimmedTarget || trimmedSource === trimmedTarget) return;
+    try {
+      const id = activeSpeakerMeeting();
+      if (!id) throw new Error('No active meeting');
+      persistSpeakerRename(id, trimmedSource, trimmedTarget);
+    } catch { toast.error('Could not save speaker merge. Please retry.'); return; }
 
     setSpeakerMap(prev => {
       const next = { ...prev, [trimmedSource]: trimmedTarget };

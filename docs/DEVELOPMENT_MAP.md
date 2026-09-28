@@ -156,6 +156,9 @@ variants; the runtime payload must match the one validated in tests. Validate wi
 
 ## 6. Tests, qualification, and historical notes
 
+See [PR39_INTEGRATION.md](PR39_INTEGRATION.md) for capture-readiness, setup
+gating, quiet-speech and meeting-scoped speaker-edit recovery corrections.
+
 ### Home meeting library
 
 `frontend/src/app/home/page.tsx` renders the date-sorted meeting library and is
