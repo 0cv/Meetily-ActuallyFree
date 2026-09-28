@@ -50,6 +50,26 @@ type validation passed. The quiet-finalization fixture is synthetic, not a
 real-speech accuracy measurement.
 The browser preview also completed a sample start/stop/save transition to meeting
 details. Preview uses mocked audio/native APIs and does not qualify real capture.
-Real Windows/macOS per-app capture, full installed-app upgrade, real-call voice
-matching and sustained concurrent GPU inference still require hardware testing.
-This branch is not an installed or published release.
+Real Windows/macOS per-app capture, real-call voice matching and sustained
+concurrent GPU inference still require hardware testing.
+
+## Local v0.2.18 upgrade (2026-09-28)
+
+The low-audio advisory was adapted to the redesigned recording meters; its three
+monitor tests and separate component lifecycle test passed, followed by a Next
+production build. CPU/Vulkan/CUDA variants were packaged with the universal
+Windows build script. `verify-windows-release.mjs` verified payload hashes,
+bundled variants/runtime files, bootstrapper integrity and updater signatures.
+
+The existing v0.2.17 install and its native/WebView data were backed up before
+upgrading locally. The installed v0.2.18 CUDA executable matched the packaged
+variant. Native IPC confirmed version 0.2.18, completed onboarding and enabled,
+available Nemotron; the redesigned workspace rendered successfully. The initial
+smoke-check deadline expired before the workspace appeared; a subsequent check
+passed. The app was then exited cleanly and reopened without debugging flags.
+
+SQLite integrity passed. Existing meeting content/titles and transcript records
+were preserved; startup workspace backfill touched two meeting `updated_at`
+timestamps. Existing model files and preferences matched the backup hashes.
+This establishes local upgrade preservation and startup, not a full real-call
+qualification. v0.2.18 is installed locally, **not published on GitHub**.

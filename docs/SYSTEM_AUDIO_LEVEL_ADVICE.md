@@ -22,4 +22,7 @@ can qualify, so the text says "If someone is speaking" and points to System volu
 in the redesigned recorder's Output settings. Short quiet utterances may not
 trigger advice. Gain, VAD and recordings are never modified automatically.
 Tests cover timing, recovery, silence, invalid values, missing events and reset.
+The component lifecycle test also verifies source filtering, no-event expiration,
+limiter priority and pause cleanup. Run `tests/audio-levels` separately from
+other Bun groups because it mocks the Tauri event module.
 Real-call threshold calibration remains open.
