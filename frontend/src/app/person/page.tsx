@@ -395,7 +395,20 @@ function PersonPageInner() {
               )}
             </Panel>
 
-            <Panel title="Meetings together" action={profile ? <span className="text-xs tabular-nums text-af-text-4">{profile.meetings.length}</span> : undefined}>
+            <Panel
+              title="Meetings together"
+              action={
+                profile && profile.meetings.length > 0 ? (
+                  <Link
+                    href={`/meetings?person=${encodeURIComponent(profile.id)}`}
+                    className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-af-text-3 transition-colors hover:bg-af-hover hover:text-af-text"
+                  >
+                    <span className="tabular-nums text-af-text-4">{profile.meetings.length}</span>
+                    Open in All meetings
+                  </Link>
+                ) : undefined
+              }
+            >
               {!profile ? (
                 <Skeleton className="h-24" />
               ) : profile.meetings.length === 0 ? (

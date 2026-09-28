@@ -1,12 +1,15 @@
 'use client';
 
 /**
- * Every meeting in one list: search, filter by group and date, sort, and act
- * on many at once (move to a group, export, delete). Built for people with a
- * long history who want to sort it into groups.
+ * Every meeting in one list: search, filter by group, contact and date, sort,
+ * and act on many at once (move to a group, export, delete). Built for people
+ * with a long history who want to sort it into groups.
+ *
+ * `/meetings?person=<id>` opens it filtered to one contact.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { invoke } from '@tauri-apps/api/core';
 import {
   ArrowUpRight,
   Check,
@@ -26,6 +29,7 @@ import { cn } from '@/lib/utils';
 import { useSidebar, type CurrentMeeting } from '@/components/Sidebar/SidebarProvider';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useImportDialog } from '@/contexts/ImportDialogContext';
+import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
@@ -49,6 +53,8 @@ import { ExportMeetingsDialog } from '@/components/meetings/ExportMeetingsDialog
 import { dateSection, formatDuration, parseDate } from '@/lib/dates';
 import { displayTitle } from '@/lib/meeting-titles';
 import { deleteMeetings, moveMeetingsToGroup, renameMeeting } from '@/lib/meeting-actions';
+import { onWorkspaceChange } from '@/lib/workspace-api';
+import type { PersonProfile } from '@/types';
 
 type Sort = 'newest' | 'oldest' | 'longest';
 type Range = 'any' | 'week' | 'month' | 'year';
@@ -68,11 +74,14 @@ function totalDuration(meetings: CurrentMeeting[]): string {
 export default function MeetingsPage() {
   const router = useRouter();
   const { meetings, setCurrentMeeting, currentMeeting } = useSidebar();
-  const { groups, groupById } = useWorkspace();
+  const { groups, groupById, people } = useWorkspace();
   const { openImportDialog } = useImportDialog();
 
   const [query, setQuery] = useState('');
   const [groupFilter, setGroupFilter] = useState<string>(ALL_GROUPS);
+  const [personFilter, setPersonFilter] = useState<string | null>(null);
+  // Meetings where the chosen contact is a named speaker; null while loading.
+  const [personMeetings, setPersonMeetings] = useState<Set<string> | null>(null);
   const [range, setRange] = useState<Range>('any');
   const [sort, setSort] = useState<Sort>('newest');
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -82,11 +91,63 @@ export default function MeetingsPage() {
   const [exportIds, setExportIds] = useState<string[] | null>(null);
   const [moveOpen, setMoveOpen] = useState(false);
 
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('person');
+    if (requested) setPersonFilter(requested);
+  }, []);
+
+  const choosePerson = (personId: string | null) => {
+    setPersonFilter(personId);
+    // Keep the link shareable within the app, e.g. back from a meeting.
+    const search = personId ? `?person=${encodeURIComponent(personId)}` : '';
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${search}`);
+  };
+
+  useEffect(() => {
+    if (!personFilter) {
+      setPersonMeetings(null);
+      return;
+    }
+    let cancelled = false;
+    const load = () => {
+      invoke<PersonProfile>('api_get_person_profile', { personId: personFilter })
+        .then((profile) => !cancelled && setPersonMeetings(new Set(profile.meetings.map((meeting) => meeting.meetingId))))
+        .catch(() => !cancelled && setPersonMeetings(new Set()));
+    };
+    setPersonMeetings(null);
+    load();
+    // Renames and merges change who spoke in which meeting.
+    const stop = onWorkspaceChange(['people', 'meetings'], load);
+    return () => {
+      cancelled = true;
+      stop();
+    };
+  }, [personFilter]);
+
+  const personOptions = useMemo(
+    () =>
+      people
+        .filter((person) => person.meetingCount > 0 || person.id === personFilter)
+        .map((person) => ({
+          value: person.id,
+          label: person.displayName,
+          description: [person.role, person.company, `${person.meetingCount} meeting${person.meetingCount === 1 ? '' : 's'}`]
+            .filter(Boolean)
+            .join(' · '),
+          keywords: [person.company ?? '', person.role ?? '', person.email ?? ''].filter(Boolean),
+          icon: <Avatar name={person.displayName} size="xs" />,
+        })),
+    [people, personFilter],
+  );
+
+  const personLoading = personFilter !== null && personMeetings === null;
+
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const days = RANGE_DAYS[range];
     const cutoff = days ? Date.now() - days * 86_400_000 : null;
     const list = meetings.filter((meeting) => {
+      if (personFilter && personMeetings && !personMeetings.has(meeting.id)) return false;
       if (groupFilter === NO_GROUP && meeting.group_id) return false;
       if (groupFilter !== ALL_GROUPS && groupFilter !== NO_GROUP && meeting.group_id !== groupFilter) return false;
       if (cutoff !== null) {
@@ -105,7 +166,7 @@ export default function MeetingsPage() {
       const order = (a.created_at ?? '').localeCompare(b.created_at ?? '');
       return sort === 'oldest' ? order : -order;
     });
-  }, [meetings, query, groupFilter, range, sort, groupById]);
+  }, [meetings, query, groupFilter, personFilter, personMeetings, range, sort, groupById]);
 
   const sections = useMemo(() => {
     if (sort === 'longest') return [{ title: 'Longest first', meetings: filtered }];
@@ -121,7 +182,7 @@ export default function MeetingsPage() {
 
   const orderedIds = useMemo(() => filtered.map((meeting) => meeting.id), [filtered]);
   const selecting = selected.size > 0;
-  const filtersActive = query.trim() !== '' || groupFilter !== ALL_GROUPS || range !== 'any';
+  const filtersActive = query.trim() !== '' || groupFilter !== ALL_GROUPS || personFilter !== null || range !== 'any';
 
   // Keep only selections that still exist in the library.
   useEffect(() => {
@@ -171,6 +232,7 @@ export default function MeetingsPage() {
   const clearFilters = () => {
     setQuery('');
     setGroupFilter(ALL_GROUPS);
+    choosePerson(null);
     setRange('any');
   };
 
@@ -229,6 +291,17 @@ export default function MeetingsPage() {
               ))}
             </SelectContent>
           </Select>
+          <Combobox
+            value={personFilter}
+            onChange={(value) => choosePerson(value)}
+            options={personOptions}
+            placeholder="Anyone"
+            clearLabel="Anyone"
+            searchPlaceholder="Find a contact"
+            emptyText="No contacts with meetings yet"
+            triggerClassName="w-44 text-af-text"
+            aria-label="Contact"
+          />
           <Select value={range} onValueChange={(value) => setRange(value as Range)}>
             <SelectTrigger className="w-36" aria-label="Date range">
               <SelectValue />
@@ -267,11 +340,17 @@ export default function MeetingsPage() {
                 </div>
               }
             />
+          ) : personLoading ? (
+            <div className="space-y-2" aria-busy="true">
+              <div className="af-skeleton h-12 rounded-xl" />
+              <div className="af-skeleton h-12 rounded-xl" />
+              <div className="af-skeleton h-12 rounded-xl" />
+            </div>
           ) : filtered.length === 0 ? (
             <EmptyState
               icon={<Search />}
               title="No meetings match"
-              description="Try a different word, group or time range."
+              description="Try a different word, group, contact or time range."
               action={
                 <Button variant="secondary" onClick={clearFilters}>
                   Clear filters
