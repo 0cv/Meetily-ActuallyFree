@@ -18,6 +18,9 @@ and a model's anonymous speaker channels are also different concepts.
 
 ## 2. Recording data flow
 
+Speech-start pre-roll, live system speech sensitivity, and real-call replay
+qualification are documented in [LIVE_SPEECH_RETENTION.md](LIVE_SPEECH_RETENTION.md).
+
 ```text
 recording_commands.rs: start command
   -> initialize selected live diarizer before capture (blocking work off Tokio)

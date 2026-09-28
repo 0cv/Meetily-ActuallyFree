@@ -46,6 +46,10 @@ fn find_split_point(samples: &[f32], search_samples: usize, sub_window_samples: 
 
 /// Processes audio in 30ms chunks but returns complete speech segments
 pub struct ContinuousVadProcessor {
+    // One second of contiguous 16 kHz audio, excluding the current frame.
+    // SpeechStart arrives after minimum-speech confirmation; its timestamp
+    // points back into this history, not at the frame delivering the event.
+    pre_roll: VecDeque<f32>,
     session: VadSession,
     config: VadConfig,
     chunk_size: usize,
@@ -142,6 +146,7 @@ impl ContinuousVadProcessor {
         }
         self.buffer.clear();
         self.current_speech.clear();
+        self.pre_roll.clear();
         self.processed_samples = target_sample;
         self.session_start_sample = target_sample;
     }
@@ -220,6 +225,7 @@ impl ContinuousVadProcessor {
               input_sample_rate, VAD_SAMPLE_RATE, vad_chunk_size, max_speech_samples as f32 / 16000.0);
 
         Ok(Self {
+            pre_roll: VecDeque::with_capacity(16000),
             session,
             config,
             chunk_size: vad_chunk_size,
@@ -399,8 +405,9 @@ impl ContinuousVadProcessor {
                 error!("VAD: Silero session panicked: {}. Recreating session safely to prevent pipeline crash.", panic_msg);
                 if let Ok(new_session) = VadSession::new(self.config) {
                     self.session = new_session;
-                    self.session_start_sample = self.processed_samples;
+                    self.session_start_sample = self.processed_samples + chunk.len();
                 } else {
+                    // silero reset retains its audio and processed-sample clock.
                     self.session.reset();
                 }
                 Vec::new()
@@ -426,7 +433,11 @@ impl ContinuousVadProcessor {
                         // Use 16000 (VAD processing rate) since processed_samples counts 16kHz samples
                         self.speech_start_sample =
                             self.session_start_sample + (timestamp_ms * 16000 / 1000);
-                        self.current_speech.clear();
+                        let history_start = self.processed_samples.saturating_sub(self.pre_roll.len());
+                        self.speech_start_sample = self.speech_start_sample
+                            .max(history_start).min(self.processed_samples);
+                        self.current_speech = self.pre_roll.iter()
+                            .skip(self.speech_start_sample - history_start).copied().collect();
                     }
                 }
                 VadTransition::SpeechEnd { start_timestamp_ms: _, end_timestamp_ms: _, samples } => {
@@ -473,7 +484,9 @@ impl ContinuousVadProcessor {
                     match VadSession::new(self.config) {
                         Ok(session) => {
                             self.session = session;
-                            self.session_start_sample = self.processed_samples;
+                            // This frame was consumed by the old session; the new
+                            // session's zero is the beginning of the NEXT frame.
+                            self.session_start_sample = self.processed_samples + chunk.len();
                         }
                         Err(_e) => {
                             self.session.reset();
@@ -508,7 +521,7 @@ impl ContinuousVadProcessor {
                         self.last_logged_state = false;
                         if let Ok(new_session) = VadSession::new(self.config) {
                             self.session = new_session;
-                            self.session_start_sample = self.processed_samples;
+                            self.session_start_sample = self.processed_samples + chunk.len();
                         }
                     } else {
                         let start_ms = (self.speech_start_sample as f64 / 16000.0) * 1000.0;
@@ -531,6 +544,10 @@ impl ContinuousVadProcessor {
             }
         }
 
+        self.pre_roll.extend(chunk.iter().copied());
+        if self.pre_roll.len() > 16000 {
+            self.pre_roll.drain(..self.pre_roll.len() - 16000);
+        }
         self.processed_samples += chunk.len();
         Ok(())
     }
@@ -741,6 +758,76 @@ mod tests {
         }
 
         samples
+    }
+
+    #[test]
+    fn live_segments_retain_the_audio_at_their_claimed_start() {
+        let audio = generate_test_audio_with_speech(16.02, 16000);
+        for (positive, negative) in [(0.20, 0.10), (0.50, 0.35)] {
+            for (redemption, max_duration) in [(350, 3500), (800, 6000)] {
+                let mut vad = ContinuousVadProcessor::new_with_thresholds(16000, redemption, positive, negative).unwrap();
+                vad.set_max_speech_duration_ms(max_duration);
+                let mut segments = Vec::new();
+                for chunk in audio.chunks(800) {
+                    segments.extend(vad.process_audio(chunk).unwrap());
+                    assert!(vad.pre_roll.len() <= 16000);
+                }
+                segments.extend(vad.flush().unwrap());
+                assert!(!segments.is_empty(), "fixture must exercise speech detection");
+                if positive == 0.20 && max_duration == 3500 {
+                    assert!(segments.len() >= 2, "fixture must also exercise splitting");
+                }
+                for segment in segments {
+                    let first = (segment.start_timestamp_ms * 16.0).round() as usize;
+                    let end = first + segment.samples.len();
+                    assert!(end <= audio.len());
+                    // A timestamp alone is not pre-roll: ASR must receive those samples.
+                    assert!(segment.samples == audio[first..end],
+                        "speech audio lost its onset or became offset from the recording clock at {}ms", segment.start_timestamp_ms);
+                    assert!((segment.end_timestamp_ms * 16.0 - end as f64).abs() < 0.01);
+                }
+            }
+        }
+    }
+
+    /// Local, read-only replay: decode a consenting fixture to mono 16 kHz f32le
+    /// first. Output can contain private speech; keep logs outside source control.
+    #[test]
+    #[ignore = "Requires MEETILY_VAD_TEST_AUDIO (f32le); optional MEETILY_PARAKEET_TEST_MODEL"]
+    fn replay_live_audio_alignment() {
+        let path = std::env::var("MEETILY_VAD_TEST_AUDIO").expect("Set mono 16 kHz f32le fixture path");
+        let bytes = std::fs::read(path).unwrap();
+        assert_eq!(bytes.len() % 4, 0);
+        let mut audio: Vec<f32> = bytes.chunks_exact(4)
+            .map(|sample| f32::from_le_bytes(sample.try_into().unwrap())).collect();
+        assert!(!audio.is_empty());
+        assert!(audio.iter().all(|sample| sample.is_finite()));
+        // Match flush's zero padding so alignment also checks its final frame.
+        audio.resize(audio.len().div_ceil(480) * 480, 0.0);
+        // The strict option reproduces the former live loopback gate for a
+        // controlled comparison; production live input now uses 0.20/0.10.
+        let strict_system = std::env::var_os("MEETILY_VAD_TEST_STRICT_SYSTEM").is_some();
+        let (positive, negative) = if strict_system { (0.50, 0.35) } else { (0.20, 0.10) };
+        let mut vad = ContinuousVadProcessor::new_with_thresholds(16000, 800, positive, negative).unwrap();
+        vad.set_max_speech_duration_ms(6000);
+        let mut segments = Vec::new();
+        for chunk in audio.chunks(800) {
+            segments.extend(vad.process_audio(chunk).unwrap());
+        }
+        segments.extend(vad.flush().unwrap());
+        assert!(!segments.is_empty(), "fixture must contain detected speech");
+        let mut model = std::env::var("MEETILY_PARAKEET_TEST_MODEL").ok().map(|path| {
+            crate::parakeet_engine::model::ParakeetModel::new(path, true).expect("load CPU Parakeet")
+        });
+        for segment in segments {
+            let start = (segment.start_timestamp_ms * 16.0).round() as usize;
+            let end = start + segment.samples.len();
+            assert!(end <= audio.len());
+            assert!(segment.samples == audio[start..end], "unaligned audio at {start}");
+            assert!((segment.end_timestamp_ms * 16.0 - end as f64).abs() < 0.01);
+            let text = model.as_mut().map(|model| model.transcribe_samples(segment.samples).unwrap().text);
+            println!("REPLAY {:.3}-{:.3}: {:?}", segment.start_timestamp_ms / 1000.0, segment.end_timestamp_ms / 1000.0, text);
+        }
     }
 
     #[test]

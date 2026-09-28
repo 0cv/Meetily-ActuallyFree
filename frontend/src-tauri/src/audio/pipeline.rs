@@ -995,9 +995,12 @@ impl AudioPipeline {
             info!("VAD ready for {label}: separate source segmentation (redemption: {redemption_time}ms, max: {max_duration_ms}ms, real_time: {is_realtime})");
             Ok(processor)
         };
-        // Headset/array microphones are usually quieter than digital loopback.
+        // Both sources can contain soft/compressed speech. The old 0.50/0.35
+        // loopback gate discarded entire audible turns in recorded-call replay;
+        // use the same speech-sensitive thresholds as the microphone. This is
+        // a speech-probability gate, not a substitute for volume adjustment.
         let mic_vad = make_vad("microphone", 0.20, 0.10)?;
-        let system_vad = make_vad("system", 0.50, 0.35)?;
+        let system_vad = make_vad("system", 0.20, 0.10)?;
 
         // Initialize professional audio mixing components (recording file only)
         let ring_buffer = AudioMixerRingBuffer::new(sample_rate, mic_enabled, system_enabled);
