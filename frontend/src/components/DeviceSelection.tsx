@@ -418,7 +418,7 @@ export function AudioDeviceCard({
   }, [open]);
 
   return (
-    <div className="w-full max-w-[320px] rounded-2xl border border-[var(--af-border)] bg-[var(--af-panel)]">
+    <div className="w-full max-w-[320px] rounded-2xl border border-af-border bg-af-elevated">
       <div
         ref={popoverRef}
         className="relative"

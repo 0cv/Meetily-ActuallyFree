@@ -8,8 +8,9 @@ import AnalyticsProvider from '@/components/AnalyticsProvider'
 import { Toaster, toast } from 'sonner'
 import { X } from 'lucide-react'
 import "sonner/dist/styles.css"
-import { useState, useEffect, useCallback } from 'react'
-import { usePathname } from 'next/navigation'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
+import { launchRecording } from '@/lib/recording-launch'
 import { listen, UnlistenFn } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { applyAppTheme, getSavedAppTheme, themeInfo, THEME_BOOT_SCRIPT, useAppTheme } from '@/lib/app-theme'
@@ -147,6 +148,10 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
+  const router = useRouter()
+  // Tray, notification and meeting-detection starts work from any page.
+  const startRecordingAnywhere = useRef<() => void>(() => undefined)
+  startRecordingAnywhere.current = () => launchRecording((href) => router.push(href))
   const isMinibar = (pathname ?? '').startsWith('/minibar')
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [onboardingCompleted, setOnboardingCompleted] = useState(true)
@@ -251,7 +256,7 @@ export default function RootLayout({
       } else {
         // If in main app, forward to useRecordingStart via window event
         console.log('[Layout] Forwarding to start-recording-from-sidebar');
-        window.dispatchEvent(new CustomEvent('start-recording-from-sidebar'));
+        startRecordingAnywhere.current();
       }
     });
 
@@ -297,7 +302,7 @@ export default function RootLayout({
             });
             return;
           }
-          window.dispatchEvent(new CustomEvent('start-recording-from-sidebar'));
+          startRecordingAnywhere.current();
         };
 
         // OS toast with a Start recording button (Windows native path).
@@ -328,7 +333,7 @@ export default function RootLayout({
         });
         return;
       }
-      window.dispatchEvent(new CustomEvent('start-recording-from-sidebar'));
+      startRecordingAnywhere.current();
     });
 
     return () => {

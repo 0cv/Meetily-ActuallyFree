@@ -263,8 +263,11 @@ function ActionItemRow({
             <button
               type="button"
               onClick={() => {
-                const query = item.transcriptId ? `&t=${encodeURIComponent(item.transcriptId)}` : '';
-                router.push(`/meeting-details?id=${encodeURIComponent(item.meetingId)}${query}`);
+                // Open the meeting at the moment the item came up.
+                const params = new URLSearchParams({ id: item.meetingId });
+                if (item.transcriptId) params.set('t', item.transcriptId);
+                if (item.audioTime != null) params.set('ts', String(Math.floor(item.audioTime)));
+                router.push(`/meeting-details?${params.toString()}`);
               }}
               className="inline-flex h-6 min-w-0 max-w-[16rem] items-center gap-1.5 rounded-md px-1.5 text-[11px] text-af-text-3 transition-colors hover:bg-af-hover hover:text-af-text"
             >

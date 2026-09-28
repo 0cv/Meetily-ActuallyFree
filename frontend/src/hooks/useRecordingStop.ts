@@ -13,6 +13,8 @@ import {
   applyPinnedSummaryLanguageToMeeting,
   detectAndCacheSummaryLanguage,
 } from '@/lib/summary-language-preferences';
+import { endLiveSession, finalLiveTitle, readLiveNotes, writeLiveTitle } from '@/lib/live-session';
+import { announceChange, saveMeetingNotes } from '@/lib/workspace-api';
 
 type SummaryStatus = 'idle' | 'processing' | 'summarizing' | 'regenerating' | 'completed' | 'error';
 
@@ -105,6 +107,7 @@ export function useRecordingStop(
       setIsRecordingDisabled(false);
       setIsMeetingActive(false);
       clearTranscripts();
+      endLiveSession();
       try {
         // stop_recording may still be publishing folder_path — brief wait.
         let folderPath = sessionStorage.getItem('last_recording_folder_path');
@@ -248,10 +251,13 @@ export function useRecordingStop(
         const recordingStartedAt = Number.isFinite(recordingStartFallbackAtMs) && recordingStartFallbackAtMs > 0
           ? new Date(recordingStartFallbackAtMs).toISOString()
           : null;
+        // A title typed during the call wins; otherwise the automatic title
+        // gains its end time ("2:30–3:15 PM").
+        const meetingName = finalLiveTitle(savedMeetingName || meetingTitle || 'New Meeting', new Date(stopStartTime));
 
         console.log('💾 Saving COMPLETE transcripts to database...', {
           transcript_count: freshTranscripts.length,
-          meeting_name: savedMeetingName || meetingTitle,
+          meeting_name: meetingName,
           folder_path: folderPath,
           sample_text: freshTranscripts.length > 0 ? freshTranscripts[0].text.substring(0, 50) + '...' : 'none',
           last_transcript: freshTranscripts.length > 0 ? freshTranscripts[freshTranscripts.length - 1].text.substring(0, 30) + '...' : 'none',
@@ -259,7 +265,7 @@ export function useRecordingStop(
 
         try {
           const responseData = await storageService.saveMeeting(
-            savedMeetingName || meetingTitle || 'New Meeting',  // PREFER savedMeetingName (backend source)
+            meetingName,
             freshTranscripts,
             folderPath,
             recordingStartedAt
@@ -273,10 +279,28 @@ export function useRecordingStop(
               if (pending) {
                 await invoke('api_set_meeting_group', { meetingId, groupId: pending.id });
                 writePendingGroup(null);
+                announceChange('groups');
               }
             } catch (error) {
               console.warn('Could not file this meeting into its group', error);
             }
+            // Notes typed during the call become the meeting's notes. If that
+            // fails they stay in the draft rather than being dropped.
+            const liveNotes = readLiveNotes();
+            let notesSaved = true;
+            if (liveNotes?.markdown.trim()) {
+              try {
+                await saveMeetingNotes(meetingId, liveNotes.markdown, liveNotes.json);
+              } catch (error) {
+                notesSaved = false;
+                console.warn('Could not save the notes taken during the call', error);
+                toast.warning('Your call notes were not saved to the meeting', {
+                  description: 'Copy them from the Notes tab on the recorder before starting another recording.',
+                });
+              }
+            }
+            if (notesSaved) endLiveSession();
+            else writeLiveTitle(null);
           }
           if (!meetingId) {
             console.error('No meeting_id in response:', responseData);
@@ -340,7 +364,7 @@ export function useRecordingStop(
             }
           } catch (error) {
             console.warn('Could not fetch meeting details, using ID only:', error);
-            setCurrentMeeting({ id: meetingId, title: savedMeetingName || meetingTitle || 'New Meeting' });
+            setCurrentMeeting({ id: meetingId, title: meetingName });
           }
 
           // Mark as completed

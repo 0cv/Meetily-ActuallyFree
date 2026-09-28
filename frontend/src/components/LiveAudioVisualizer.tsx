@@ -187,11 +187,14 @@ export function LiveAudioVisualizer({
     };
   }, [active, source, bars, previewMode]);
 
-  const barColor = limiterWarning
-    ? 'bg-amber-400'
-    : source === 'mic'
-      ? 'bg-blue-500'
-      : 'bg-purple-500';
+  // Your voice in the accent color, everyone else in violet, amber when clipping.
+  const barColor = !active
+    ? 'var(--af-text-4)'
+    : limiterWarning
+      ? 'var(--af-warning)'
+      : source === 'mic'
+        ? 'var(--af-accent)'
+        : 'var(--af-c-violet)';
   const warningText = 'System audio is hitting the limiter. Lower system gain or playback volume.';
 
   return (
@@ -206,12 +209,11 @@ export function LiveAudioVisualizer({
         return (
         <div
           key={index}
-          className={`${fill ? 'flex-1 min-w-[2px]' : 'w-[3px]'} rounded-sm transition-[height,opacity] duration-100 ease-out ${
-            active ? barColor : 'bg-gray-500'
-          }`}
+          className={`${fill ? 'flex-1 min-w-[2px]' : 'w-[3px]'} rounded-sm transition-[height,opacity,background-color] duration-100 ease-out`}
           style={{
+            backgroundColor: barColor,
             height: `${Math.max(4, shown * 100)}%`,
-            opacity: active ? 0.45 + shown * 0.55 : 0.3,
+            opacity: active ? 0.45 + shown * 0.55 : 0.45,
           }}
         />
         );

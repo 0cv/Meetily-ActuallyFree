@@ -95,7 +95,8 @@ export function GroupPicker({
   triggerClassName,
 }: {
   value: string | null;
-  onChange: (groupId: string | null) => void;
+  /** Receives the name too, since a group created from the picker may not be listed yet. */
+  onChange: (groupId: string | null, name?: string) => void;
   trigger?: React.ReactElement;
   align?: 'start' | 'center' | 'end';
   side?: 'top' | 'bottom';
@@ -108,7 +109,7 @@ export function GroupPicker({
   return (
     <Combobox
       value={value}
-      onChange={(next) => onChange(next)}
+      onChange={(next, option) => onChange(next, option?.label)}
       options={groupOptions(groups)}
       clearLabel="No group"
       searchPlaceholder="Find or create a group"

@@ -139,7 +139,7 @@ export function RecordingVoiceLane({
 
   return (
     <div
-      className={`flex h-9 items-stretch overflow-hidden rounded-full bg-white/[0.06] ${live ? 'min-w-0 flex-1' : 'shrink-0'}`}
+      className={`flex h-9 items-stretch overflow-hidden rounded-full bg-af-panel-2 ring-1 ring-inset ring-af-border ${live ? 'min-w-0 flex-1' : 'shrink-0'}`}
     >
       <Tooltip>
         <TooltipTrigger asChild>
@@ -153,8 +153,8 @@ export function RecordingVoiceLane({
               live ? 'min-w-0 flex-1 px-2.5' : 'w-8 shrink-0'
             } ${
               muted
-                ? 'bg-orange-500/25 text-orange-100 hover:bg-orange-500/35'
-                : 'text-white/85 hover:bg-white/10 hover:text-white'
+                ? 'bg-af-warning/15 text-af-warning hover:bg-af-warning/25'
+                : 'text-af-text-2 hover:bg-af-hover hover:text-af-text'
             } disabled:opacity-50`}
           >
             <span className="relative flex h-4 w-4 shrink-0 items-center justify-center">
@@ -193,7 +193,7 @@ export function RecordingVoiceLane({
                 aria-expanded={open}
                 aria-label={settingsLabel}
                 className={`flex w-[22px] shrink-0 items-center justify-center transition-colors duration-150 ${
-                  open ? 'bg-white/15 text-white' : 'text-white/55 hover:bg-white/10 hover:text-white'
+                  open ? 'bg-af-active text-af-text' : 'text-af-text-3 hover:bg-af-hover hover:text-af-text'
                 } disabled:opacity-40`}
               >
                 <ChevronDown
@@ -212,7 +212,7 @@ export function RecordingVoiceLane({
           side="top"
           align="end"
           sideOffset={10}
-          className="w-[320px] overflow-visible border-0 bg-transparent p-0 text-white shadow-none"
+          className="w-[320px] overflow-visible rounded-2xl border-0 bg-transparent p-0 text-af-text shadow-lg"
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
           <AudioDeviceCard

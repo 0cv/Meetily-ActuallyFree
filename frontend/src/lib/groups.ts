@@ -1,4 +1,10 @@
+/**
+ * The group the next (or current) recording is filed under. It lives in
+ * session storage so the choice survives navigating to the recorder, and is
+ * applied when the meeting is saved.
+ */
 export const PENDING_GROUP_KEY = 'pendingRecordingGroup';
+export const PENDING_GROUP_EVENT = 'af-pending-group';
 
 export interface PendingGroup {
   id: string;
@@ -20,10 +26,11 @@ export function readPendingGroup(): PendingGroup | null {
 
 export function writePendingGroup(group: PendingGroup | null) {
   if (typeof window === 'undefined') return;
-  if (!group) sessionStorage.removeItem(PENDING_GROUP_KEY);
-  else sessionStorage.setItem(PENDING_GROUP_KEY, JSON.stringify(group));
-}
-
-export function pendingGroupTitle(): string | null {
-  return readPendingGroup()?.name ?? null;
+  try {
+    if (!group) sessionStorage.removeItem(PENDING_GROUP_KEY);
+    else sessionStorage.setItem(PENDING_GROUP_KEY, JSON.stringify(group));
+  } catch {
+    // Without storage the group simply isn't remembered.
+  }
+  window.dispatchEvent(new CustomEvent(PENDING_GROUP_EVENT));
 }

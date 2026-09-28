@@ -4,7 +4,7 @@
  * One header for a meeting: the title (edit in place), when it happened, its
  * group, who was there, Export, and a ⋯ menu for everything else.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
@@ -15,7 +15,6 @@ import {
   FileText,
   FolderOpen,
   MoreHorizontal,
-  Pencil,
   Trash2,
   Users,
   Wand2,
@@ -34,6 +33,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { EditableTitle } from '@/components/ui/editable-title';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { GroupPicker } from '@/components/groups/GroupBits';
 import { RetranscribeDialog } from '@/components/MeetingDetails/RetranscribeDialog';
@@ -60,62 +60,6 @@ export interface MeetingHeaderProps {
   onDelete: () => Promise<void>;
   /** After speakers are re-identified or the transcript is enhanced. */
   onTranscriptChanged: () => Promise<void> | void;
-}
-
-function EditableHeading({ value, onCommit }: { value: string; onCommit: (next: string) => Promise<boolean> }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const ref = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!editing) setDraft(value);
-  }, [value, editing]);
-
-  useEffect(() => {
-    if (editing) requestAnimationFrame(() => ref.current?.select());
-  }, [editing]);
-
-  const commit = async () => {
-    const next = draft.trim();
-    if (!next || next === value) {
-      setEditing(false);
-      setDraft(value);
-      return;
-    }
-    const ok = await onCommit(next);
-    if (ok) setEditing(false);
-  };
-
-  if (editing) {
-    return (
-      <input
-        ref={ref}
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={() => void commit()}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') void commit();
-          if (event.key === 'Escape') {
-            setDraft(value);
-            setEditing(false);
-          }
-        }}
-        aria-label="Meeting title"
-        className="af-bare -ml-1.5 w-full min-w-0 rounded-md !border !border-af-accent !bg-af-panel-2 px-1.5 py-0.5 text-lg font-semibold tracking-tight text-af-text outline-none"
-      />
-    );
-  }
-  return (
-    <button
-      type="button"
-      onClick={() => setEditing(true)}
-      className="group/title -ml-1.5 flex min-w-0 max-w-full items-center gap-2 rounded-md px-1.5 py-0.5 text-left transition-colors hover:bg-af-hover"
-      title="Rename"
-    >
-      <h1 className="truncate text-lg font-semibold tracking-tight text-af-text">{value}</h1>
-      <Pencil className="h-3.5 w-3.5 shrink-0 text-af-text-4 opacity-0 transition-opacity group-hover/title:opacity-100" />
-    </button>
-  );
 }
 
 export function MeetingHeader({
@@ -182,7 +126,7 @@ export function MeetingHeader({
     <header className="shrink-0 border-b border-af-border px-5 pb-3 pt-4">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <EditableHeading value={title} onCommit={onRename} />
+          <EditableTitle value={title} onCommit={onRename} label="Meeting title" />
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-af-text-3">
             {when && <span className="tabular-nums">{when}</span>}
             {durationSeconds ? <span className="tabular-nums">{formatDuration(durationSeconds)}</span> : null}

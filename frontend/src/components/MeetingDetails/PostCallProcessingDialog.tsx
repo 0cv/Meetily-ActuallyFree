@@ -20,7 +20,9 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 
 import { toast } from 'sonner';
 import { useConfig } from '@/contexts/ConfigContext';
-import { useSidebar } from '@/components/Sidebar/SidebarProvider';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { fieldClass } from '@/components/ui/input';
 import { PostCallHandoffCard } from '@/components/PostCallHandoffCard';
 import type { RawModelInfo } from '@/hooks/useTranscriptionModels';
 import { isVisibleParakeetModel } from '@/lib/parakeet';
@@ -189,7 +191,6 @@ export function PostCallProcessingDialog({
   onComplete: () => void;
 }) {
   const { selectedLanguage, transcriptModelConfig } = useConfig();
-  const { isCollapsed: sidebarCollapsed } = useSidebar();
   const [stage, setStage] = useState<Stage>(enabled ? 'prompt' : 'idle');
   const [speakerCount, setSpeakerCount] = useState('2');
   const [autoDetectSpeakers, setAutoDetectSpeakers] = useState(false);
@@ -356,15 +357,15 @@ export function PostCallProcessingDialog({
   if (stage === 'idle') return null;
 
   const choiceClass = (selected: boolean) =>
-    `h-9 rounded-lg border text-sm font-semibold transition-colors ${
+    cn(
+      'h-9 rounded-lg border text-sm font-semibold transition-[background-color,border-color,color,transform] active:scale-[0.97]',
       selected
-        ? 'border-[#4a8bff] bg-[#4a8bff] text-white'
-        : 'border-white/15 bg-white/10 text-white hover:bg-white/15'
-    }`;
+        ? 'border-af-accent bg-af-accent text-af-on-accent'
+        : 'border-af-border bg-af-panel-2 text-af-text-2 hover:border-af-border-strong hover:bg-af-hover hover:text-af-text',
+    );
 
   return (
     <PostCallHandoffCard
-      sidebarCollapsed={sidebarCollapsed}
       busy={isWorking}
       title={
         isWorking
@@ -380,9 +381,9 @@ export function PostCallProcessingDialog({
       }
     >
       {isWorking ? (
-        <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+        <div className="h-1.5 overflow-hidden rounded-full bg-af-border">
           <div
-            className="h-full rounded-full bg-white/80 transition-[width] duration-300"
+            className="h-full rounded-full bg-af-accent transition-[width] duration-300"
             style={{ width: `${visibleProgress}%` }}
           />
         </div>
@@ -425,25 +426,17 @@ export function PostCallProcessingDialog({
               setSpeakerCount(event.target.value);
               setAutoDetectSpeakers(false);
             }}
-            className="af-bare w-full rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-white/30"
+            className={cn(fieldClass, 'h-9')}
             aria-label="Total number of speakers"
           />
-          {error && <p className="text-sm text-red-300">{error}</p>}
+          {error && <p className="text-sm text-af-danger">{error}</p>}
           <div className="flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => { void (stage === 'error' ? continueWithLiveTranscript() : skipEnhancement()); }}
-              className="rounded-lg px-3 py-2 text-sm text-white/70 hover:bg-white/10 hover:text-white"
-            >
+            <Button variant="ghost" onClick={() => { void (stage === 'error' ? continueWithLiveTranscript() : skipEnhancement()); }}>
               Keep live transcript
-            </button>
-            <button
-              type="button"
-              onClick={() => { void start(); }}
-              className="rounded-lg bg-[#e8eef6] px-3 py-2 text-sm font-semibold text-[#0a0c10] hover:bg-[#f7f9fc]"
-            >
+            </Button>
+            <Button onClick={() => { void start(); }}>
               {stage === 'error' ? 'Retry' : 'Continue'}
-            </button>
+            </Button>
           </div>
         </div>
       )}

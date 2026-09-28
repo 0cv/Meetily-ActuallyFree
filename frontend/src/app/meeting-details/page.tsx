@@ -397,7 +397,6 @@ function MeetingDetailsContent() {
       <div className="h-screen bg-[var(--af-panel)]">
         {source === 'recording' ? (
           <PostCallHandoffCard
-            sidebarCollapsed={sidebarCollapsed}
             busy
             title="Opening your meeting"
             detail="Getting the transcript ready."

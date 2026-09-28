@@ -5,6 +5,7 @@
  */
 import { invoke } from '@tauri-apps/api/core';
 import type { GroupSchedule } from '@/lib/schedule';
+import { readPendingGroup, writePendingGroup } from '@/lib/groups';
 
 // ---- Groups ---------------------------------------------------------------
 
@@ -60,6 +61,12 @@ export const GROUP_KINDS: Array<{ id: GroupKind; label: string; hint: string }> 
   { id: 'other', label: 'Other', hint: 'Anything else' },
 ];
 
+/** Short label for a group's kind; nothing for 'other'. */
+export function kindLabel(kind?: string | null): string | null {
+  if (!kind || kind === 'other') return null;
+  return GROUP_KINDS.find((entry) => entry.id === kind)?.label ?? null;
+}
+
 export const listGroups = () => invoke<GroupSummary[]>('api_list_groups');
 export const getGroup = (groupId: string, query?: string) =>
   invoke<GroupDetail>('api_get_group', { groupId, query: query?.trim() || null });
@@ -80,7 +87,11 @@ export const updateGroup = (groupId: string, input: GroupInput) =>
     description: input.description ?? null,
     schedule: input.schedule ?? null,
   });
-export const deleteGroup = (groupId: string) => invoke<void>('api_delete_group', { groupId });
+export const deleteGroup = async (groupId: string) => {
+  await invoke<void>('api_delete_group', { groupId });
+  // A recording can't be filed into a group that no longer exists.
+  if (readPendingGroup()?.id === groupId) writePendingGroup(null);
+};
 export const getMeetingGroup = (meetingId: string) =>
   invoke<GroupSummary | null>('api_get_meeting_group', { meetingId });
 export const setMeetingGroup = (meetingId: string, groupId: string | null) =>

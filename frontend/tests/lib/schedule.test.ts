@@ -6,6 +6,7 @@ import {
   describeSchedule,
   effectiveSchedule,
   nextOccurrence,
+  upcomingGroupMeetings,
   MIN_OCCURRENCES,
   type GroupSchedule,
 } from '../../src/lib/schedule.ts';
@@ -79,10 +80,12 @@ describe('detectSchedule: finds real patterns', () => {
     assert.equal(detected.occurrences, 3);
   });
 
-  test('small start-time drift is tolerated and summarised by the median', () => {
+  test('small start-time drift is tolerated and summarised by the median, to five minutes', () => {
     const detected = detectSchedule(series(THU, 7, 5, [2, -3, 5, 0, 1]), at(2026, 10, 30));
     assert.ok(detected);
-    assert.equal(detected.time, '12:01');
+    assert.equal(detected.time, '12:00');
+    const late = detectSchedule(series(THU, 7, 4, [7, 8, 6, 9]), at(2026, 10, 30));
+    assert.equal(late?.time, '12:10');
   });
 
   test('an occasional skipped week still counts as weekly', () => {
@@ -180,5 +183,39 @@ describe('effectiveSchedule and describeSchedule', () => {
     assert.match(describeSchedule({ weekdays: [4], time: '12:00', cadence: 'weekly' }), /^Every Thursday at /);
     assert.match(describeSchedule({ weekdays: [1, 2, 3, 4, 5], time: '09:00', cadence: 'weekly' }), /^Every weekday at /);
     assert.match(describeSchedule({ weekdays: [1, 3], time: '09:00', cadence: 'biweekly' }), /^Every other Mon, Wed at /);
+  });
+});
+
+describe('upcomingGroupMeetings', () => {
+  // Monday, October 5 2026, 9:00.
+  const now = at(2026, 10, 5, 9, 0);
+  const standups = series(at(2026, 9, 10, 12, 0), 7, 4).map((date) => ({ groupId: 'standup', startedAt: date }));
+
+  test('lists detected and user schedules, soonest first', () => {
+    const groups = [
+      { id: 'standup', schedule: null },
+      { id: 'review', schedule: { weekdays: [2], time: '15:00', cadence: 'weekly' } as GroupSchedule },
+    ];
+    const upcoming = upcomingGroupMeetings(groups, standups, now);
+    assert.deepEqual(
+      upcoming.map((entry) => [entry.group.id, entry.source, entry.at.getDate(), entry.at.getHours()]),
+      [
+        ['review', 'user', 6, 15],
+        ['standup', 'detected', 8, 12],
+      ],
+    );
+  });
+
+  test('leaves out groups without a pattern, and one-off meetings', () => {
+    const groups = [{ id: 'standup', schedule: null }, { id: 'once', schedule: null }];
+    const meetings = [...standups, { groupId: 'once', startedAt: at(2026, 10, 1, 10, 0) }, { groupId: null, startedAt: now }];
+    assert.deepEqual(upcomingGroupMeetings(groups, meetings, now).map((entry) => entry.group.id), ['standup']);
+  });
+
+  test('skips a slot already recorded today', () => {
+    const thursday = at(2026, 10, 8, 12, 30);
+    const held = [...standups, { groupId: 'standup', startedAt: at(2026, 10, 8, 12, 2) }];
+    const [next] = upcomingGroupMeetings([{ id: 'standup', schedule: null }], held, thursday);
+    assert.equal(next.at.getDate(), 15);
   });
 });

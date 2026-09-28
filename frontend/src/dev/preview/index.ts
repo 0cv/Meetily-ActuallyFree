@@ -10,6 +10,7 @@
 import { mockIPC, mockWindows } from '@tauri-apps/api/mocks';
 import { MotionGlobalConfig } from 'framer-motion';
 import * as fx from './fixtures';
+import { handleLiveCommand } from './live';
 
 type Args = Record<string, any>;
 
@@ -220,6 +221,8 @@ const notificationSettings = {
 let storeRid = 1;
 
 function handle(cmd: string, args: Args): unknown {
+  const liveResult = handleLiveCommand(cmd, args);
+  if (liveResult !== undefined) return liveResult;
   // @tauri-apps/plugin-store: an empty store that accepts writes.
   if (cmd.startsWith('plugin:store|')) {
     if (cmd === 'plugin:store|load' || cmd === 'plugin:store|get_store') return storeRid++;
@@ -350,6 +353,35 @@ function handle(cmd: string, args: Args): unknown {
       const data = args.summary ?? {};
       if (typeof data.markdown === 'string') state.summaries.set(args.meetingId, data.markdown);
       return null;
+    }
+    case 'api_save_transcript': {
+      // The simulated recording's save: add it to the library like the real one.
+      const id = newId('meeting');
+      const rows = (args.transcripts ?? []) as Array<Record<string, any>>;
+      const createdAt = args.recordingStartedAt ?? now();
+      state.meetings.push({
+        id,
+        title: args.meetingTitle ?? 'New Meeting',
+        created_at: createdAt,
+        duration_seconds: Math.round(rows.reduce((max, row) => Math.max(max, row.audio_end_time ?? 0), 0)),
+        group_id: null,
+        folder_path: args.folderPath ?? '/preview/live',
+      });
+      state.transcripts.set(
+        id,
+        rows.map((row, index) => ({
+          id: `${id}-t${index}`,
+          text: row.text,
+          timestamp: row.timestamp ?? now(),
+          audio_start_time: row.audio_start_time ?? 0,
+          audio_end_time: row.audio_end_time ?? 0,
+          duration: row.duration ?? 0,
+          speaker: row.speaker,
+          confidence: row.confidence,
+        })),
+      );
+      state.summaries.set(id, null);
+      return { meeting_id: id };
     }
     case 'api_save_meeting_title': {
       const entry = meeting(args.meetingId);

@@ -13,17 +13,9 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { Hint } from '@/components/ui/tooltip';
+import { formatClock } from '@/lib/dates';
 
 export const STOP_REQUEST_KEY = 'af-stop-requested';
-
-export function formatClock(totalSeconds: number): string {
-  const seconds = Math.max(0, Math.floor(totalSeconds));
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  const mm = String(m).padStart(h > 0 ? 2 : 1, '0');
-  return h > 0 ? `${h}:${mm}:${String(s).padStart(2, '0')}` : `${mm}:${String(s).padStart(2, '0')}`;
-}
 
 /** Elapsed recording time, excluding pauses (matches the floating bar). */
 export function useRecordingClock(): number {

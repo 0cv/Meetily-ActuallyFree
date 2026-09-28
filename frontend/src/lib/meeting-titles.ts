@@ -15,12 +15,16 @@ export const DEFAULT_PREFIX = 'Meeting · ';
 const dayLabel = (date: Date) =>
   date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 const shortDay = (date: Date) => date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-const timeLabel = (date: Date) => date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+// Newer ICU puts a narrow no-break space before AM/PM; titles are typed and
+// searched, so keep a plain space.
+const timeLabel = (date: Date) =>
+  date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }).replace(/\u202f/g, ' ');
 
 /** "2:30–3:15 PM", or "11:30 AM–12:15 PM" when the meridiem changes. */
 export function timeRange(start: Date, end: Date): string {
   const from = timeLabel(start);
   const to = timeLabel(end);
+  if (from === to) return from;
   const meridiem = /\s?(AM|PM)$/i;
   const fromMeridiem = meridiem.exec(from)?.[1];
   const toMeridiem = meridiem.exec(to)?.[1];

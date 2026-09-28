@@ -186,7 +186,8 @@ export function detectSchedule(starts: Array<Date | string>, now: Date = new Dat
   const last = merged.reduce((latest, candidate) => (candidate.last > latest ? candidate.last : latest), best.last);
   return {
     weekdays,
-    time: formatTime(median(merged.map((candidate) => candidate.minutes))),
+    // People think of "noon", not 12:02: round the median to five minutes.
+    time: formatTime((Math.round(median(merged.map((candidate) => candidate.minutes)) / 5) * 5) % (24 * 60)),
     cadence: best.cadence,
     anchorDate: isoDate(best.last),
     occurrences: merged.reduce((sum, candidate) => sum + candidate.days.length, 0),
@@ -271,4 +272,42 @@ export function effectiveSchedule(
   if (isValidSchedule(userSchedule)) return { schedule: userSchedule, source: 'user' };
   const detected = detectSchedule(meetingStarts, now);
   return detected ? { schedule: detected, source: 'detected', detected } : null;
+}
+
+export interface UpcomingGroupMeeting<G> {
+  group: G;
+  at: Date;
+  schedule: GroupSchedule;
+  source: 'user' | 'detected';
+  detected?: DetectedSchedule;
+}
+
+/**
+ * The next meeting of every group with a schedule (set by the user, or
+ * detected from its meetings), soonest first. Groups with no schedule, or
+ * nothing due within the horizon, are left out.
+ */
+export function upcomingGroupMeetings<G extends { id: string; schedule?: GroupSchedule | null }>(
+  groups: G[],
+  meetings: Array<{ groupId?: string | null; startedAt: Date | string }>,
+  now: Date = new Date(),
+  horizonDays = 14,
+): UpcomingGroupMeeting<G>[] {
+  const startsByGroup = new Map<string, Array<Date | string>>();
+  for (const meeting of meetings) {
+    if (!meeting.groupId) continue;
+    const starts = startsByGroup.get(meeting.groupId) ?? [];
+    starts.push(meeting.startedAt);
+    startsByGroup.set(meeting.groupId, starts);
+  }
+  const upcoming: UpcomingGroupMeeting<G>[] = [];
+  for (const group of groups) {
+    const held = startsByGroup.get(group.id) ?? [];
+    const effective = effectiveSchedule(group.schedule, held, now);
+    if (!effective) continue;
+    const at = nextOccurrence(effective.schedule, now, { heldAt: held, horizonDays });
+    if (!at) continue;
+    upcoming.push({ group, at, schedule: effective.schedule, source: effective.source, detected: effective.detected });
+  }
+  return upcoming.sort((a, b) => a.at.getTime() - b.at.getTime());
 }

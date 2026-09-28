@@ -63,6 +63,8 @@ export interface VirtualizedTranscriptViewProps {
   highlightSegmentId?: string | null;
   /** Empty state for the idle recorder (it shows its own home content). */
   emptyState?: React.ReactNode;
+  /** Space kept clear under the last line, e.g. for a floating control bar (px). */
+  bottomInset?: number;
 }
 
 const VIRTUALIZATION_THRESHOLD = 10;
@@ -239,6 +241,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
   onSeek,
   highlightSegmentId,
   emptyState,
+  bottomInset = 0,
 }) => {
   const userName = useUserName();
   const turns = useMemo(() => mergeTurns(segments), [segments]);
@@ -381,9 +384,9 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     <div
       ref={scrollRef}
       className="flex h-full flex-col overflow-y-auto px-4 py-3"
-      style={isRecording ? { scrollPaddingBottom: '10rem' } : undefined}
+      style={bottomInset ? { scrollPaddingBottom: bottomInset } : undefined}
     >
-      <div className={isRecording ? 'pb-4 pt-2' : ''}>
+      <div className={isRecording ? 'pb-4 pt-2' : ''} style={bottomInset ? { paddingBottom: bottomInset } : undefined}>
         {turns.length === 0 ? (
           isRecording ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-16 flex flex-col items-center text-center">

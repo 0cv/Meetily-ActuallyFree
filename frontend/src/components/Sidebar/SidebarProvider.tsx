@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Analytics from '@/lib/analytics';
+import { AUTO_START_KEY } from '@/lib/recording-launch';
 import { invoke } from '@tauri-apps/api/core';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { displayedSidebarWidth, previewSidebarWidth, SIDEBAR_DEFAULT, SIDEBAR_MIN, snapSidebarWidth, windowWidthForRail } from '@/hooks/useCompactChrome';
@@ -233,7 +234,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
 
     // Clear any leftover auto-start flag from older builds / detection paths.
     try {
-      sessionStorage.removeItem('autoStartRecording');
+      sessionStorage.removeItem(AUTO_START_KEY);
     } catch {
       /* ignore */
     }

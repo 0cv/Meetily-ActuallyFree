@@ -1,5 +1,5 @@
 // Run with: node --test tests/lib/meeting-titles.test.ts
-import { test } from 'node:test';
+import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_PREFIX,
@@ -8,6 +8,7 @@ import {
   finalizeDefaultTitle,
   groupMeetingTitle,
   isDefaultTitle,
+  timeRange,
 } from '../../src/lib/meeting-titles.ts';
 
 const start = new Date(2026, 8, 28, 14, 30);
@@ -41,4 +42,12 @@ test('legacy auto titles display in the new format', () => {
   assert.ok(displayTitle('Meeting 27_09_26_23_05_13', start.toISOString()).startsWith(DEFAULT_PREFIX));
   assert.equal(displayTitle('Q4 planning', start.toISOString()), 'Q4 planning');
   assert.equal(displayTitle('', null), 'Untitled meeting');
+});
+
+describe('timeRange', () => {
+  test('a range inside one minute is just that time', () => {
+    const start = new Date(2026, 8, 28, 13, 50, 5);
+    assert.equal(timeRange(start, new Date(2026, 8, 28, 13, 50, 40)), timeRange(start, start));
+    assert.doesNotMatch(timeRange(start, new Date(2026, 8, 28, 13, 50, 40)), /–/);
+  });
 });

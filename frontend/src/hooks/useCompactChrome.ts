@@ -6,13 +6,8 @@ export const SIDEBAR_DEFAULT = 16 * 16;
 export const SIDEBAR_ABSOLUTE_MAX = 24 * 16;
 const CARD = 27.75 * 16;
 const GAP = 0.5 * 16;
-const SPEAKERS_FULL = 20 * 16;
+/** Room kept for the recorder's side panel when it is docked. */
 const SPEAKERS_CONDENSED = 11 * 16;
-/**
- * Wide speaker cards only when their column is still roomy after the 20rem panel.
- * Anything narrower keeps the minimized list.
- */
-export const SPEAKERS_ROOMY_COLUMN = SPEAKERS_FULL + 70 * 16;
 
 /** Narrowest window: collapsed rail, condensed speakers panel, and the shrunk live card. */
 export const COMPACT_MIN_WIDTH = SIDEBAR_MIN + GAP + CARD + GAP + SPEAKERS_CONDENSED;
