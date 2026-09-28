@@ -230,6 +230,12 @@
   --af-radius-sm: 9px;
   --radius: 0.75rem;
   --af-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Height of the app's own title strip (see lib/window-chrome); 0 when the
+     system draws the title bar. */
+  --af-chrome-h: 0px;
+}
+:root.af-custom-chrome {
+  --af-chrome-h: 2rem;
 }
 
 /* ============================================================

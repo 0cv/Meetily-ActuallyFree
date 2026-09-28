@@ -117,7 +117,7 @@ export default function Home() {
   const live = recordingState.isRecording || isRecording || isStopping || handingOff;
 
   return (
-    <div className="flex h-screen flex-col bg-af-panel">
+    <div className="flex h-full flex-col bg-af-panel">
       <SettingsModals modals={modals} messages={messages} onClose={hideModal} />
 
       <TranscriptRecovery

@@ -11,6 +11,7 @@ import { mockIPC, mockWindows } from '@tauri-apps/api/mocks';
 import { MotionGlobalConfig } from 'framer-motion';
 import * as fx from './fixtures';
 import { handleLiveCommand } from './live';
+import { CUSTOM_CHROME_CLASS } from '@/lib/window-chrome';
 
 type Args = Record<string, any>;
 
@@ -666,6 +667,10 @@ export function installPreviewMocks() {
     eol: '\r\n',
     exe_extension: 'exe',
   };
+  // ?chrome=custom previews the Windows title strip and window buttons.
+  if (new URLSearchParams(window.location.search).get('chrome') === 'custom') {
+    document.documentElement.classList.add(CUSTOM_CHROME_CLASS);
+  }
   mockWindows('main');
   mockIPC((cmd, args) => handle(cmd, (args ?? {}) as Args), { shouldMockEvents: true });
   try {

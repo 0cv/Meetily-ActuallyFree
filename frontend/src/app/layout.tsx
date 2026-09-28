@@ -30,6 +30,7 @@ import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioF
 import { getPendingCrashReport, type PendingCrashReport } from '@/services/crashReportService'
 import { WorkspaceProvider } from '@/contexts/WorkspaceContext'
 import { RouteWarmup } from '@/components/RouteWarmup'
+import { CHROME_BOOT_SCRIPT } from '@/lib/window-chrome'
 import { RecordingPill } from '@/components/recording/RecordingPill'
 import { GroupEditorHost } from '@/components/groups/GroupEditor'
 
@@ -56,6 +57,10 @@ const ImportDropOverlay = dynamic(
 )
 const GlobalSearchDialog = dynamic(
   () => import('@/components/GlobalSearchDialog'),
+  { ssr: false }
+)
+const WindowControls = dynamic(
+  () => import('@/components/WindowControls'),
   { ssr: false }
 )
 const CrashReportDialog = dynamic(
@@ -446,6 +451,7 @@ export default function RootLayout({
     <html lang="en" data-theme="midnight" className={`dark ${inter.variable} ${inter.className}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: CHROME_BOOT_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: inlineChunkErrorHandler }} />
       </head>
       <body className="font-sans antialiased">
@@ -515,11 +521,14 @@ export default function RootLayout({
           </AnalyticsProvider>
         )}
 
+        {/* Minimize, maximize and close, drawn by the app on Windows. */}
+        <WindowControls />
+
         <Toaster
           position="top-center"
           theme={themeInfo(appTheme).dark ? 'dark' : 'light'}
           closeButton
-          offset={20}
+          offset="calc(var(--af-chrome-h) + 16px)"
           icons={{ close: <X className="h-4 w-4" /> }}
           toastOptions={{
             classNames: {

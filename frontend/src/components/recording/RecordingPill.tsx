@@ -56,7 +56,7 @@ export function RecordingPill() {
   };
 
   return (
-    <div className="pointer-events-none fixed right-4 top-3 z-[45] animate-af-rise">
+    <div className="pointer-events-none fixed right-4 top-[calc(var(--af-chrome-h)+0.75rem)] z-[45] animate-af-rise">
       <div
         className={cn(
           'pointer-events-auto flex items-center gap-1 rounded-full border border-af-border-strong bg-af-elevated/95 p-1 pl-1.5 shadow-lg backdrop-blur-md',

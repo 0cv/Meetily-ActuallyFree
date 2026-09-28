@@ -375,7 +375,7 @@ function MeetingDetailsContent() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex h-full items-center justify-center">
         <div className="text-center">
           <p className="text-af-danger mb-4">{error}</p>
           <button
@@ -394,7 +394,7 @@ function MeetingDetailsContent() {
   // state (status + just-generated aiSummary).
   if (!meetingDetails) {
     return (
-      <div className="h-screen bg-[var(--af-panel)]">
+      <div className="h-full bg-[var(--af-panel)]">
         {source === 'recording' ? (
           <PostCallHandoffCard
             busy
@@ -403,7 +403,7 @@ function MeetingDetailsContent() {
           />
         ) : (
           // Shown only if loading takes a moment; quick loads go straight to the meeting.
-          <div className="af-appear flex h-screen items-center justify-center" style={{ '--af-i': 10 } as React.CSSProperties}>
+          <div className="af-appear flex h-full items-center justify-center" style={{ '--af-i': 10 } as React.CSSProperties}>
             <Spinner className="h-6 w-6 text-[var(--af-text-2)]" />
           </div>
         )}
@@ -438,7 +438,7 @@ function MeetingDetailsContent() {
 export default function MeetingDetails() {
   return (
     <Suspense fallback={
-      <div className="af-appear flex h-screen items-center justify-center" style={{ '--af-i': 10 } as React.CSSProperties}>
+      <div className="af-appear flex h-full items-center justify-center" style={{ '--af-i': 10 } as React.CSSProperties}>
         <Spinner className="h-6 w-6 text-[var(--af-text-2)]" />
       </div>
     }>

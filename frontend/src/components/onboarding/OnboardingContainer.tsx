@@ -44,8 +44,10 @@ export function OnboardingContainer({
 
   return (
     <div className="fixed inset-0 bg-af-panel-2 flex items-center justify-center z-50 overflow-hidden">
+      {/* Drag strip for the app's own title bar on Windows (0 high elsewhere). */}
+      <div data-tauri-drag-region aria-hidden className="absolute inset-x-0 top-0 h-[var(--af-chrome-h)]" />
       <div className={cn(
-        'w-full max-w-2xl h-full max-h-screen flex flex-col px-6 py-6',
+        'w-full max-w-2xl h-full max-h-screen flex flex-col px-6 pb-6 pt-[calc(var(--af-chrome-h)+1.5rem)]',
         className,
       )}>
         {/* Progress Indicator with Navigation - Fixed */}
