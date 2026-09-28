@@ -252,6 +252,38 @@ impl MeetingsRepository {
     }
 }
 
+impl MeetingsRepository {
+    /// Generated titles never acquire ownership of a manual title. The SQL
+    /// predicate, rather than an earlier read, arbitrates concurrent renames.
+    pub async fn update_generated_meeting_title(
+        pool: &SqlitePool,
+        meeting_id: &str,
+        new_title: &str,
+    ) -> Result<bool, SqlxError> {
+        if new_title.trim().is_empty() { return Ok(false); }
+        let mut transaction = pool.begin().await?;
+        let updated = sqlx::query(
+            "UPDATE meetings SET title = ?, updated_at = ? WHERE id = ? AND title_is_manual = 0",
+        )
+        .bind(new_title.trim())
+        .bind(Utc::now())
+        .bind(meeting_id)
+        .execute(&mut *transaction)
+        .await?;
+        if updated.rows_affected() == 0 {
+            transaction.rollback().await?;
+            return Ok(false);
+        }
+        // Keep the legacy chunk display name synchronized in the same commit.
+        // Recording folder paths, transcript text and timing are not renamed.
+        sqlx::query("UPDATE transcript_chunks SET meeting_name = ? WHERE meeting_id = ?")
+            .bind(new_title.trim()).bind(meeting_id)
+            .execute(&mut *transaction).await?;
+        transaction.commit().await?;
+        Ok(true)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -320,6 +352,32 @@ mod tests {
         .execute(pool)
         .await
         .unwrap();
+    }
+
+    #[tokio::test]
+    async fn generated_title_updates_automatic_names_but_manual_renames_win() {
+        let pool = test_pool().await;
+        insert_meeting(&pool, false).await;
+        assert!(MeetingsRepository::update_generated_meeting_title(&pool, "meeting-1", "Budget Review").await.unwrap());
+        let row: (String, bool, String) = sqlx::query_as(
+            "SELECT m.title, m.title_is_manual, c.meeting_name FROM meetings m JOIN transcript_chunks c ON c.meeting_id=m.id WHERE m.id='meeting-1'",
+        ).fetch_one(&pool).await.unwrap();
+        assert_eq!(row, ("Budget Review".into(), false, "Budget Review".into()));
+        assert!(MeetingsRepository::update_meeting_title(&pool, "meeting-1", "My title").await.unwrap());
+        assert!(!MeetingsRepository::update_generated_meeting_title(&pool, "meeting-1", "Later summary").await.unwrap());
+        let row: (String, String) = sqlx::query_as(
+            "SELECT m.title, c.meeting_name FROM meetings m JOIN transcript_chunks c ON c.meeting_id=m.id WHERE m.id='meeting-1'",
+        ).fetch_one(&pool).await.unwrap();
+        assert_eq!(row, ("My title".into(), "My title".into()));
+    }
+
+    #[tokio::test]
+    async fn generated_title_preserves_existing_manual_names() {
+        let pool = test_pool().await;
+        insert_meeting(&pool, true).await;
+        assert!(!MeetingsRepository::update_generated_meeting_title(&pool, "meeting-1", "Generated").await.unwrap());
+        let title: String = sqlx::query_scalar("SELECT title FROM meetings WHERE id='meeting-1'").fetch_one(&pool).await.unwrap();
+        assert_eq!(title, "Original");
     }
 
     #[tokio::test]

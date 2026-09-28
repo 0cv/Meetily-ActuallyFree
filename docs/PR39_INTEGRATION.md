@@ -73,3 +73,29 @@ were preserved; startup workspace backfill touched two meeting `updated_at`
 timestamps. Existing model files and preferences matched the backup hashes.
 This establishes local upgrade preservation and startup, not a full real-call
 qualification. v0.2.18 is installed locally, **not published on GitHub**.
+
+## Installed synthetic capture qualification (2026-09-28)
+
+The actual installed CUDA build was exercised with a dedicated Windows test audio
+process and the existing synthetic two-voice WAV. Both microphone endpoints were
+muted for the tests and restored afterward. Test capture was restricted to that
+process; automatic summaries/meeting automation were temporarily disabled and
+original preferences restored afterward.
+
+- With the selected test app absent, Start refused capture with a visible
+  explanation instead of silently recording another source.
+- With it running, native per-app audio reached Parakeet and live Nemotron.
+  Twenty-five transcript turns and two remote speaker labels were retained.
+- A live speaker rename survived a WebView reload while recording continued.
+  Stop/save and reopening the saved meeting retained the name. All 25 saved turns
+  matched the pre-stop native transcript text and start/end timestamps.
+- The saved mixed/system/microphone files decoded. The microphone track's peak
+  was negative infinity (digital silence); existing user meeting/transcript
+  content was unchanged.
+- A separate quiet synthetic tone triggered the visible Low audio advice in the
+  installed recorder. Pausing cleared it. This is a meter/capture test, not proof
+  of recognition accuracy on very quiet speech.
+
+These are real installed-app tests with synthetic audio, not a real meeting or
+an AMD/Intel/macOS qualification. The separate summary-title regression and fix
+are described in [SUMMARY_GENERATED_TITLES.md](SUMMARY_GENERATED_TITLES.md).

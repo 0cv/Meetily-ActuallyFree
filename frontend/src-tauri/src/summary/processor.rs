@@ -7,6 +7,34 @@ use std::path::PathBuf;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
+/// Only the template's leading H1 is a title candidate. A heading in the body,
+/// or an unfilled template instruction, must never rename a meeting.
+pub(crate) fn extract_meeting_name_from_markdown(markdown: &str) -> Option<String> {
+    let first = markdown.lines().find(|line| !line.trim().is_empty())?.trim();
+    let title = first.strip_prefix("# ")?.trim().trim_matches('*').trim();
+    let normalized = title.trim_matches(|c| matches!(c, '<' | '>' | '[' | ']' | '`')).trim().to_lowercase();
+    if title.is_empty() || title.chars().count() > 200 || matches!(normalized.as_str(),
+        "add title here" | "ai-generated title" | "meeting title" | "title" |
+        "summary" | "meeting summary" | "overview" | "notes" | "transcript") {
+        return None;
+    }
+    Some(title.to_string())
+}
+
+#[cfg(test)]
+mod generated_title_tests {
+    use super::extract_meeting_name_from_markdown;
+
+    #[test]
+    fn generated_title_accepts_only_a_useful_leading_heading() {
+        assert_eq!(extract_meeting_name_from_markdown("\n# **GPU Budget Review**\n\n## Decisions"), Some("GPU Budget Review".into()));
+        assert_eq!(extract_meeting_name_from_markdown("# Revisión del presupuesto\n"), Some("Revisión del presupuesto".into()));
+        for text in ["", "## Decisions", "Body\n# A later heading", "# <Add Title here>", "# [AI-Generated Title]", "# **Meeting Title**", "# Summary", "# "] {
+            assert_eq!(extract_meeting_name_from_markdown(text), None, "{text}");
+        }
+    }
+}
+
 // Compile regex once and reuse (significant performance improvement for repeated calls)
 static THINKING_TAG_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"(?s)<think(?:ing)?>.*?</think(?:ing)?>").unwrap()

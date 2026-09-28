@@ -96,6 +96,9 @@ source labels rather than guessing a speaker or switching engines.
 
 ## 3. Post-call processing and model selection
 
+Summary-generated title ownership, placeholder rejection and completion refresh
+are documented in [SUMMARY_GENERATED_TITLES.md](SUMMARY_GENERATED_TITLES.md).
+
 `diarization/mod.rs` owns persisted engine settings and offline command dispatch.
 Nemotron is Auto-detect only; manual counts belong to Pyannote. Rerunning speaker
 identification must preserve transcript text, row identity, and timestamps.

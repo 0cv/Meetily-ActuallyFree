@@ -4,7 +4,7 @@ use crate::database::repositories::{
 use crate::summary::llm_client::LLMProvider;
 use crate::summary::language_detection::detect_summary_language;
 use crate::summary::metadata::read_detected_summary_language_from_metadata;
-use crate::summary::processor::{generate_meeting_summary, language_name_from_code};
+use crate::summary::processor::{extract_meeting_name_from_markdown, generate_meeting_summary, language_name_from_code};
 use crate::summary::templates::{self, Template};
 use crate::ollama::metadata::ModelMetadataCache;
 use serde::{Deserialize, Serialize};
@@ -674,8 +674,15 @@ impl SummaryService {
                         meeting_id
                     ),
                     Ok(true) => {
-                        // The meeting keeps its title. Only the user renames a
-                        // meeting; the summary's heading is not a title source.
+                        // Commit the generated name before completion is emitted:
+                        // the UI refetches both the meeting and sidebar on that event.
+                        if let Some(title) = extract_meeting_name_from_markdown(&final_markdown) {
+                            if let Err(error) = MeetingsRepository::update_generated_meeting_title(
+                                &pool, &meeting_id, &title,
+                            ).await {
+                                error!("Summary saved, but generated title update failed for {}: {}", meeting_id, error);
+                            }
+                        }
                         info!(
                             "Summary saved successfully for meeting_id: {}",
                             meeting_id

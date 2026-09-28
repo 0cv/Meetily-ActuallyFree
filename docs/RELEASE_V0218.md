@@ -9,6 +9,8 @@
   meter. Raise System volume in Output settings if speech is too quiet; **Too loud**
   takes priority when audio hits the limiter.
 - Capture-start error reporting, reliable setup gating and speaker-edit recovery.
+- Restored AI-generated meeting titles for automatically named meetings, while
+  preserving manual names and rejecting unfilled template placeholders.
 
 ## Contributors
 
