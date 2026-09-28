@@ -315,6 +315,7 @@ export function LiveSession({
           else renameSpeaker(from, target);
         }}
         onMerge={(source, target) => mergeSpeakers(source, target)}
+        colorIndexOf={(label) => detectedSpeakers.find((speaker) => speaker.name === label)?.colorIndex}
       />
 
     </div>

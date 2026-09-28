@@ -41,6 +41,8 @@ export interface SpeakerIdentityDialogProps {
   onRenamed?: (rename: SpeakerRenameResult) => Promise<void> | void;
   onRenameLive?: (from: string, to: string, scope: 'all' | 'line') => Promise<void> | void;
   onMerge?: (source: string, target: string) => Promise<void> | void;
+  /** Colour slot of a speaker in this meeting. */
+  colorIndexOf?: (speaker: string) => number | undefined;
 }
 
 const isGenerated = (value: string | null) => !!value && /^speaker \d+$/i.test(value.trim());
@@ -55,6 +57,7 @@ export function SpeakerIdentityDialog({
   onRenamed,
   onRenameLive,
   onMerge,
+  colorIndexOf,
 }: SpeakerIdentityDialogProps) {
   const { people } = useWorkspace();
   const userName = useUserName();
@@ -130,7 +133,7 @@ export function SpeakerIdentityDialog({
       <DialogContent className="max-w-md gap-0 overflow-hidden p-0">
         <div className="space-y-1 px-5 pb-3 pt-5 pr-12">
           <DialogTitle className="flex items-center gap-2">
-            <span aria-hidden className={cn('h-2.5 w-2.5 rounded-full', speakerDot(current))} />
+            <span aria-hidden className={cn('h-2.5 w-2.5 rounded-full', speakerDot(current, colorIndexOf?.(current)))} />
             {transcriptId && scope === 'line' ? 'Who said this line?' : `Who is ${displaySpeaker(current, userName)}?`}
           </DialogTitle>
           <DialogDescription>Pick a contact, type a new name, or merge with another voice.</DialogDescription>
@@ -220,7 +223,7 @@ export function SpeakerIdentityDialog({
                 {mergeTargets.map((label) => (
                   <CommandItem key={label} value={`merge ${label}`} onSelect={() => merge(label)} disabled={saving}>
                     <GitMerge className="text-af-text-3" />
-                    <span className={cn('h-2 w-2 shrink-0 rounded-full', speakerDot(label))} />
+                    <span className={cn('h-2 w-2 shrink-0 rounded-full', speakerDot(label, colorIndexOf?.(label)))} />
                     <span className="flex-1 truncate">Merge into {displaySpeaker(label, userName)}</span>
                   </CommandItem>
                 ))}

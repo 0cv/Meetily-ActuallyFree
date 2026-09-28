@@ -27,7 +27,15 @@ import { useUserName } from '@/hooks/useUserName';
 import { TranscriptSegmentData } from '@/types';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
-import { displaySpeaker, isUserSpeaker, speakerColor, speakerDot, speakerKey } from '@/utils/speakerUtils';
+import { cleanTranscriptText } from '@/lib/labs';
+import { displaySpeaker, isUserSpeaker, speakerColor, speakerColorIndexMap, speakerDot, speakerKey } from '@/utils/speakerUtils';
+
+/**
+ * How line text is shown. `tidy` drops filler words (the default); with Labs
+ * clean transcript on, the meeting page switches between `clean` (fillers
+ * and stutters dropped) and `verbatim` (every word). Saved text never changes.
+ */
+export type TranscriptTextMode = 'tidy' | 'clean' | 'verbatim';
 
 export interface VirtualizedTranscriptViewProps {
   segments: TranscriptSegmentData[];
@@ -65,6 +73,9 @@ export interface VirtualizedTranscriptViewProps {
   emptyState?: React.ReactNode;
   /** Space kept clear under the last line, e.g. for a floating control bar (px). */
   bottomInset?: number;
+  textMode?: TranscriptTextMode;
+  /** Colour slot per speaker key (speakerColorIndexMap). Worked out from the lines when not given. */
+  colorIndices?: Map<string, number>;
 }
 
 const VIRTUALIZATION_THRESHOLD = 10;
@@ -86,6 +97,11 @@ const FILLERS = /\b(?:uh|um|er|ah|hmm|hm|eh)\b[,\s]*/gi;
 
 function cleanFillers(text: string): string {
   return text.replace(FILLERS, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function shownText(text: string, mode: TranscriptTextMode): string {
+  if (mode === 'verbatim') return text;
+  return mode === 'clean' ? cleanTranscriptText(text) : cleanFillers(text);
 }
 
 /** One turn per speaker run, joining fragments less than 2.5s apart. */
@@ -131,6 +147,8 @@ function activeTurnIndex(turns: Turn[], time: number | null | undefined): number
 const TurnRow = memo(function TurnRow({
   turn,
   text,
+  textMode,
+  colorIndex,
   isStreaming,
   userName,
   active,
@@ -142,6 +160,9 @@ const TurnRow = memo(function TurnRow({
 }: {
   turn: Turn;
   text: string;
+  textMode: TranscriptTextMode;
+  /** The speaker's colour slot in this meeting, kept through renames. */
+  colorIndex?: number;
   isStreaming: boolean;
   userName: string;
   active: boolean;
@@ -154,14 +175,14 @@ const TurnRow = memo(function TurnRow({
   const speaker = turn.speaker;
   const isYou = isUserSpeaker(speaker);
   const label = speaker ? displaySpeaker(speaker, userName) : '';
-  const shown = cleanFillers(text) || (text.trim() === '' ? '[Silence]' : text);
+  const shown = shownText(text, textMode) || (text.trim() === '' ? '[Silence]' : text);
   const clickable = !!speaker && (!!onSpeakerClick || !!onRenameSpeaker);
 
   return (
     <div id={`segment-${turn.id}`} className={cn('flex pb-3', isYou ? 'justify-end pl-8' : 'justify-start pr-8')}>
       <div className={cn('flex min-w-0 max-w-[92%] flex-col gap-1', isYou ? 'items-end' : 'items-start')}>
         <div className={cn('flex items-center gap-2', isYou && 'flex-row-reverse')}>
-          <span aria-hidden className={cn('h-2 w-2 shrink-0 rounded-full', speakerDot(speaker))} />
+          <span aria-hidden className={cn('h-2 w-2 shrink-0 rounded-full', speakerDot(speaker, colorIndex))} />
           {speaker && (
             <span className="group/speaker flex items-center gap-1">
               {clickable ? (
@@ -172,13 +193,13 @@ const TurnRow = memo(function TurnRow({
                   }
                   className={cn(
                     'rounded px-0.5 text-xs font-semibold transition-colors hover:bg-af-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-af-accent/60',
-                    speakerColor(speaker),
+                    speakerColor(speaker, colorIndex),
                   )}
                 >
                   {label}
                 </button>
               ) : (
-                <span className={cn('text-xs font-semibold', speakerColor(speaker))}>{label}</span>
+                <span className={cn('text-xs font-semibold', speakerColor(speaker, colorIndex))}>{label}</span>
               )}
               {!onSpeakerClick && onMergeSpeaker && (
                 <button
@@ -242,9 +263,17 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
   highlightSegmentId,
   emptyState,
   bottomInset = 0,
+  textMode = 'tidy',
+  colorIndices: givenColorIndices,
 }) => {
   const userName = useUserName();
   const turns = useMemo(() => mergeTurns(segments), [segments]);
+  // One colour per speaker in first-spoken order, so a renamed speaker keeps theirs.
+  const ownColorIndices = useMemo(
+    () => speakerColorIndexMap(turns.map((turn) => turn.speaker ?? '').filter(Boolean)),
+    [turns],
+  );
+  const colorIndices = givenColorIndices ?? ownColorIndices;
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
   const [, rerender] = useReducer((x: number) => x + 1, 0);
@@ -339,6 +368,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     <TurnRow
       turn={turn}
       text={getDisplayText(turn)}
+      textMode={textMode}
+      colorIndex={turn.speaker ? colorIndices.get(speakerKey(turn.speaker)) : undefined}
       isStreaming={streamingSegmentId === turn.id}
       userName={userName}
       active={index === activeIndex}

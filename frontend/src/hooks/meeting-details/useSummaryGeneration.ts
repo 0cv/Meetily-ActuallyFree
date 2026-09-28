@@ -85,6 +85,8 @@ interface UseSummaryGenerationProps {
   onMeetingUpdated?: () => Promise<void>;
   setAiSummary: (summary: Summary | null) => void;
   onOpenModelSettings?: () => void;
+  /** Tidies each line before it is sent (Labs clean transcript). The saved transcript is not changed. */
+  cleanText?: (text: string) => string;
 }
 
 export function useSummaryGeneration({
@@ -96,6 +98,7 @@ export function useSummaryGeneration({
   onMeetingUpdated,
   setAiSummary,
   onOpenModelSettings,
+  cleanText,
 }: UseSummaryGenerationProps) {
   const [summaryStatus, setSummaryStatus] = useState<SummaryStatus>('idle');
   const [summaryError, setSummaryError] = useState<string | null>(null);
@@ -107,6 +110,8 @@ export function useSummaryGeneration({
   const mountedRef = useRef(true);
   const summaryRequestGenerationRef = useRef(0);
   const setAiSummaryRef = useRef(setAiSummary);
+  const cleanTextRef = useRef(cleanText);
+  cleanTextRef.current = cleanText;
   const onMeetingUpdatedRef = useRef(onMeetingUpdated);
   const stopSummaryPollingRef = useRef(stopSummaryPolling);
   setAiSummaryRef.current = setAiSummary;
@@ -651,14 +656,16 @@ export function useSummaryGeneration({
       return `[${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}]`;
     };
 
+    const clean = cleanTextRef.current;
+    const textOf = (t: Transcript) => (clean ? clean(t.text) || t.text : t.text);
     return {
       transcriptText: allTranscripts
         .map(t => {
           const speaker = t.speaker ? `${t.speaker}: ` : '';
-          return `${formatTime(t.audio_start_time, t.timestamp)} ${speaker}${t.text}`;
+          return `${formatTime(t.audio_start_time, t.timestamp)} ${speaker}${textOf(t)}`;
         })
         .join('\n'),
-      transcriptTexts: allTranscripts.map(t => t.text),
+      transcriptTexts: allTranscripts.map(textOf),
     };
   }, []);
 

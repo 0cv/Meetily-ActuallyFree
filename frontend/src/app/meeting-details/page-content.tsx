@@ -28,13 +28,16 @@ import { useSummaryGeneration } from '@/hooks/meeting-details/useSummaryGenerati
 import { useTemplates } from '@/hooks/meeting-details/useTemplates';
 import { useCopyOperations } from '@/hooks/meeting-details/useCopyOperations';
 import { useMeetingOperations } from '@/hooks/meeting-details/useMeetingOperations';
-import { useMeetingAudio } from '@/hooks/useMeetingAudio';
+import { PLAYBACK_RATES, SLOW_PLAYBACK_RATES, useMeetingAudio } from '@/hooks/useMeetingAudio';
+import { useWaveform } from '@/hooks/useWaveform';
+import { useLabs } from '@/hooks/useLabs';
+import { cleanTranscriptText } from '@/lib/labs';
 import { useUserName } from '@/hooks/useUserName';
 import { announceChange, getMeetingGroup, setMeetingGroup } from '@/lib/workspace-api';
 import { deleteMeetings, renameMeeting } from '@/lib/meeting-actions';
 import { displayTitle } from '@/lib/meeting-titles';
 import { cn } from '@/lib/utils';
-import { displaySpeaker } from '@/utils/speakerUtils';
+import { displaySpeaker, speakerColorIndexMap, speakerKey } from '@/utils/speakerUtils';
 
 // Page remounts join the same backend-start attempt. Only accepted attempts are
 // persisted in sessionStorage below; failed preflight attempts remain retryable.
@@ -108,6 +111,10 @@ export default function PageContent({
   const templates = useTemplates();
   const meetingOperations = useMeetingOperations({ meeting });
   const audio = useMeetingAudio(meeting.id);
+  // Labs: waveform and slower speeds in the player, Clean/Verbatim transcript.
+  const { labs, ready: labsReady } = useLabs();
+  const waveform = useWaveform(audio.path, labs.transcriptScrubbing);
+  const [textMode, setTextMode] = useState<'clean' | 'verbatim'>('clean');
 
   useEffect(() => setTitle(displayTitle(meeting.title, meeting.created_at)), [meeting.title, meeting.created_at]);
 
@@ -195,6 +202,8 @@ export default function PageContent({
     onMeetingUpdated,
     setAiSummary,
     onOpenModelSettings: () => openModelSettingsRef.current?.(),
+    // New summaries are written from the clean text when Labs asks for it.
+    cleanText: labs.cleanTranscript ? cleanTranscriptText : undefined,
   });
 
   const handleSaveModelConfig = async (config?: ModelConfig) => {
@@ -227,6 +236,8 @@ export default function PageContent({
   // Auto-generate after a recording (or when the policy asks for it).
   useEffect(() => {
     const run = async () => {
+      // The Labs choice decides which text the summary is written from.
+      if (!labsReady) return;
       if (!shouldAutoGenerate || meetingData.transcripts.length === 0) return;
       if (isPostCallRecording && postCallDoneFor !== meeting.id) return;
       if (isPostCallRecording) {
@@ -257,6 +268,7 @@ export default function PageContent({
     };
     void run();
   }, [
+    labsReady,
     shouldAutoGenerate,
     meeting.id,
     meetingData.transcripts.length,
@@ -289,6 +301,14 @@ export default function PageContent({
     }
     return [...counts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
   }, [transcriptSegments]);
+
+  // One colour per speaker, in the order they first spoke, shared by the
+  // transcript, the person card and the identify dialog.
+  const colorIndices = useMemo(
+    () => speakerColorIndexMap(transcriptSegments.map((segment) => segment.speaker ?? '').filter(Boolean)),
+    [transcriptSegments],
+  );
+  const colorIndexOf = useCallback((label: string) => colorIndices.get(speakerKey(label)), [colorIndices]);
 
 
   // Deep link from search or an action item: the line itself, or the line
@@ -428,9 +448,19 @@ export default function PageContent({
               highlightSegmentId={focusLineId}
               onSpeakerClick={(speaker, segmentId, anchor) => setCardTarget({ speaker, segmentId, rect: anchor.getBoundingClientRect() })}
               emptyState={<p className="mt-16 text-center text-sm text-af-text-3">This meeting has no transcript.</p>}
+              textMode={labs.cleanTranscript ? textMode : 'tidy'}
+              colorIndices={colorIndices}
             />
           </div>
-          <AudioPlayerBar audio={audio} follow={follow} onFollowChange={setFollow} />
+          <AudioPlayerBar
+            audio={audio}
+            follow={follow}
+            onFollowChange={setFollow}
+            waveform={labs.transcriptScrubbing ? waveform : null}
+            rates={labs.transcriptScrubbing ? SLOW_PLAYBACK_RATES : PLAYBACK_RATES}
+            textMode={labs.cleanTranscript ? textMode : undefined}
+            onTextModeChange={labs.cleanTranscript ? setTextMode : undefined}
+          />
         </section>
 
         {!stacked && (
@@ -487,6 +517,8 @@ export default function PageContent({
         onIdentify={(speaker, segmentId) => setIdentity({ speaker, transcriptId: segmentId || null })}
         onMerge={(speaker) => setIdentity({ speaker, transcriptId: null })}
         onMarkMe={markMe}
+        colorIndex={cardTarget ? colorIndexOf(cardTarget.speaker) : undefined}
+        meetingId={meeting.id}
       />
       <SpeakerIdentityDialog
         open={identity !== null}
@@ -497,6 +529,7 @@ export default function PageContent({
         speakers={speakers.map((speaker) => speaker.label)}
         onRenamed={(rename) => refreshAfterSpeakerChange(rename)}
         onMerge={mergeSpeakers}
+        colorIndexOf={colorIndexOf}
       />
       <TemplateEditorModal
         open={templateEditorOpen}

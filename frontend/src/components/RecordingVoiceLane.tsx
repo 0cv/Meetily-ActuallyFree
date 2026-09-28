@@ -45,6 +45,8 @@ export function RecordingVoiceLane({
   muted = false,
   meterActive = false,
   onMute,
+  source,
+  hideDevice = false,
 }: {
   kind: 'mic' | 'output';
   open: boolean;
@@ -63,6 +65,9 @@ export function RecordingVoiceLane({
   muted?: boolean;
   meterActive?: boolean;
   onMute?: () => void;
+  /** Which audio to record, shown in the panel (system audio). */
+  source?: React.ReactNode;
+  hideDevice?: boolean;
 }) {
   const [listOpen, setListOpen] = useState(false);
   const [meter, setMeter] = useState({ rms: 0, peak: 0, tick: 0 });
@@ -129,6 +134,8 @@ export function RecordingVoiceLane({
     };
   }, [open, live, savedValue, kind]);
 
+  // macOS has no output to pick, but the panel still opens for `source`.
+  const canOpen = !macDefaultOutput || !!source;
   const settingsLabel = kind === 'mic' ? 'Input settings' : 'Output settings';
   const muteLabel = kind === 'mic'
     ? (muted ? 'Unmute microphone' : 'Mute microphone')
@@ -183,13 +190,13 @@ export function RecordingVoiceLane({
         </TooltipContent>
       </Tooltip>
 
-      <Popover open={open} onOpenChange={(next) => { if (!disabled && !macDefaultOutput) onOpenChange(next); }}>
+      <Popover open={open} onOpenChange={(next) => { if (!disabled && canOpen) onOpenChange(next); }}>
         <Tooltip open={open ? false : undefined}>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
               <button
                 type="button"
-                disabled={disabled || macDefaultOutput}
+                disabled={disabled || !canOpen}
                 aria-expanded={open}
                 aria-label={settingsLabel}
                 className={`flex w-[22px] shrink-0 items-center justify-center transition-colors duration-150 ${
@@ -233,7 +240,7 @@ export function RecordingVoiceLane({
               setListOpen(false);
             }}
             disabled={macDefaultOutput}
-            note={macDefaultOutput ? 'macOS records the current system output.' : null}
+            note={macDefaultOutput && !hideDevice ? 'macOS records the current system output.' : null}
             unavailable={
               !macDefaultOutput && savedValue && options.length > 0 && !options.some((device) => toDeviceOptionValue(device) === savedValue)
                 ? deviceDisplayName(savedValue)
@@ -246,6 +253,8 @@ export function RecordingVoiceLane({
             peakLevel={meter.peak}
             levelTick={live ? undefined : meter.tick}
             meterActive={meterActive}
+            source={source}
+            hideDevice={hideDevice}
           />
         </PopoverContent>
       </Popover>

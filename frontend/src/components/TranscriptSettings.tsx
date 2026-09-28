@@ -13,6 +13,7 @@ import { ModelManager } from './WhisperModelManager';
 import { ParakeetModelManager } from './ParakeetModelManager';
 import type { RawModelInfo } from '@/hooks/useTranscriptionModels';
 import { isVisibleParakeetModel } from '@/lib/parakeet';
+import { useLabs } from '@/hooks/useLabs';
 
 export interface TranscriptModelProps {
     provider: 'localWhisper' | 'parakeet' | 'deepgram' | 'elevenLabs' | 'groq' | 'openai';
@@ -61,6 +62,8 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
     const [vocabularySaved, setVocabularySaved] = useState(false);
     const [vocabularyError, setVocabularyError] = useState<string | null>(null);
     const [realTimeTranscription, setRealTimeTranscription] = useState(false);
+    // Labs speech options that are on are named on the engine they change.
+    const { labs } = useLabs();
     const vocabularyRevisionRef = useRef(0);
     const liveSaveInFlightRef = useRef(false);
     const postCallSaveInFlightRef = useRef(false);
@@ -333,6 +336,11 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                     <span className="rounded-full bg-af-success/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-af-success">
                                         Recommended for live
                                     </span>
+                                    {labs.parakeetGpu && (
+                                        <span className="rounded-full border border-af-accent/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-af-accent">
+                                            GPU · Labs
+                                        </span>
+                                    )}
                                 </div>
                                 <p className="mt-1 text-sm text-[var(--af-text-2)]">
                                     Best for live meetings: lower latency, lighter resource use, and strong real-time accuracy. Parakeet does not support custom vocabulary hints.
@@ -388,6 +396,11 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                     <span className="rounded-full bg-af-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-af-accent">
                                         Better for post-call
                                     </span>
+                                    {labs.whisperSilenceGuard && (
+                                        <span className="rounded-full border border-af-accent/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-af-accent">
+                                            Silence guard · Labs
+                                        </span>
+                                    )}
                                 </div>
                                 <p className="mt-1 text-sm text-[var(--af-text-2)]">
                                     Best as a post-call second pass. Whisper is slower and heavier during live meetings, but supports vocabulary hints, manual language selection, and broad multilingual transcription.
@@ -482,6 +495,11 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                     <span className="rounded-full bg-af-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-af-accent">
                                         Vocabulary hints
                                     </span>
+                                    {labs.whisperSilenceGuard && (
+                                        <span className="rounded-full border border-af-accent/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-af-accent">
+                                            Silence guard · Labs
+                                        </span>
+                                    )}
                                 </div>
                                 <p className="mt-1 text-sm text-[var(--af-text-2)]">
                                     Best for post-call quality. Whisper is slower and uses more resources, but can improve difficult names, jargon, and multilingual audio. It uses your global vocabulary hints below to guide names, acronyms, and technical terms.
@@ -540,6 +558,11 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                     <span className="rounded-full bg-af-success/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-af-success">
                                         Fast and accurate
                                     </span>
+                                    {labs.parakeetGpu && (
+                                        <span className="rounded-full border border-af-accent/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-af-accent">
+                                            GPU · Labs
+                                        </span>
+                                    )}
                                 </div>
                                 <p className="mt-1 text-sm text-[var(--af-text-2)]">
                                     Finishes post-call enhancement sooner and uses fewer resources while maintaining strong accuracy. It does not use global vocabulary hints.

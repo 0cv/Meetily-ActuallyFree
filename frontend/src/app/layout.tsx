@@ -11,7 +11,7 @@ import { X } from 'lucide-react'
 import "sonner/dist/styles.css"
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { launchRecording } from '@/lib/recording-launch'
+import { launchRecording, requestRecordingStop } from '@/lib/recording-launch'
 import { listen, UnlistenFn } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { applyAppTheme, getSavedAppTheme, themeInfo, THEME_BOOT_SCRIPT, useAppTheme } from '@/lib/app-theme'
@@ -30,6 +30,7 @@ import { RecordingPostProcessingProvider } from '@/contexts/RecordingPostProcess
 import { ImportDialogProvider } from '@/contexts/ImportDialogContext'
 import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioFormats'
 import { loadLabsPreferences } from '@/lib/labs'
+import { automatedRecording, endAutomatedRecording, markAutomatedStart } from '@/lib/meeting-automation'
 import { getPendingCrashReport, type PendingCrashReport } from '@/services/crashReportService'
 import { WorkspaceProvider } from '@/contexts/WorkspaceContext'
 import { RouteWarmup } from '@/components/RouteWarmup'
@@ -297,8 +298,11 @@ export default function RootLayout({
   }, [startupResolved, startupError, pendingCrashReport]);
 
   // Meeting Detection: prompt to start recording when a meeting app is detected.
+  // With Labs meeting automation on, a call that is using the microphone or
+  // camera starts a recording instead, and that recording stops when the call
+  // ends. The compact bar's window never starts or stops recordings.
   useEffect(() => {
-    if (!startupResolved || startupError || pendingCrashReport) return
+    if (!startupResolved || startupError || pendingCrashReport || isMinibar) return
     const unlisten = listen<{ app: string; process: string; notify: boolean; active_media: boolean }>(
       'meeting-detected',
       (event) => {
@@ -317,10 +321,9 @@ export default function RootLayout({
 
         if (loadLabsPreferences().meetingAutomation && active_media && !showOnboarding) {
           void invoke<{ is_recording?: boolean }>('get_recording_state').then((state) => {
-            if (!state.is_recording) {
-              sessionStorage.setItem('labsAutoStartPending', process);
-              startRecording();
-            }
+            if (state.is_recording) return;
+            markAutomatedStart({ app, process });
+            startRecording();
           }).catch((error) => console.error('Could not check recording state for meeting automation:', error));
           return;
         }
@@ -356,21 +359,18 @@ export default function RootLayout({
       startRecordingAnywhere.current();
     });
 
-    const unlistenEnd = listen<{ process: string }>('meeting-ended', (event) => {
-      if (!loadLabsPreferences().meetingAutomation) return;
-      if (sessionStorage.getItem('labsAutoRecordingProcess') !== event.payload.process) return;
+    // Only a recording that automation started for this same call is stopped.
+    const unlistenEnd = listen<{ app: string; process: string }>('meeting-ended', (event) => {
+      const call = automatedRecording();
+      if (!call || call.process !== event.payload.process || !loadLabsPreferences().meetingAutomation) return;
       void invoke<{ is_recording?: boolean }>('get_recording_state').then((state) => {
         if (!state.is_recording) {
-          sessionStorage.removeItem('labsAutoRecordingProcess');
+          endAutomatedRecording();
           return;
         }
-        sessionStorage.setItem('labsAutoStopPending', 'true');
-        if (window.location.pathname === '/') {
-          window.dispatchEvent(new Event('stop-recording-from-labs'));
-        } else {
-          window.location.assign('/');
-        }
-      }).catch(console.error);
+        toast(`${call.app} call ended`, { description: 'Meeting automation is stopping and saving the recording.' });
+        requestRecordingStop((href) => router.push(href));
+      }).catch((error) => console.error('Could not check recording state for meeting automation:', error));
     });
 
     return () => {
@@ -378,7 +378,7 @@ export default function RootLayout({
       unlistenStart.then((fn) => fn());
       unlistenEnd.then((fn) => fn());
     };
-  }, [showOnboarding, startupResolved, startupError, pendingCrashReport]);
+  }, [showOnboarding, startupResolved, startupError, pendingCrashReport, isMinibar, router]);
 
   // Handle file drop for audio import
   const handleFileDrop = useCallback((paths: string[]) => {

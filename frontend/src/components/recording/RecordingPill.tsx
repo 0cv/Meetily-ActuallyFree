@@ -14,8 +14,7 @@ import { cn } from '@/lib/utils';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { Hint } from '@/components/ui/tooltip';
 import { formatClock } from '@/lib/dates';
-
-export const STOP_REQUEST_KEY = 'af-stop-requested';
+import { requestRecordingStop } from '@/lib/recording-launch';
 
 /** Elapsed recording time, excluding pauses (matches the floating bar). */
 export function useRecordingClock(): number {
@@ -45,15 +44,8 @@ export function RecordingPill() {
     }
   };
 
-  const stop = () => {
-    // The recorder owns the stop and save flow; it picks this up on arrival.
-    try {
-      sessionStorage.setItem(STOP_REQUEST_KEY, '1');
-    } catch {
-      // Without storage the user can still stop from the recorder.
-    }
-    router.push('/');
-  };
+  // The recorder owns the stop and save flow; it picks this up on arrival.
+  const stop = () => requestRecordingStop((href) => router.push(href));
 
   return (
     <div className="pointer-events-none fixed right-4 top-[calc(var(--af-chrome-h)+0.75rem)] z-[45] animate-af-rise">

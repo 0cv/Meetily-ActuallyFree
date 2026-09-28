@@ -47,6 +47,8 @@ export function AudioDeviceCard({
   peakLevel,
   levelTick,
   meterActive = true,
+  source,
+  hideDevice = false,
 }: {
   kind: 'mic' | 'system';
   label: string;
@@ -69,6 +71,10 @@ export function AudioDeviceCard({
   /** Preview sample clock. Omit it to use the live recording meter. */
   levelTick?: number;
   meterActive?: boolean;
+  /** Which audio to record (system audio: everything, or only chosen apps). */
+  source?: React.ReactNode;
+  /** The device is not used, e.g. while only chosen apps are recorded. */
+  hideDevice?: boolean;
 }) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const onOpenChangeRef = useRef(onOpenChange);
@@ -144,6 +150,7 @@ export function AudioDeviceCard({
 
   return (
     <div className="w-full max-w-[320px] rounded-2xl border border-af-border bg-af-elevated">
+      {!hideDevice && (
       <div
         ref={popoverRef}
         className="relative"
@@ -206,6 +213,14 @@ export function AudioDeviceCard({
         </div>
       )}
       </div>
+      )}
+
+      {source && (
+        <div className={`px-3.5 py-3${hideDevice ? '' : ' border-t border-[var(--af-border)]'}`}>
+          <div className="mb-2 text-[12px] font-medium text-[var(--af-text-3)]">{hideDevice ? label : 'Record'}</div>
+          {source}
+        </div>
+      )}
 
       {showVolume && (
         <div className="border-t border-[var(--af-border)] px-3.5 py-3">

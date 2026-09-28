@@ -14,6 +14,8 @@ export type AudioStatus = 'loading' | 'ready' | 'unavailable' | 'error';
 
 export interface MeetingAudioControls {
   status: AudioStatus;
+  /** The recording's file, once found. */
+  path: string | null;
   playing: boolean;
   currentTime: number;
   duration: number;
@@ -27,11 +29,14 @@ export interface MeetingAudioControls {
 }
 
 export const PLAYBACK_RATES = [1, 1.25, 1.5, 1.75, 2];
+/** Labs waveform scrubbing adds slower speeds for close listening. */
+export const SLOW_PLAYBACK_RATES = [0.5, 0.75, ...PLAYBACK_RATES];
 
 export function useMeetingAudio(meetingId: string | null | undefined): MeetingAudioControls {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const frame = useRef<number | null>(null);
   const [status, setStatus] = useState<AudioStatus>('loading');
+  const [path, setPath] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -40,6 +45,7 @@ export function useMeetingAudio(meetingId: string | null | undefined): MeetingAu
   useEffect(() => {
     let cancelled = false;
     setStatus('loading');
+    setPath(null);
     setPlaying(false);
     setCurrentTime(0);
     setDuration(0);
@@ -54,6 +60,7 @@ export function useMeetingAudio(meetingId: string | null | undefined): MeetingAu
           setStatus('unavailable');
           return;
         }
+        setPath(audio.path);
         const element = new Audio();
         element.preload = 'metadata';
         element.src = convertFileSrc(audio.path);
@@ -125,5 +132,5 @@ export function useMeetingAudio(meetingId: string | null | undefined): MeetingAu
     setRateState(next);
   }, []);
 
-  return { status, playing, currentTime, duration, rate, play, pause, toggle, seek, skip, setRate };
+  return { status, path, playing, currentTime, duration, rate, play, pause, toggle, seek, skip, setRate };
 }

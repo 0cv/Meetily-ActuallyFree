@@ -50,7 +50,40 @@ const state = {
     nemotron_threshold: 0.5,
     pyannote_threshold: 0.7,
   },
+  recordingPrefs: {
+    save_folder: 'C:/Users/preview/Music/meetily-recordings',
+    auto_save: true,
+    file_format: 'mp4',
+    preferred_mic_device: null as string | null,
+    preferred_system_device: null as string | null,
+    mic_gain: 1,
+    system_gain: 1,
+    real_time_transcription: false,
+    per_app_recording_enabled: false,
+    per_app_target_app: null as string | null,
+    per_app_target_name: null as string | null,
+    per_app_targets: [] as Array<{ id: string; name: string; executable: string; icon?: string | null }>,
+  },
+  meetingDetection: {
+    enabled: false,
+    interval_secs: 15,
+    meeting_apps: ['Zoom', 'Microsoft Teams', 'Slack', 'Webex', 'Discord', 'Google Meet'],
+    ignored_apps: [] as string[],
+    notify: true,
+  },
+  labs: { whisperStrictSilence: false, voiceProfiles: false, parakeetGpu: false },
+  voices: [{ person_id: 'person-tom', samples: 6 }] as Array<{ person_id: string; samples: number }>,
 };
+
+const RUNNING_APPS = [
+  { id: 'Zoom.exe', name: 'Zoom Workplace', executable: 'Zoom.exe', pid: 4120, has_audio: true, icon: null },
+  { id: 'chrome.exe', name: 'Google Chrome', executable: 'chrome.exe', pid: 9876, has_audio: true, icon: null },
+  { id: 'Spotify.exe', name: 'Spotify', executable: 'Spotify.exe', pid: 7312, has_audio: true, icon: null },
+  { id: 'ms-teams.exe', name: 'Microsoft Teams', executable: 'ms-teams.exe', pid: 5544, has_audio: false, icon: null },
+  { id: 'slack.exe', name: 'Slack', executable: 'slack.exe', pid: 6620, has_audio: false, icon: null },
+  { id: 'Discord.exe', name: 'Discord', executable: 'Discord.exe', pid: 8210, has_audio: false, icon: null },
+  { id: 'Code.exe', name: 'Visual Studio Code', executable: 'Code.exe', pid: 3108, has_audio: false, icon: null },
+];
 
 let idCounter = 0;
 const newId = (prefix: string) => `${prefix}-preview-${Date.now().toString(36)}-${(idCounter++).toString(36)}`;
@@ -59,6 +92,57 @@ const now = () => new Date().toISOString();
 function transcripts(meetingId: string) {
   if (!state.transcripts.has(meetingId)) state.transcripts.set(meetingId, fx.transcriptsFor(meetingId));
   return state.transcripts.get(meetingId)!;
+}
+
+// ---- Recording audio ----------------------------------------------------
+// Each meeting gets a silent recording as long as its transcript, so the
+// player has a real duration, and a waveform that is loud while people talk.
+
+const PREVIEW_AUDIO = 'preview-audio/';
+const audioUrls = new Map<string, string>();
+
+function previewDuration(meetingId: string) {
+  const end = transcripts(meetingId).reduce((max, row) => Math.max(max, row.audio_end_time ?? 0), 0);
+  return Math.max(30, Math.ceil(end) + 4);
+}
+
+function silentWav(seconds: number): string {
+  const rate = 8000;
+  const samples = seconds * rate;
+  const view = new DataView(new ArrayBuffer(44 + samples * 2));
+  const text = (offset: number, value: string) => [...value].forEach((char, index) => view.setUint8(offset + index, char.charCodeAt(0)));
+  text(0, 'RIFF');
+  view.setUint32(4, 36 + samples * 2, true);
+  text(8, 'WAVE');
+  text(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, rate, true);
+  view.setUint32(28, rate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  text(36, 'data');
+  view.setUint32(40, samples * 2, true);
+  return URL.createObjectURL(new Blob([view.buffer], { type: 'audio/wav' }));
+}
+
+function previewAudioUrl(path: string): string {
+  const meetingId = path.slice(PREVIEW_AUDIO.length);
+  if (!audioUrls.has(meetingId)) audioUrls.set(meetingId, silentWav(previewDuration(meetingId)));
+  return audioUrls.get(meetingId)!;
+}
+
+function previewPeaks(meetingId: string): number[] {
+  const peaks = Array.from({ length: previewDuration(meetingId) }, (_, second) => 0.03 + ((second * 37) % 5) / 100);
+  for (const row of transcripts(meetingId)) {
+    const start = Math.floor(row.audio_start_time ?? 0);
+    const end = Math.ceil(row.audio_end_time ?? start + 3);
+    for (let second = start; second < end && second < peaks.length; second++) {
+      peaks[second] = 0.3 + ((second * 73 + start * 11) % 65) / 100;
+    }
+  }
+  return peaks;
 }
 
 function summary(meetingId: string) {
@@ -297,7 +381,10 @@ function handle(cmd: string, args: Args): unknown {
     case 'api_get_api_key':
       return '';
     case 'get_meeting_detection_settings':
-      return { enabled: false, notify: true, apps: [] };
+      return { ...state.meetingDetection };
+    case 'set_meeting_detection_settings':
+      state.meetingDetection = { ...state.meetingDetection, ...args.settings };
+      return null;
     case 'is_recording':
       return false;
     case 'get_recording_state':
@@ -321,16 +408,50 @@ function handle(cmd: string, args: Args): unknown {
         { name: 'MacBook Pro Speakers', device_type: 'Output' },
       ];
     case 'get_recording_preferences':
-      return {
-        save_folder: 'C:/Users/preview/Music/meetily-recordings',
-        auto_save: true,
-        file_format: 'mp4',
-        preferred_mic_device: null,
-        preferred_system_device: null,
-        mic_gain: 1,
-        system_gain: 1,
-        real_time_transcription: false,
-      };
+      return { ...state.recordingPrefs, per_app_targets: [...state.recordingPrefs.per_app_targets] };
+    case 'set_recording_preferences':
+      state.recordingPrefs = { ...state.recordingPrefs, ...args.preferences };
+      return null;
+    case 'get_recordable_apps':
+      return new Promise((resolve) => setTimeout(() => resolve(RUNNING_APPS.map((app) => ({ ...app }))), 250));
+    case 'select_custom_app_executable':
+      return { id: 'CiscoCollabHost.exe', name: 'Webex', executable: 'CiscoCollabHost.exe', pid: null, has_audio: false, icon: null };
+
+    // ---- Labs --------------------------------------------------------------
+    case 'get_whisper_strict_silence':
+      return state.labs.whisperStrictSilence;
+    case 'set_whisper_strict_silence':
+      state.labs.whisperStrictSilence = !!args.enabled;
+      return null;
+    case 'get_voice_profiles_enabled':
+      return state.labs.voiceProfiles;
+    case 'set_voice_profiles_enabled':
+      state.labs.voiceProfiles = !!args.value;
+      return null;
+    case 'get_parakeet_gpu_enabled':
+      return state.labs.parakeetGpu;
+    case 'set_parakeet_gpu_enabled':
+      state.labs.parakeetGpu = !!args.value;
+      return new Promise((resolve) => setTimeout(() => resolve(null), 600));
+    case 'list_voice_profiles':
+      return state.voices
+        .map((voice) => ({ ...voice, name: state.people.find((person) => person.id === voice.person_id)?.displayName }))
+        .filter((voice) => voice.name);
+    case 'enroll_person_voice':
+    case 'enroll_voice_profile': {
+      const person =
+        cmd === 'enroll_person_voice'
+          ? state.people.find((entry) => entry.id === args.personId)
+          : state.people.find((entry) => entry.displayName === args.speaker);
+      if (!person) return Promise.reject('Only a named speaker on the call can have a voice profile.');
+      state.voices = [...state.voices.filter((voice) => voice.person_id !== person.id), { person_id: person.id, samples: 5 }];
+      return new Promise((resolve) => setTimeout(() => resolve({ person_id: person.id, name: person.displayName, samples: 5 }), 900));
+    }
+    case 'delete_voice_profile':
+      state.voices = state.voices.filter((voice) => voice.person_id !== args.personId);
+      return null;
+    case 'get_waveform_peaks':
+      return new Promise((resolve) => setTimeout(() => resolve(previewPeaks(String(args.filePath).slice(PREVIEW_AUDIO.length))), 300));
     case 'api_get_model_config':
       return { provider: 'ollama', model: 'llama3.2:3b', whisperModel: 'large-v3', apiKey: null, ollamaEndpoint: null };
     case 'api_get_transcript_config':
@@ -477,7 +598,9 @@ function handle(cmd: string, args: Args): unknown {
       state.notes.set(args.meetingId, { markdown: args.markdown ?? null, json: args.json ?? null, updatedAt: now() });
       return null;
     case 'api_get_meeting_audio':
-      return { path: null, micPath: null, systemPath: null };
+      return transcripts(args.meetingId).length > 0
+        ? { path: `${PREVIEW_AUDIO}${args.meetingId}`, micPath: null, systemPath: null }
+        : { path: null, micPath: null, systemPath: null };
 
     // ---- Groups ----------------------------------------------------------
     case 'api_list_groups':
@@ -735,6 +858,9 @@ export function installPreviewMocks() {
   }
   mockWindows('main');
   mockIPC((cmd, args) => handle(cmd, (args ?? {}) as Args), { shouldMockEvents: true });
+  // Meeting recordings play from generated silent audio.
+  (window as any).__TAURI_INTERNALS__.convertFileSrc = (path: string) =>
+    path.startsWith(PREVIEW_AUDIO) ? previewAudioUrl(path) : path;
   try {
     if (!localStorage.getItem('meetily_user_name')) localStorage.setItem('meetily_user_name', 'Jay');
   } catch {

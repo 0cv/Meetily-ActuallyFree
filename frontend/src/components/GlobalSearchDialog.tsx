@@ -45,7 +45,6 @@ import { Avatar } from '@/components/ui/avatar';
 import { Kbd } from '@/components/ui/surface';
 import { Spinner } from '@/components/ui/spinner';
 import { openGroupEditor } from '@/components/groups/GroupEditor';
-import { STOP_REQUEST_KEY } from '@/components/recording/RecordingPill';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { useImportDialog } from '@/contexts/ImportDialogContext';
@@ -54,7 +53,7 @@ import { THEMES, useAppTheme } from '@/lib/app-theme';
 import { formatShortDate, parseDate } from '@/lib/dates';
 import { stamp } from '@/lib/live-context';
 import { displayTitle } from '@/lib/meeting-titles';
-import { launchRecording } from '@/lib/recording-launch';
+import { launchRecording, requestRecordingStop } from '@/lib/recording-launch';
 import type { GlobalSearchResult } from '@/types';
 
 type ResultKind = GlobalSearchResult['kind'] | 'group' | 'action';
@@ -191,14 +190,7 @@ export default function GlobalSearchDialog() {
         label: 'Stop and save the recording',
         keywords: 'end finish recording',
         icon: <Square />,
-        run: () => {
-          try {
-            sessionStorage.setItem(STOP_REQUEST_KEY, '1');
-          } catch {
-            // The recorder page still has its own Stop button.
-          }
-          router.push('/');
-        },
+        run: () => requestRecordingStop((href) => router.push(href)),
       });
     } else {
       list.push({ id: 'record', label: 'Start recording', keywords: 'new meeting record call', icon: <Mic />, run: () => launchRecording((href) => router.push(href)) });

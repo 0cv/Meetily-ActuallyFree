@@ -32,10 +32,12 @@ import { deviceDisplayName, UNAVAILABLE_DEVICE_VALUE, type AudioDeviceOption } f
 import type { RecordingPreferences } from '@/components/RecordingSettings';
 import type { SelectedDevices } from '@/components/DeviceSelection';
 import { RecordingVoiceLane } from '@/components/RecordingVoiceLane';
+import { AppAudioSource, useAppAudioSupported } from '@/components/recording/AppAudioSource';
+import { useAppAudio } from '@/hooks/useAppAudio';
 import { GroupPicker } from '@/components/groups/GroupBits';
 import { Hint } from '@/components/ui/tooltip';
 import { Spinner } from '@/components/ui/spinner';
-import { STOP_REQUEST_KEY } from '@/components/recording/RecordingPill';
+import { STOP_RECORDING_EVENT, STOP_REQUEST_KEY } from '@/lib/recording-launch';
 import { formatClock } from '@/lib/dates';
 
 interface RecordingControlsProps {
@@ -101,6 +103,10 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
   const { selectedDevices: savedDevices, setSelectedDevices } = useConfig();
   const activeDevices = savedDevices ?? selectedDevices;
   const isMacOS = usePlatform() === 'macos';
+  // All computer audio, or only chosen apps (Settings > Recording has it too).
+  const appAudio = useAppAudio();
+  const appAudioSupported = useAppAudioSupported();
+  const onlyChosenApps = appAudioSupported && appAudio.onlyApps && appAudio.targets.length > 0;
   const [audioDevices, setAudioDevices] = useState<AudioDeviceOption[]>([]);
   const [openLane, setOpenLane] = useState<'mic' | 'output' | null>(null);
   const [micGain, setMicGain] = useState(1);
@@ -298,8 +304,9 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
     await stopRecordingAction();
   }, [isRecording, isStarting, isStopping, stopRecordingAction, onStopInitiated]);
 
-  // Stop pressed on the recording pill elsewhere in the app: it routes here and
-  // leaves a request, so the normal stop and save flow runs from this card.
+  // Stop pressed elsewhere in the app (recording pill, command bar, meeting
+  // automation) routes here and leaves a request, so the normal stop and save
+  // flow runs from this card.
   useEffect(() => {
     let requested = false;
     try {
@@ -310,6 +317,13 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
     }
     if (requested && isRecording) void handleStopRecording();
   }, [isRecording, handleStopRecording]);
+
+  // The same request while this page is open (command bar, meeting automation).
+  useEffect(() => {
+    const onStop = () => void handleStopRecording();
+    window.addEventListener(STOP_RECORDING_EVENT, onStop);
+    return () => window.removeEventListener(STOP_RECORDING_EVENT, onStop);
+  }, [handleStopRecording]);
 
   const handlePauseRecording = useCallback(async () => {
     if (!isRecording || isPaused || isPausing) return;
@@ -552,6 +566,8 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
             onGainLive={(value) => scheduleGain('system', value, false)}
             onGainCommit={(value) => scheduleGain('system', value, true)}
             macDefaultOutput={isMacOS}
+            source={appAudioSupported ? <AppAudioSource choice={appAudio} variant="compact" live={isRecording} /> : undefined}
+            hideDevice={onlyChosenApps}
             live={isRecording}
             muted={isRecording ? isSystemAudioMuted : idleSystemMuted}
             meterActive={isRecording && !isPaused && !isSystemAudioMuted}

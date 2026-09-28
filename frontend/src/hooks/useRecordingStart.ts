@@ -9,6 +9,7 @@ import { recordingService } from '@/services/recordingService';
 import { readPendingGroup } from '@/lib/groups';
 import { automaticTitle, beginLiveSession } from '@/lib/live-session';
 import { AUTO_START_KEY, START_RECORDING_EVENT } from '@/lib/recording-launch';
+import { beginAutomatedRecording, endAutomatedRecording, takeAutomatedStart } from '@/lib/meeting-automation';
 import Analytics from '@/lib/analytics';
 import { showRecordingNotification } from '@/lib/recordingNotification';
 import { toast } from 'sonner';
@@ -23,6 +24,12 @@ type StartSource = 'home_page' | 'sidebar_auto' | 'sidebar_direct';
 /** A readable reason for a failed start, from the backend's error text. */
 export function describeStartError(error: unknown): { title: string; message: string } {
   const text = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  if (text.includes('target application')) {
+    return {
+      title: 'None of your chosen apps is open',
+      message: 'Computer audio is set to record only chosen apps. Open one of them, or switch the record card back to all computer audio.',
+    };
+  }
   if (text.includes('microphone') || text.includes('mic') || text.includes('input')) {
     return {
       title: 'Microphone not available',
@@ -172,6 +179,10 @@ export function useRecordingStart(
 
   /** The one start sequence. Returns false when recording did not start. */
   const startRecording = useCallback(async (source: StartSource): Promise<boolean> => {
+    // A detected call asked for this start (Labs meeting automation). A start
+    // from the record button is the user's own and is never stopped for them.
+    const automated = takeAutomatedStart();
+    const call = source === 'home_page' ? null : automated;
     // Readying the model can take several seconds (it loads a large model
     // into memory), so say so from the first step.
     setStatus(RecordingStatus.STARTING, 'Preparing transcription model…');
@@ -201,6 +212,14 @@ export function useRecordingStart(
       setIsMeetingActive(true);
       markRecordingStarted(startedAt);
       Analytics.trackButtonClick('start_recording', source);
+      if (call) {
+        beginAutomatedRecording(call);
+        toast(`Recording your ${call.app} call`, {
+          description: 'Meeting automation started it, and stops and saves it when the call ends.',
+          duration: 10000,
+          action: { label: "Don't stop it", onClick: () => endAutomatedRecording() },
+        });
+      }
       await showRecordingNotification();
       return true;
     } catch (error) {

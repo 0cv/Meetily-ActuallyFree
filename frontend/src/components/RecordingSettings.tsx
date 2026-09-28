@@ -8,6 +8,24 @@ import Analytics from '@/lib/analytics';
 import { toast } from 'sonner';
 import { useConfig } from '@/contexts/ConfigContext';
 
+/** A running app that can be recorded on its own (Windows and macOS). */
+export interface RecordableApp {
+  id: string;
+  name: string;
+  executable: string;
+  pid: number | null;
+  /** Playing sound right now (Windows). */
+  has_audio: boolean;
+  icon: string | null;
+}
+
+export interface PerAppTarget {
+  id: string;
+  name: string;
+  executable: string;
+  icon?: string | null;
+}
+
 export interface RecordingPreferences {
   save_folder: string;
   auto_save: boolean;
@@ -20,6 +38,12 @@ export interface RecordingPreferences {
   system_gain?: number;
   /** Faster real-time streaming mode: cuts audio segments frequently (~3.5s) with fast pause detection (350ms). */
   real_time_transcription?: boolean;
+  /** Record only `per_app_targets` instead of all computer audio. */
+  per_app_recording_enabled?: boolean;
+  /** Older single-app format; kept equal to the first target. */
+  per_app_target_app?: string | null;
+  per_app_target_name?: string | null;
+  per_app_targets?: PerAppTarget[];
 }
 
 interface RecordingSettingsProps {
@@ -86,9 +110,8 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
   }, []);
 
   const handleAutoSaveToggle = async (enabled: boolean) => {
-    const newPreferences = { ...preferences, auto_save: enabled };
-    setPreferences(newPreferences);
-    await savePreferences(newPreferences);
+    setPreferences((current) => ({ ...current, auto_save: enabled }));
+    await savePreferences({ auto_save: enabled });
 
     // Track auto-save setting change
     await Analytics.track('auto_save_recording_toggled', {
@@ -115,7 +138,8 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
       const selectedFolder = await invoke<string | null>('select_recording_folder');
       if (!selectedFolder) return;
 
-      const newPreferences = { ...preferences, save_folder: selectedFolder };
+      const current = await invoke<RecordingPreferences>('get_recording_preferences');
+      const newPreferences = { ...current, save_folder: selectedFolder };
       await invoke('set_recording_preferences', { preferences: newPreferences });
       setPreferences(newPreferences);
       updateRecordingsLocation(selectedFolder);
@@ -149,10 +173,15 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
     }
   };
 
-  const savePreferences = async (prefs: RecordingPreferences) => {
+  // Saved over the latest stored preferences, so choices made in the record
+  // card (devices, sensitivity, which apps to record) are never overwritten.
+  const savePreferences = async (patch: Partial<RecordingPreferences>) => {
     setSaving(true);
     try {
+      const current = await invoke<RecordingPreferences>('get_recording_preferences');
+      const prefs = { ...current, ...patch };
       await invoke('set_recording_preferences', { preferences: prefs });
+      setPreferences(prefs);
       onSave?.(prefs);
 
       toast.success('Recording settings saved');

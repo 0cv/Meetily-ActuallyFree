@@ -1469,12 +1469,24 @@ pub async fn diarize_meeting(
     persist_speaker_labels(pool, &meeting_id, updates).await.map_err(|e| format!("Failed to save speaker labels: {e}"))?;
 
     // Link contacts whose saved voice profile named a cluster in this meeting.
+    // The labels are already saved, so a voice whose contact is gone is
+    // skipped and a failed link never fails the rerun.
     let used_names: std::collections::HashSet<&str> = assignments.iter().map(|(_, label)| label.as_str()).collect();
     for (name, person_id) in voice_profiles::active_person_links() {
-        if used_names.contains(name.as_str()) {
-            sqlx::query("INSERT OR IGNORE INTO person_speakers (person_id, meeting_id, speaker_label) VALUES (?, ?, ?)")
-                .bind(person_id).bind(&meeting_id).bind(name).execute(pool).await
-                .map_err(|error| format!("Failed to link matched voice: {error}"))?;
+        if !used_names.contains(name.as_str()) {
+            continue;
+        }
+        if let Err(error) = sqlx::query(
+            "INSERT OR IGNORE INTO person_speakers (person_id, meeting_id, speaker_label) \
+             SELECT id, ?, ? FROM people WHERE id = ?",
+        )
+        .bind(&meeting_id)
+        .bind(&name)
+        .bind(&person_id)
+        .execute(pool)
+        .await
+        {
+            log::warn!("Could not link a matched voice to its contact: {error}");
         }
     }
 

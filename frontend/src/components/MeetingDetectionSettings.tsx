@@ -2,8 +2,12 @@
 
 import { useEffect, useState } from "react"
 import { Switch } from "./ui/switch"
+import { Badge } from "./ui/badge"
 import { invoke } from "@tauri-apps/api/core"
-import { Radar } from "lucide-react"
+import { Radar, Workflow } from "lucide-react"
+import { toast } from "sonner"
+import { useLabs } from "@/hooks/useLabs"
+import { setLabsFeature } from "@/lib/labs-features"
 
 interface MeetingDetectionSettings {
   enabled: boolean;
@@ -21,6 +25,8 @@ interface MeetingDetectionSettings {
 export function MeetingDetectionSettings() {
   const [md, setMd] = useState<MeetingDetectionSettings | null>(null);
   const [ignoredInput, setIgnoredInput] = useState('');
+  const { labs } = useLabs();
+  const [automationBusy, setAutomationBusy] = useState(false);
 
   useEffect(() => {
     invoke<MeetingDetectionSettings>('get_meeting_detection_settings')
@@ -35,8 +41,23 @@ export function MeetingDetectionSettings() {
     setMd(next);
     try {
       await invoke('set_meeting_detection_settings', { settings: next });
+      // Automation acts on detection's events; without detection it is off too.
+      if (!next.enabled && labs.meetingAutomation) await setLabsFeature('meetingAutomation', false);
     } catch (e) {
       console.error('Failed to save meeting detection settings:', e);
+    }
+  };
+
+  // Labs: turning automation on also turns detection on.
+  const setAutomation = async (value: boolean) => {
+    setAutomationBusy(true);
+    try {
+      await setLabsFeature('meetingAutomation', value);
+      if (value && md && !md.enabled) setMd({ ...md, enabled: true });
+    } catch (error) {
+      toast.error('Could not change meeting automation', { description: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setAutomationBusy(false);
     }
   };
 
@@ -110,6 +131,29 @@ export function MeetingDetectionSettings() {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="flex items-start gap-4 rounded-2xl border border-af-border bg-af-panel-2/40 p-5">
+        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-af-accent/[0.12] text-af-accent">
+          <Workflow className="h-[18px] w-[18px]" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="flex items-center gap-2 text-[15px] font-semibold text-af-text">
+            Start and stop recordings automatically
+            <Badge variant="accent" size="xs">Labs</Badge>
+          </h3>
+          <p className="mt-0.5 text-[13px] leading-relaxed text-af-text-3">
+            Instead of prompting, record a detected call once it uses your microphone or camera, and stop and save when it
+            ends. Recordings you start yourself are never stopped.
+          </p>
+        </div>
+        <Switch
+          checked={labs.meetingAutomation}
+          disabled={automationBusy}
+          onCheckedChange={(value) => void setAutomation(value)}
+          aria-label="Start and stop recordings automatically"
+          className="mt-1 shrink-0"
+        />
       </div>
     </div>
   );

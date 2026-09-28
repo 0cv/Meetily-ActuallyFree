@@ -15,6 +15,7 @@ import {
 } from '@/lib/summary-language-preferences';
 import { endLiveSession, finalLiveTitle, readLiveNotes, writeLiveTitle } from '@/lib/live-session';
 import { announceChange, saveMeetingNotes } from '@/lib/workspace-api';
+import { endAutomatedRecording } from '@/lib/meeting-automation';
 
 type SummaryStatus = 'idle' | 'processing' | 'summarizing' | 'regenerating' | 'completed' | 'error';
 
@@ -82,8 +83,7 @@ export function useRecordingStop(
       return;
     }
     stopInProgressRef.current = true;
-    sessionStorage.removeItem('labsAutoRecordingProcess');
-    sessionStorage.removeItem('labsAutoStopPending');
+    endAutomatedRecording();
 
     // Accidental taps: under 10s → discard, no meeting note.
     const MIN_MEETING_SECS = 10;

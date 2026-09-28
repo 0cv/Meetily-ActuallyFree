@@ -1158,7 +1158,7 @@ pub async fn api_update_person(
     role: Option<String>,
     phone: Option<String>,
 ) -> Result<PersonListItem, String> {
-    PeopleRepository::update_person(
+    let item = PeopleRepository::update_person(
         state.db_manager.pool(),
         &person_id,
         PersonInput {
@@ -1170,7 +1170,9 @@ pub async fn api_update_person(
         },
     )
     .await
-    .map_err(|error| person_error("update contact", error))
+    .map_err(|error| person_error("update contact", error))?;
+    crate::diarization::voice_profiles::contact_renamed(&person_id, &item.display_name);
+    Ok(item)
 }
 
 #[tauri::command]
@@ -1179,9 +1181,11 @@ pub async fn api_merge_people(
     source_id: String,
     target_id: String,
 ) -> Result<PersonListItem, String> {
-    PeopleRepository::merge_people(state.db_manager.pool(), &source_id, &target_id)
+    let kept = PeopleRepository::merge_people(state.db_manager.pool(), &source_id, &target_id)
         .await
-        .map_err(|error| person_error("merge contacts", error))
+        .map_err(|error| person_error("merge contacts", error))?;
+    crate::diarization::voice_profiles::contacts_merged(&source_id, &target_id, &kept.display_name);
+    Ok(kept)
 }
 
 #[tauri::command]
@@ -1191,7 +1195,9 @@ pub async fn api_delete_person(
 ) -> Result<(), String> {
     PeopleRepository::delete_person(state.db_manager.pool(), &person_id)
         .await
-        .map_err(|error| person_error("delete contact", error))
+        .map_err(|error| person_error("delete contact", error))?;
+    crate::diarization::voice_profiles::contact_deleted(&person_id);
+    Ok(())
 }
 
 async fn person_groups(
