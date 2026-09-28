@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { usePathname } from 'next/navigation';
-import { hasCustomChrome } from '@/lib/window-chrome';
+import { useCustomChrome } from '@/hooks/useCustomChrome';
 
 interface MainContentProps {
   children: React.ReactNode;
@@ -10,7 +10,7 @@ interface MainContentProps {
 
 const MainContent: React.FC<MainContentProps> = ({ children }) => {
   const pathname = usePathname();
-  const [customChrome] = useState(hasCustomChrome);
+  const customChrome = useCustomChrome();
   // Recording and saved meetings sit flush against the rail divider, in the
   // same panel color. A left inset exposed the darker canvas as its own strip.
   const chat = pathname === '/' || pathname === '/meeting-details' || pathname === '/contacts' || pathname === '/groups' || pathname === '/person';

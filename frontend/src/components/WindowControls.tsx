@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { cn } from '@/lib/utils';
-import { hasCustomChrome } from '@/lib/window-chrome';
+import { useCustomChrome } from '@/hooks/useCustomChrome';
 
 const glyph = 'h-[10px] w-[10px]';
 
@@ -42,7 +42,7 @@ const button =
   'flex h-full w-[46px] items-center justify-center text-af-text-2 transition-colors duration-100 focus-visible:outline-none';
 
 export default function WindowControls() {
-  const [show] = useState(hasCustomChrome);
+  const show = useCustomChrome();
   const [maximized, setMaximized] = useState(false);
 
   useEffect(() => {
