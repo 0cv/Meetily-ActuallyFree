@@ -49,7 +49,11 @@ Screenshots use demo meetings and simulated recording.
 
 ## What you can do
 
-### Record and transcribe locally
+Local transcription, live speaker editing, organized meeting notes, flexible AI
+providers, and optional Labs features—all without a paid app tier.
+
+<details>
+<summary><strong>Record and transcribe locally</strong></summary>
 
 - Capture microphone and computer audio with separate mute, volume, and level
   controls. Keep using the workspace during a call, or shrink to the floating
@@ -65,7 +69,10 @@ Screenshots use demo meetings and simulated recording.
   a multi-app whitelist; macOS currently supports one selected application.
 - Use Whisper vocabulary hints for recurring names, acronyms, and meeting terms.
 
-### Follow and identify speakers
+</details>
+
+<details>
+<summary><strong>Follow and identify speakers</strong></summary>
 
 - Keep microphone speech identified as **You**, with remote speakers labeled
   separately. Rename and merge speakers during a call and edit labels afterward.
@@ -75,7 +82,10 @@ Screenshots use demo meetings and simulated recording.
 - Associate named speakers with contacts and see consistent person colors across
   transcripts and meeting pages.
 
-### Work with your meetings
+</details>
+
+<details>
+<summary><strong>Work with your meetings</strong></summary>
 
 - Read a speaker-colored, chat-style transcript and jump to audio from a line's
   timestamp. Keep notes, action items, and the AI summary beside the conversation.
@@ -86,7 +96,10 @@ Screenshots use demo meetings and simulated recording.
 - Export one or multiple meetings to **PDF, Word, Markdown, text, or JSON**.
 - Generate useful meeting titles from summaries, with manual names taking priority.
 
-### Choose how AI runs
+</details>
+
+<details>
+<summary><strong>Choose how AI runs</strong></summary>
 
 - Use local summary models or connect a supported provider with your own API key.
 - Use the **Claude Code CLI** summary provider with your installed `claude`
@@ -96,7 +109,10 @@ Screenshots use demo meetings and simulated recording.
 - Download optional models in the background during setup. Nemotron enables
   after a successful download; optional Whisper is configured for post-call use.
 
-### Explore optional Labs features
+</details>
+
+<details>
+<summary><strong>Explore optional Labs features</strong></summary>
 
 Settings → **Labs** contains opt-in, experimental capabilities:
 
@@ -111,13 +127,16 @@ Settings → **Labs** contains opt-in, experimental capabilities:
 - **Voice profiles:** learn a contact's voice from their recorded meetings and
   use voice matching in later meetings. Matching is experimental.
 
+</details>
+
 ## Download and setup
 
 Windows and macOS downloads are released separately. Check each
 [release's notes](https://github.com/TylerBuza/Meetily-ActuallyFree/releases) for
 the features included in that build; the macOS preview trails current main.
 
-### Windows
+<details>
+<summary><strong>Windows setup</strong></summary>
 
 1. Download `Meetily-ActuallyFree-*-universal-setup.exe` from the
    [latest published release](https://github.com/TylerBuza/Meetily-ActuallyFree/releases/latest).
@@ -131,7 +150,10 @@ Windows 10/11 x64 is supported. Windows installers are not Authenticode-signed,
 so SmartScreen may show **Unknown publisher**. Release downloads include SHA-256
 checksums; the Windows updater payload has a separate cryptographic signature.
 
-### macOS Apple Silicon preview
+</details>
+
+<details>
+<summary><strong>macOS Apple Silicon preview setup</strong></summary>
 
 1. Download `Meetily-Actually-Free_0.2.5_aarch64.dmg` from the
    [macOS release](https://github.com/TylerBuza/Meetily-ActuallyFree/releases/tag/v0.2.5-macos).
@@ -143,6 +165,8 @@ not notarized; first launch may require Control-click → **Open**. This separat
 preview passed automated packaging/launch checks, with physical macOS capture
 qualification still pending. See the [macOS release runbook](.github/workflows/MACOS_RELEASE.md).
 
+</details>
+
 ## Your data and model choices
 
 Recordings, the meeting database, and downloaded models are stored locally.
@@ -150,6 +174,9 @@ Local inference can run without sending meeting content to a cloud model;
 choosing a cloud provider or Claude CLI changes where that provider processes
 the content. Model downloads and optional update checks require network access.
 Analytics transmission is disabled, and Windows update checks are opt-in.
+
+<details>
+<summary><strong>Storage locations and saved audio files</strong></summary>
 
 | Data | Location |
 | --- | --- |
@@ -162,18 +189,19 @@ Change the recordings folder in **Settings → Recording → Save Location**.
 The meeting database, models, and preferences are distinct from the audio folder;
 copying recordings alone does not move the entire workspace.
 
+</details>
+
 ## Build and contribute
+
+Start with the [development map](docs/DEVELOPMENT_MAP.md),
+[architecture notes](ARCHITECTURE.md), and [contributor conventions](AGENTS.md).
+
+<details>
+<summary><strong>Build commands</strong></summary>
 
 The desktop app uses **React/Next.js** in a **Tauri 2** WebView. **Rust** owns
 capture, transcription, diarization, local storage, and AI orchestration. No
 separate application server is required.
-
-Start with the [development map](docs/DEVELOPMENT_MAP.md),
-[architecture notes](ARCHITECTURE.md), and [contributor conventions](AGENTS.md).
-The map links subsystem ownership, targeted tests, and qualification notes.
-
-<details>
-<summary><strong>Build commands</strong></summary>
 
 Windows prerequisites: Rust, Node.js/pnpm, Visual Studio 2022 Build Tools with
 C++, CMake, and LLVM/libclang. GPU builds also need the corresponding SDK/toolkit.
