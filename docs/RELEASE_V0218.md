@@ -134,25 +134,3 @@ careful measurements made a real difference to the fix.**
 UI follow-ups, Windows packaging, and release qualification. Thank you as well
 to everyone testing builds and sharing feedback, and to the upstream Meetily
 project and open-source model/runtime projects this fork builds on.
-
-## Verification and status
-
-- 350 native CPU tests passed; nine model/CLI/fixture-dependent tests remained
-  ignored in that run.
-- 126 frontend tests passed in 22 isolated invocations; production build and type
-  checking passed.
-- The callback-continuity regression fails before the fix and passes afterward
-  at both reported block sizes. These are synthetic continuity tests, not a claim
-  that the reporter's physical devices were retested.
-- Live-transcription changes were additionally replayed against local real-call
-  source tracks using CPU Parakeet. Coverage improved; recognition is not perfect.
-- Labs GPU/voice-profile behavior and sustained multi-device accuracy remain
-  experimental and hardware-dependent.
-
-- Windows CPU/Vulkan/CUDA payload hashes and updater signatures verified. The
-  final candidate was installed locally, matched the packaged executable, and
-  passed startup/database checks with existing meeting data and settings preserved.
-
-**Release preparation:** v0.2.18 is prepared as a draft, not published.
-The public release remains v0.2.17. See the development map's linked qualification
-notes for the exact installed-build and test scope.
