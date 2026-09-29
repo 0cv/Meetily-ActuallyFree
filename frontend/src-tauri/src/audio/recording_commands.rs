@@ -1,4 +1,4 @@
-﻿// audio/recording_commands.rs
+// audio/recording_commands.rs
 //
 // Slim Tauri command layer for recording functionality.
 // Delegates to transcription and recording modules for actual implementation.
@@ -31,6 +31,18 @@ use super::transcription::{
 
 // Re-export TranscriptUpdate for backward compatibility
 pub use super::transcription::TranscriptUpdate;
+
+async fn start_live_diarization<R: Runtime>(app: &AppHandle<R>) {
+    let handle = app.clone();
+    let result = tokio::task::spawn_blocking(move || crate::diarization::online::start(handle)).await;
+    let error = match result {
+        Ok(Ok(())) => return,
+        Ok(Err(error)) => error.to_string(),
+        Err(error) => error.to_string(),
+    };
+    warn!("Live speaker identification unavailable: {error}");
+    let _ = app.emit("live-diarization-error", format!("Live speaker labeling is unavailable: {error}. Transcription will use source labels."));
+}
 
 // ============================================================================
 // GLOBAL STATE
@@ -242,16 +254,18 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
     let mut manager = RecordingManager::new();
 
     // Load recording preferences to get auto_save AND device preferences
-    let (auto_save, preferred_mic_name, preferred_system_name, recordings_folder) =
+    let (auto_save, preferred_mic_name, preferred_system_name, recordings_folder, per_app_enabled, per_app_targets) =
         match super::recording_preferences::load_recording_preferences(&app).await {
             Ok(prefs) => {
-                info!("ðŸ“‹ Loaded recording preferences: auto_save={}, preferred_mic={:?}, preferred_system={:?}",
-                      prefs.auto_save, prefs.preferred_mic_device, prefs.preferred_system_device);
+                info!("📋 Loaded recording preferences: auto_save={}, preferred_mic={:?}, preferred_system={:?}, per_app={}, targets={}",
+                      prefs.auto_save, prefs.preferred_mic_device, prefs.preferred_system_device, prefs.per_app_recording_enabled, prefs.per_app_targets.len());
                 (
                     prefs.auto_save,
                     prefs.preferred_mic_device,
                     prefs.preferred_system_device,
                     prefs.save_folder,
+                    prefs.per_app_recording_enabled,
+                    prefs.per_app_targets,
                 )
             }
             Err(e) => {
@@ -261,10 +275,13 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
                     None,
                     None,
                     super::recording_preferences::get_default_recordings_folder(),
+                    false,
+                    Vec::new(),
                 )
             }
         };
     manager.set_recordings_folder(recordings_folder);
+    manager.set_per_app_config(per_app_enabled, per_app_targets);
 
     // ============================================================================
     // MICROPHONE DEVICE RESOLUTION: Preference â†’ Default â†’ Error
@@ -414,16 +431,19 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
     // Live audio-level meter: forward per-source (mic + system) levels to the UI visualizer
     let level_sender = spawn_level_forwarder(&app);
 
+    start_live_diarization(&app).await;
     // Start recording with resolved devices (replaces start_recording_with_defaults_and_auto_save call)
     #[cfg(target_os = "windows")]
     let resolved_system_device_name = system_device.as_ref().map(|device| device.name.clone());
     let transcription_receiver = manager
         .start_recording(microphone_device, system_device, auto_save, Some(level_sender))
         .await
-        .map_err(|error| map_recording_start_error(&app, error))?;
+        .map_err(|error| { crate::diarization::online::stop(); map_recording_start_error(&app, error) })?;
 
     #[cfg(target_os = "windows")]
-    start_windows_audio_route_monitor(&app, &manager, resolved_system_device_name);
+    if !per_app_enabled {
+        start_windows_audio_route_monitor(&app, &manager, resolved_system_device_name);
+    }
 
     // Store the manager globally to keep it alive
     {
@@ -438,9 +458,6 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
     // Live speaker identification: label transcript segments with individual
     // voices as they arrive. Best-effort — if the models aren't installed we
     // simply fall back to capture-source labels.
-    if let Err(e) = crate::diarization::online::start() {
-        info!("Live speaker identification unavailable: {}", e);
-    }
     reset_speech_detected_flag(); // Reset for new recording session
 
     // Start optimized parallel transcription task and store handle
@@ -652,6 +669,10 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
     };
     let auto_save = preferences.auto_save;
     manager.set_recordings_folder(preferences.save_folder);
+    manager.set_per_app_config(
+        preferences.per_app_recording_enabled,
+        preferences.per_app_targets.clone(),
+    );
 
     // Always ensure a meeting name is set so incremental saver initializes
     let effective_meeting_name = meeting_name.clone().unwrap_or_else(|| {
@@ -668,16 +689,19 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
     // Live audio-level meter: forward per-source (mic + system) levels to the UI visualizer
     let level_sender = spawn_level_forwarder(&app);
 
+    start_live_diarization(&app).await;
     // Start recording with specified devices and auto_save setting
     #[cfg(target_os = "windows")]
     let resolved_system_device_name = system_device.as_ref().map(|device| device.name.clone());
     let transcription_receiver = manager
         .start_recording(mic_device, system_device, auto_save, Some(level_sender))
         .await
-        .map_err(|error| map_recording_start_error(&app, error))?;
+        .map_err(|error| { crate::diarization::online::stop(); map_recording_start_error(&app, error) })?;
 
     #[cfg(target_os = "windows")]
-    start_windows_audio_route_monitor(&app, &manager, resolved_system_device_name);
+    if !preferences.per_app_recording_enabled {
+        start_windows_audio_route_monitor(&app, &manager, resolved_system_device_name);
+    }
 
     // Store the manager globally to keep it alive
     {
@@ -692,9 +716,6 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
     // Live speaker identification: label transcript segments with individual
     // voices as they arrive. Best-effort — if the models aren't installed we
     // simply fall back to capture-source labels.
-    if let Err(e) = crate::diarization::online::start() {
-        info!("Live speaker identification unavailable: {}", e);
-    }
     reset_speech_detected_flag(); // Reset for new recording session
 
     // Start optimized parallel transcription task and store handle
