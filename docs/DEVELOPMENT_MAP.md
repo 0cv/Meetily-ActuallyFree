@@ -175,6 +175,12 @@ wordmark, with the original blue/soft-blue colors on one line. It opens About;
 the adjacent collapse control remains separate. The 16px wordmark was visually
 checked in browser preview at the default 256px rail width (no clipping or
 overlap), and the production frontend build/type validation passed.
+The rebuilt v0.2.18 Windows package passed payload/signature verification and was
+installed locally; the installed CUDA executable matched its packaged hash.
+Installed-WebView inspection confirmed the single-line text, 16px size, no image,
+and no overlap with Collapse. Startup, Nemotron availability, database integrity,
+all six meetings/68 transcript rows, model hashes and preference values were
+verified after upgrade. The app was reopened normally; this is not a publication.
 
 `frontend/src/app/home/page.tsx` renders the date-sorted meeting library and is
 the Tauri startup route (`/home`). The recording-ready screen remains `/`; the
