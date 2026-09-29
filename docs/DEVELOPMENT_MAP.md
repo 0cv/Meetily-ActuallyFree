@@ -253,12 +253,15 @@ WeSpeaker embeddings in Pyannote live sessions and as a separate identity
 matcher for Nemotron live and both post-call paths. Nemotron remains the selected
 diarizer; its channel numbers never establish persistent identity.
 
-From `frontend/`, run mock-heavy groups separately:
+From `frontend/`, run all frontend test files in separate Bun processes. The
+portable runner discovers `tests/**/*.test.{js,mjs,ts,tsx}` and fails if any file
+fails. CI uses the same command, including optional-download, diarization, Labs,
+and audio-level lifecycle tests. Isolation is required: summary-language tests
+define a read-only `window`, while meeting-automation tests install their own
+window; combining them in one Bun process caused repeated CI failures.
 
 ```text
-pnpm dlx bun@1.3.10 test tests/optional-downloads/background.test.tsx
-pnpm dlx bun@1.3.10 test tests/diarization/engine-selection.test.tsx
-pnpm dlx bun@1.3.10 test tests/hooks
+pnpm dlx bun@1.3.10 scripts/test-isolated.mjs
 pnpm run build
 ```
 

@@ -24,7 +24,7 @@ The macOS release is intentionally independent from the Windows setup/updater
 pair. Never upload the DMG to the Windows release through a generic workflow,
 mark the macOS-only release Latest, or point `latest.json` at a DMG.
 
-## Source Invariants
+## Release qualification
 
 ### CI-qualified previews
 
@@ -49,6 +49,22 @@ Preview notes can be supplied in `docs/RELEASE_V<digits>_MACOS.md`.
 The v0.2.18 preview path was requested without waiting for physical testing.
 Local workflow checks exercise signoff rejection, source-change rejection, and
 CRLF checksum handling; CI owns actual macOS bundle/launch verification.
+
+### Published v0.2.18 preview qualification
+
+- Candidate run `36514804641` built commit
+  `5bde65d8a474cd5a25dd94ac184e01042508dadd` and passed bundle/dependency/signature
+  checks plus two launches on the hosted Apple Silicon macOS runner.
+- Publisher run `36516079294` published `v0.2.18-macos` as an immutable, non-Latest
+  prerelease with three verified assets. DMG SHA-256:
+  `a84e2b64d8ceebcdcfa19149f86967034bf62fa25710418fda62df821fcbabf8`.
+- Public smoke run `36516151115` passed download/provenance verification,
+  installation, two launches, database setup, and post-launch signature checks.
+- No physical recording, real-audio fixture, permission-prompt, or minimum-14.2
+  test was performed. This is published CI qualification, not a local Mac install
+  or a physical-device attestation. Windows `v0.2.18` remains Latest.
+
+## Source Invariants
 
 Before building, verify all four minimum-version declarations still say 14.2:
 

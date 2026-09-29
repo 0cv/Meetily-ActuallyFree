@@ -12,7 +12,7 @@ features without an account, license key, trial, or paid app tier—and adds liv
 speaker editing, per-app capture, a redesigned interface, and more.
 
 [Download Windows](https://github.com/TylerBuza/Meetily-ActuallyFree/releases/latest)
-· [macOS Apple Silicon preview](https://github.com/TylerBuza/Meetily-ActuallyFree/releases/tag/v0.2.5-macos)
+· [macOS Apple Silicon preview](https://github.com/TylerBuza/Meetily-ActuallyFree/releases/tag/v0.2.18-macos)
 · [Release notes](https://github.com/TylerBuza/Meetily-ActuallyFree/releases)
 · [Report an issue](https://github.com/TylerBuza/Meetily-ActuallyFree/issues)
 
@@ -133,7 +133,7 @@ Settings → **Labs** contains opt-in, experimental capabilities:
 
 Windows and macOS downloads are released separately. Check each
 [release's notes](https://github.com/TylerBuza/Meetily-ActuallyFree/releases) for
-the features included in that build; the macOS preview trails current main.
+the features and platform qualifications included in that build.
 
 <details>
 <summary><strong>Windows setup</strong></summary>
@@ -155,13 +155,13 @@ checksums; the Windows updater payload has a separate cryptographic signature.
 <details>
 <summary><strong>macOS Apple Silicon preview setup</strong></summary>
 
-1. Download `Meetily-Actually-Free_0.2.5_aarch64.dmg` from the
-   [macOS release](https://github.com/TylerBuza/Meetily-ActuallyFree/releases/tag/v0.2.5-macos).
+1. Download the Apple Silicon `.dmg` from the
+   [macOS release](https://github.com/TylerBuza/Meetily-ActuallyFree/releases/tag/v0.2.18-macos).
 2. Open the DMG and drag **Meetily - Actually Free** into Applications.
 3. Grant microphone and Audio Capture permissions when prompted.
 
 Requires an **M1 or newer Mac running macOS 14.2 Sonoma or later**. The DMG is
-not notarized; first launch may require Control-click → **Open**. This separate
+not notarized; first launch may require **Privacy & Security → Open Anyway**. This separate
 preview passed automated packaging/launch checks, with physical macOS capture
 qualification still pending. See the [macOS release runbook](.github/workflows/MACOS_RELEASE.md).
 
