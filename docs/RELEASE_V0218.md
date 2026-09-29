@@ -69,6 +69,10 @@ as well as the integration author:
 - Labs GPU/voice-profile behavior and sustained multi-device accuracy remain
   experimental and hardware-dependent.
 
-**Release preparation:** v0.2.18 is being prepared as a draft, not published.
+- Windows CPU/Vulkan/CUDA payload hashes and updater signatures verified. The
+  final candidate was installed locally, matched the packaged executable, and
+  passed startup/database checks with existing meeting data and settings preserved.
+
+**Release preparation:** v0.2.18 is prepared as a draft, not published.
 The public release remains v0.2.17. See the development map's linked qualification
 notes for the exact installed-build and test scope.

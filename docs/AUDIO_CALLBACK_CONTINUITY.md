@@ -65,3 +65,19 @@ devices and sustained two-source load remains separate qualification.
 Existing damaged recordings are not rewritten: deleted samples cannot be
 reconstructed by changing playback. The correction applies to newly captured
 audio. Private recordings, diagnostic output, and fixtures stay outside Git.
+
+## Installed release-candidate check
+
+The final CPU/Vulkan/CUDA v0.2.18 Windows payload was built and passed
+`verify-windows-release.mjs` (updater signatures, hashes, runtime files, and
+bootstrapper payload). After backing up the existing install and native/WebView
+data, the installed CUDA executable matched the packaged SHA-256. Startup IPC
+confirmed v0.2.18, completed onboarding, selected/available Nemotron, and a ready
+workspace. The app exited cleanly through native IPC and reopened without debug
+flags after the check.
+
+SQLite integrity passed. Eight meetings, 157 transcript rows, four people, seven
+person-speaker links, model hashes, and preference values were preserved. This
+is local installation/startup qualification, not a new microphone capture test.
+The reporter's devices remain untested here. v0.2.18 is prepared as a draft;
+publication is separate from this verified local installation.
