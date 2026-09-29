@@ -83,6 +83,13 @@ there is no separate Continue step. Keep live transcript remains a secondary
 action. Pyannote retains its count selection and Continue action. Native pipeline
 ordering and engine/count semantics are unchanged by this presentation update.
 
+While enhancing, diarizing, or refreshing, `PostCallHandoffCard` now switches
+from that modal to a compact, nonmodal progress card in the recording dock.
+There is no backdrop or focus trap during work, so the meeting behind it accepts
+pointer and keyboard interaction. The prompt and retry/error choices remain
+centered dialogs. Presentation changes do not dismiss or restart the ordered
+processing workflow; WebView reload durability is not added by this change.
+
 The actual installed CUDA build was exercised with a dedicated Windows test audio
 process and the existing synthetic two-voice WAV. Both microphone endpoints were
 muted for the tests and restored afterward. Test capture was restricted to that

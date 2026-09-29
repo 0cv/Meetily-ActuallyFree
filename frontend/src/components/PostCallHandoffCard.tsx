@@ -5,10 +5,12 @@ import { Users } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { RecordingCardSlot } from '@/components/RecordingCardSlot';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 
 /**
  * Stopping and saving use the recording dock. Speaker choices opt into a
- * compact modal portaled to the viewport, independent of sidebar/panel offsets.
+ * compact modal; their busy progress returns to the dock without an overlay or
+ * focus trap so the meeting remains usable while processing continues.
  */
 export function PostCallHandoffCard({
   title,
@@ -23,10 +25,10 @@ export function PostCallHandoffCard({
   busy?: boolean;
   icon?: ReactNode;
   children?: ReactNode;
-  /** Speaker choices use a viewport-centered modal rather than the recording dock. */
+  /** Center choices/errors; busy progress stays compact in the nonmodal dock. */
   centered?: boolean;
 }) {
-  if (centered) {
+  if (centered && !busy) {
     return (
       <Dialog open>
         <DialogContent
@@ -51,7 +53,10 @@ export function PostCallHandoffCard({
   }
   return (
     <RecordingCardSlot>
-      <div className="pointer-events-auto w-full max-w-[36rem] animate-af-rise rounded-[26px] border border-af-border-strong bg-af-elevated/95 px-5 py-4 text-af-text shadow-2xl backdrop-blur-xl">
+      <div className={cn(
+        'pointer-events-auto w-full animate-af-rise rounded-[26px] border border-af-border-strong bg-af-elevated/95 px-5 py-4 text-af-text shadow-2xl backdrop-blur-xl',
+        centered ? 'max-w-sm' : 'max-w-[36rem]',
+      )}>
         <div className="flex items-center gap-3">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-af-accent/[0.12] text-af-accent">
             {busy ? <Spinner size={18} /> : icon ?? <Users size={18} strokeWidth={1.75} />}

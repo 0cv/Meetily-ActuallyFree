@@ -20,6 +20,8 @@ and a model's anonymous speaker channels are also different concepts.
 
 Speech-start pre-roll, live system speech sensitivity, and real-call replay
 qualification are documented in [LIVE_SPEECH_RETENTION.md](LIVE_SPEECH_RETENTION.md).
+Sample continuity across jittered capture callbacks and issue #40 qualification
+are documented in [AUDIO_CALLBACK_CONTINUITY.md](AUDIO_CALLBACK_CONTINUITY.md).
 
 ```text
 recording_commands.rs: start command
