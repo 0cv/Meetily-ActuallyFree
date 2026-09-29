@@ -335,14 +335,13 @@ const Sidebar: React.FC = () => {
                 tabIndex={expanded ? undefined : -1}
                 aria-hidden={expanded ? undefined : true}
                 className={cn(
-                  'mr-11 flex h-10 min-w-0 flex-1 items-center rounded-lg px-2 text-left transition-[opacity,background-color] hover:bg-af-hover motion-reduce:transition-none',
+                  'mr-10 flex h-10 min-w-0 flex-1 items-center rounded-lg px-1 text-left transition-[opacity,background-color] hover:bg-af-hover motion-reduce:transition-none',
                   RAIL_EASE,
                   expanded ? 'opacity-100 delay-75 duration-200' : 'pointer-events-none opacity-0 duration-150',
                 )}
               >
-                <span className="min-w-0">
-                  <span className="block truncate text-[13px] font-semibold leading-tight tracking-tight text-af-text">Meetily</span>
-                  <span className="block truncate text-[11px] leading-tight text-af-accent">Actually Free</span>
+                <span className="whitespace-nowrap text-base font-bold tracking-tight text-blue-500">
+                  Meetily <span className="text-blue-400/70">· Actually Free</span>
                 </span>
               </button>
             </DialogTrigger>

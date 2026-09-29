@@ -170,6 +170,12 @@ gating, quiet-speech and meeting-scoped speaker-edit recovery corrections.
 
 ### Home meeting library
 
+`components/Sidebar/index.tsx` renders the text-only **Meetily · Actually Free**
+wordmark, with the original blue/soft-blue colors on one line. It opens About;
+the adjacent collapse control remains separate. The 16px wordmark was visually
+checked in browser preview at the default 256px rail width (no clipping or
+overlap), and the production frontend build/type validation passed.
+
 `frontend/src/app/home/page.tsx` renders the date-sorted meeting library and is
 the Tauri startup route (`/home`). The recording-ready screen remains `/`; the
 sidebar's New Recording action opens it. `SidebarProvider` owns the shared meeting
