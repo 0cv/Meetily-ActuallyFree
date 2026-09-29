@@ -122,6 +122,10 @@ saves the **post-call** default; it must not replace the live Parakeet selection
 `frontend/src/contexts/OptionalModelDownloadsContext.tsx` owns optional jobs above
 onboarding and Settings so normal navigation does not cancel them. This is not an
 OS background service. An app exit and a WebView reload are different lifetimes.
+The top-right `DownloadProgressToastProvider` consumes these same jobs alongside
+Parakeet/summary transfers, including verification and activation progress; it
+does not start downloads or duplicate optional completion notifications. See
+`tests/download-progress/background.test.tsx` for the panel/provider integration.
 
 For Nemotron, `download_diarization_models` in `diarization/mod.rs` performs the
 verified download **and persists engine activation in native code**. On success
@@ -136,8 +140,10 @@ different transports; neither is itself the persisted source of truth.
 Read [NEMOTRON_NATIVE_ACTIVATION.md](NEMOTRON_NATIVE_ACTIVATION.md) for the regression
 and installed-app test. Read [V0219_BACKGROUND_SETUP.md](V0219_BACKGROUND_SETUP.md)
 and [V0220_OPTIONAL_ACTIVATION.md](V0220_OPTIONAL_ACTIVATION.md) as historical notes;
-later fixes supersede earlier behavior. Whisper still has a frontend completion/
-activation path: do not infer that Nemotron's native-lifetime fix covers it too.
+later fixes supersede earlier behavior. The post-v0.2.18 follow-up moves optional
+Whisper activation into `whisper_download_model(enablePostCall=true)` and adds
+native `uninstall_optional_model` ownership in `optional_models.rs`; see the
+updated native-activation note for locking, settings events, tests, and limits.
 
 ## 5. Acceleration and packaging are separate from ASR selection
 

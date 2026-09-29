@@ -2,7 +2,17 @@
 
 ## Unreleased
 
-Prepared for **v0.2.18**; see [release notes and complete contributor
+- Show optional Whisper and Nemotron downloads in the top-right background
+  stack and their Transcription settings cards, including activation progress.
+- Keep speaker-model Active badges inside their cards on smaller windows.
+- Complete optional Whisper activation natively, preserving the live model even
+  when another model manager is open or the WebView reloads.
+- Add Uninstall to optional-model Settings, removing the selected model's files
+  and resetting only preferences that use it.
+
+## v0.2.18
+
+Released **v0.2.18**; see [release notes and complete contributor
 credits](docs/RELEASE_V0218.md). The workspace redesign is from **@jayjoe101's
 PR #39**, including **@ampersandru's PRs #36–#38** and **@cedstrom's PR #28**
 (original commit attribution: **@chris-edstrom**). Thanks to **@fernandog** for
