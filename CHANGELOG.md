@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+Prepared for **v0.2.18**; see [release notes and complete contributor
+credits](docs/RELEASE_V0218.md). The workspace redesign is from **@jayjoe101's
+PR #39**, including **@ampersandru's PRs #36–#38** and **@cedstrom's PR #28**
+(original commit attribution: **@chris-edstrom**). Thanks to **@fernandog** for
+the detailed issue #40 recording-artifact report and analysis.
+
+### Recording and post-call corrections
+
+- Preserve continuous microphone/system samples across jittered capture callback
+  boundaries instead of repeatedly inserting zeros or dropping samples (#40).
+  Applies to new recordings; older damaged files are not repaired.
+- Retain speech-start pre-roll and correct VAD reset timestamps; increase live
+  system-audio speech sensitivity and preserve quiet speech/short replies.
+- Restore AI-generated titles for automatically named meetings while respecting
+  manual names and rejecting template placeholders.
+- Use a compact centered **Auto-detect & continue** action for Nemotron; show
+  ongoing processing in a nonmodal bottom card so the meeting stays interactive.
+- Restore the original text-only blue wordmark, add a system **Low audio**
+  advisory, and improve capture startup, setup gating, and live speaker-edit recovery.
+
 ### Interface overhaul and workspace
 
 - Three themes (Midnight, Vanilla and Charcoal) built on shared colour tokens, one
@@ -19,8 +39,8 @@
   and action items; an All meetings page; and export of any number of meetings to
   PDF, Word, Markdown, text or JSON.
 - Contacts are kept when a speaker's lines are unlinked; only deleting or merging
-  removes them. Meetings keep their day-and-time title, and summaries no longer
-  rename them.
+  removes them. Useful summary-generated titles replace automatic meeting names;
+  manual meeting titles remain authoritative.
 - Each person is drawn in their contact colour across the transcript, with a faint
   tint on their chat bubbles, so it is easy to see who is talking.
 
