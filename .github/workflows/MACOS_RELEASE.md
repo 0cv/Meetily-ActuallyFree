@@ -26,6 +26,30 @@ mark the macOS-only release Latest, or point `latest.json` at a DMG.
 
 ## Source Invariants
 
+### CI-qualified previews
+
+When the maintainer elects to release before physical testing, dispatch
+`publish-macos.yml` with `preview=true` and `candidate-run-id`; leave all physical
+test inputs empty/false. This creates a **prerelease**, never Latest. The artifact
+metadata records `release_channel=preview`, `physical_test_attested=false`, and
+null physical-test evidence. Stable publication keeps its physical signoff and
+administrative preflight. Before preview dispatch, verify repository immutable
+releases are enabled with an authenticated `gh api repos/OWNER/REPO/immutable-releases`.
+The publisher also checks `immutable=true` after publication.
+
+Both modes verify successful candidate provenance, the artifact archive digest,
+DMG checksum, build metadata, and exact tag target. A candidate may precede
+documentation/README or publication, smoke-test, and VirusTotal workflow changes
+on main; any other changed path requires a rebuild. Metadata separately records
+the build commit and publisher commit/actor. Run `smoke-test-macos-release.yml`
+after publication; it validates preview/stable metadata and launches the public
+DMG twice. These checks do not qualify physical audio capture or macOS 14.2.
+Preview notes can be supplied in `docs/RELEASE_V<digits>_MACOS.md`.
+
+The v0.2.18 preview path was requested without waiting for physical testing.
+Local workflow checks exercise signoff rejection, source-change rejection, and
+CRLF checksum handling; CI owns actual macOS bundle/launch verification.
+
 Before building, verify all four minimum-version declarations still say 14.2:
 
 - `frontend/src-tauri/.cargo/config.toml`

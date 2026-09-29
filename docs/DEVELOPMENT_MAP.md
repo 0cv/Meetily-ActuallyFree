@@ -169,6 +169,16 @@ changing the signed executable payloads.
 
 ## 6. Tests, qualification, and historical notes
 
+macOS publication supports an explicitly labeled CI-qualified preview via
+`publish-macos.yml` (`preview=true`). It records no physical-test attestation,
+publishes a separate non-Latest prerelease, and retains artifact/hash/source
+provenance and public launch checks. Stable publication still requires the
+physical checklist. Documentation/publishing-only commits may follow a candidate;
+application, dependency, and build-workflow changes require a new candidate.
+See `.github/workflows/MACOS_RELEASE.md` for dispatch and remaining limitations.
+The Windows VirusTotal submission normalizes CRLF checksum manifests before
+filename matching and Linux checksum verification.
+
 Live system-meter warnings are documented in
 [SYSTEM_AUDIO_LEVEL_ADVICE.md](SYSTEM_AUDIO_LEVEL_ADVICE.md).
 
