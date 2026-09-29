@@ -37,6 +37,7 @@ import { RouteWarmup } from '@/components/RouteWarmup'
 import { CHROME_BOOT_SCRIPT } from '@/lib/window-chrome'
 import { RecordingPill } from '@/components/recording/RecordingPill'
 import { GroupEditorHost } from '@/components/groups/GroupEditor'
+import { RecordingNotice } from '@/components/RecordingNotice'
 
 // Development only: in a plain browser (no Tauri bridge) serve sample data so
 // screens can be reviewed at http://localhost:3118. Stripped from production.
@@ -153,7 +154,6 @@ export default function RootLayout({
   const router = useRouter()
   // Tray, notification and meeting-detection starts work from any page.
   const startRecordingAnywhere = useRef<() => void>(() => undefined)
-  startRecordingAnywhere.current = () => launchRecording((href) => router.push(href))
   const isMinibar = (pathname ?? '').startsWith('/minibar')
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [onboardingCompleted, setOnboardingCompleted] = useState(false)
@@ -162,6 +162,12 @@ export default function RootLayout({
   const [startupError, setStartupError] = useState<string | null>(null)
   const [startupAttempt, setStartupAttempt] = useState(0)
   const [pendingCrashReport, setPendingCrashReport] = useState<PendingCrashReport | null>(null)
+  const [recordingNoticeAcknowledged, setRecordingNoticeAcknowledged] = useState(false)
+  const acknowledgeRecordingNotice = useCallback(() => setRecordingNoticeAcknowledged(true), [])
+  startRecordingAnywhere.current = () => {
+    if (!recordingNoticeAcknowledged) return
+    launchRecording((href) => router.push(href))
+  }
 
   // Import audio state
   const [showDropOverlay, setShowDropOverlay] = useState(false)
@@ -305,7 +311,7 @@ export default function RootLayout({
   // camera starts a recording instead, and that recording stops when the call
   // ends. The compact bar's window never starts or stops recordings.
   useEffect(() => {
-    if (!startupResolved || startupError || pendingCrashReport || isMinibar) return
+    if (!startupResolved || startupError || pendingCrashReport || isMinibar || !recordingNoticeAcknowledged) return
     const unlisten = listen<{ app: string; process: string; notify: boolean; active_media: boolean }>(
       'meeting-detected',
       (event) => {
@@ -381,7 +387,7 @@ export default function RootLayout({
       unlistenStart.then((fn) => fn());
       unlistenEnd.then((fn) => fn());
     };
-  }, [showOnboarding, startupResolved, startupError, pendingCrashReport, isMinibar, router]);
+  }, [showOnboarding, startupResolved, startupError, pendingCrashReport, isMinibar, router, recordingNoticeAcknowledged]);
 
   // Handle file drop for audio import
   const handleFileDrop = useCallback((paths: string[]) => {
@@ -540,6 +546,7 @@ export default function RootLayout({
                                     <MainContent>{children}</MainContent>
                                     <RecordingPill />
                                     <GroupEditorHost />
+                                    <RecordingNotice onAcknowledged={acknowledgeRecordingNotice} />
                                   </div>
                                 )}
                                 {/* Import audio overlay and dialog */}

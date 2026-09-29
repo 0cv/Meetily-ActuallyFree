@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Show a recording disclosure and consent notice after setup on each launch,
+  with an optional permanent acknowledgement to stop showing it.
 - Show optional Whisper and Nemotron downloads in the top-right background
   stack and their Transcription settings cards, including activation progress.
 - Keep speaker-model Active badges inside their cards on smaller windows.
