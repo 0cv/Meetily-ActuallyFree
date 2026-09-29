@@ -55,3 +55,27 @@ ASR still returned some empty or inaccurate results. Lower speech thresholds can
 admit more nonspeech; real-call accuracy and sustained concurrent ASR/diarization
 load still need qualification. This replay bypasses capture and WebView rendering
 and is not an installed-app test of the new build.
+
+## Local installation qualification
+
+The CPU/Vulkan/CUDA v0.2.18 payloads were rebuilt after these changes and passed
+`verify-windows-release.mjs` (hashes, updater signatures, bundled payloads).
+The installed app/native data/WebView profile were backed up before the local
+upgrade. The installed CUDA executable matched the packaged executable's SHA-256.
+Startup IPC confirmed v0.2.18, completed onboarding, available/selected Nemotron,
+and a ready workspace. Closing the previous tray process for backup produced an
+unclean-exit prompt; Ignore dismissed it without sending a report. The checked
+app then exited through native IPC and reopened normally without debug flags.
+
+The installed speaker prompt was inspected using the existing synthetic QA
+meeting without running enhancement: approximately 384 × 197 pixels, centered
+within one pixel of the viewport midpoint, with an enabled **Auto-detect &
+continue** button and no separate Continue action. The app was returned to Home.
+
+SQLite integrity passed; all six meetings, 68 transcript rows, two people and
+three person-speaker links were preserved. Model hashes and preference values
+were preserved (Tauri reordered analytics JSON keys on exit). This establishes
+installation/startup/UI and data preservation; the speech evidence above remains
+a local recorded-audio replay, not a new live-capture accuracy qualification.
+Latest public release was checked as v0.2.17; v0.2.18 remains locally installed,
+not published.
