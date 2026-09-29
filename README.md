@@ -13,18 +13,16 @@ speaker editing, per-app capture, a redesigned interface, and more.
 
 [Download Windows](https://github.com/TylerBuza/Meetily-ActuallyFree/releases/latest)
 · [macOS Apple Silicon preview](https://github.com/TylerBuza/Meetily-ActuallyFree/releases/tag/v0.2.5-macos)
-· [What's new in v0.2.18](docs/RELEASE_V0218.md)
+· [Release notes](https://github.com/TylerBuza/Meetily-ActuallyFree/releases)
 · [Report an issue](https://github.com/TylerBuza/Meetily-ActuallyFree/issues)
 
-## A redesigned Meetily
+## Interface
 
-**v0.2.18 brings a major UI overhaul:** a rebuilt recording experience, meeting
-workspace, navigation, shared components, and three themes—Midnight, Vanilla,
-and Charcoal. The existing React/Next.js interface has been extensively reworked,
-with supporting workspace and native/backend changes.
+Follow a live conversation, organize your meetings, and work with transcripts,
+notes, and summaries in one workspace. Choose from three themes: **Midnight**,
+**Vanilla**, and **Charcoal**.
 
-The screenshots and feature overview below show **current main / the upcoming
-v0.2.18 release**. Screenshots use demo meetings and simulated recording.
+Screenshots use demo meetings and simulated recording.
 
 ### Transcript, notes, action items, and summary in one workspace
 
@@ -60,6 +58,9 @@ v0.2.18 release**. Screenshots use demo meetings and simulated recording.
   **Whisper** for optional post-call enhancement independently of the live model.
 - Retain microphone and system tracks alongside mixed playback audio, so
   overlapping sources can be processed separately.
+- Refine the transcript after a call while continuing to use the meeting page;
+  progress stays in a compact, nonblocking card.
+- Watch the system-audio level and **Low audio** advisory, and adjust gain yourself.
 - Choose specific applications instead of all computer audio: Windows supports
   a multi-app whitelist; macOS currently supports one selected application.
 - Use Whisper vocabulary hints for recurring names, acronyms, and meeting terms.
@@ -83,6 +84,7 @@ v0.2.18 release**. Screenshots use demo meetings and simulated recording.
 - Search meetings, transcripts, summaries, groups, people, and action items from
   the **Ctrl+K command bar**.
 - Export one or multiple meetings to **PDF, Word, Markdown, text, or JSON**.
+- Generate useful meeting titles from summaries, with manual names taking priority.
 
 ### Choose how AI runs
 
@@ -109,29 +111,11 @@ Settings → **Labs** contains opt-in, experimental capabilities:
 - **Voice profiles:** learn a contact's voice from their recorded meetings and
   use voice matching in later meetings. Matching is experimental.
 
-## Also improved in v0.2.18
-
-- Preserve continuous audio across jittered capture callbacks, addressing the
-  recording buzz/clicks reported in [#40](https://github.com/TylerBuza/Meetily-ActuallyFree/issues/40).
-  The correction applies to new recordings; existing damaged audio is not repaired.
-- Retain the beginning of detected utterances and improve live system-audio
-  speech sensitivity.
-- Restore AI-generated titles for automatically named meetings while respecting
-  manual titles.
-- Keep the meeting interactive during post-call processing, with progress in a
-  compact bottom card and a centered **Auto-detect & continue** speaker prompt.
-- Show a **Low audio** advisory for quiet system input; gain stays under your
-  control.
-- Improve capture-start errors, setup checks, and recovery of live speaker edits.
-
-See the [full release notes](docs/RELEASE_V0218.md) and [changelog](CHANGELOG.md).
-
 ## Download and setup
 
-**Release availability:** the latest published Windows release is **v0.2.17**.
-**v0.2.18 is prepared as a draft**, with its new interface shown above. The
-separate Apple Silicon download remains **v0.2.5-macos** and does not contain all
-the features on current main.
+Windows and macOS downloads are released separately. Check each
+[release's notes](https://github.com/TylerBuza/Meetily-ActuallyFree/releases) for
+the features included in that build; the macOS preview trails current main.
 
 ### Windows
 
@@ -224,32 +208,10 @@ pnpm install
 
 </details>
 
-## Thank you to the contributors
+## Credits and license
 
-This update is a community effort. In particular:
-
-- **[@jayjoe101](https://github.com/jayjoe101)** — the extensive UI/workspace
-  overhaul and integration in [#39](https://github.com/TylerBuza/Meetily-ActuallyFree/pull/39).
-- **[@ampersandru](https://github.com/ampersandru)** — live speaker editing
-  ([#36](https://github.com/TylerBuza/Meetily-ActuallyFree/pull/36)), per-app capture
-  ([#37](https://github.com/TylerBuza/Meetily-ActuallyFree/pull/37)), combined features
-  and Labs ([#38](https://github.com/TylerBuza/Meetily-ActuallyFree/pull/38)), and the
-  original Nemotron contribution ([#34](https://github.com/TylerBuza/Meetily-ActuallyFree/pull/34)).
-- **[@cedstrom](https://github.com/cedstrom)**, with original commits attributed
-  to **[@chris-edstrom](https://github.com/chris-edstrom)** — Claude Code CLI
-  summaries in [#28](https://github.com/TylerBuza/Meetily-ActuallyFree/pull/28).
-- **[@fernandog](https://github.com/fernandog)** — the detailed recording-artifact
-  investigation in [#40](https://github.com/TylerBuza/Meetily-ActuallyFree/issues/40).
-
-PRs bundled into another PR retain their original authors' credit. Read the
-[expanded acknowledgments](docs/RELEASE_V0218.md#a-huge-thank-you-to-our-contributors)
-for their individual contributions. Thank you to everyone testing builds,
-reporting bugs, and contributing improvements.
-
-Maintained by [Tyler Buza](https://buza.dev), based on the original
+Maintained by **[Tyler Buza (@TylerBuza)](https://github.com/TylerBuza)**, based on the original
 [Meetily](https://github.com/Zackriya-Solutions/meetily) project by Zackriya Solutions.
-Credit also belongs to the open-source model and runtime projects used by the app,
-including Enes Altun's MIT-licensed `parakeet-rs` Sortformer implementation.
 
 MIT licensed. See [LICENSE.md](LICENSE.md). Original copyright notices and license
 terms are retained.
