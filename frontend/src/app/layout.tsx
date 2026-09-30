@@ -2,8 +2,8 @@
 
 import './globals.css'
 import './icon-motion.css'
+import '@fontsource-variable/inter/wght.css'
 import dynamic from 'next/dynamic'
-import { Inter } from 'next/font/google'
 import { SidebarProvider } from '@/components/Sidebar/SidebarProvider'
 import AnalyticsProvider from '@/components/AnalyticsProvider'
 import { Toaster, toast } from 'sonner'
@@ -114,13 +114,6 @@ const inlineChunkErrorHandler = `
   window.addEventListener('unhandledrejection', handleChunkError, true);
 })();
 `;
-
-const inter = Inter({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-sans',
-  display: 'swap',
-})
 
 // Module-level component — stable reference across RootLayout re-renders.
 // Defined here (not inside RootLayout) so React never sees a new function type
@@ -484,7 +477,7 @@ export default function RootLayout({
   // client so the full app chrome never mounts there and then unmounts.
   if (isMinibar) {
     return (
-      <html lang="en" data-theme="midnight" className={`dark minibar-window ${inter.variable} ${inter.className}`} suppressHydrationWarning>
+      <html lang="en" data-theme="midnight" className="dark minibar-window" suppressHydrationWarning>
         <head>
           <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
           <script dangerouslySetInnerHTML={{ __html: inlineChunkErrorHandler }} />
@@ -497,7 +490,7 @@ export default function RootLayout({
   }
 
   return (
-    <html lang="en" data-theme="midnight" className={`dark ${inter.variable} ${inter.className}`} suppressHydrationWarning>
+    <html lang="en" data-theme="midnight" className="dark" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: CHROME_BOOT_SCRIPT }} />

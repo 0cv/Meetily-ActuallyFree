@@ -29,6 +29,10 @@ timestamps and stop/drain ordering owned by `audio/stream.rs`,
 The separate macOS system tap in `audio/capture/core_audio.rs` now survives
 ring-buffer pressure and closes its async wake registration race; neither path
 has a physical macOS reproduction/qualification yet.
+`frontend/src/app/layout.tsx` now loads packaged Inter font files from
+`@fontsource-variable/inter` rather than fetching Google CSS during a Next
+production build. `globals.css` owns `--font-sans`, and `frontend/pnpm-lock.yaml`
+pins the bundled font package; this removes a network-dependent build step.
 
 Meeting details layout lives in `frontend/src/app/meeting-details/page-content.tsx`:
 the transcript/notes separator stores its width locally and supports pointer and

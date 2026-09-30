@@ -423,7 +423,10 @@ impl Stream for CoreAudioStream {
         // Register before checking again: the callback may have pushed data
         // after our first pop but before it saw a registered waker.
         {
-            let mut state = self.waker_state.lock().unwrap();
+            // Clone the Arc so the guard does not borrow `self` while the
+            // consumer needs mutable access for the second pop.
+            let waker_state = self.waker_state.clone();
+            let mut state = waker_state.lock().unwrap();
             state.has_data = false;
             state.waker = Some(cx.waker().clone());
             if let Some(sample) = self.consumer.try_pop() {
