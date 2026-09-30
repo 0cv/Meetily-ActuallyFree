@@ -201,6 +201,10 @@ provenance and public launch checks. Stable publication still requires the
 physical checklist. Documentation/publishing-only commits may follow a candidate;
 application, dependency, and build-workflow changes require a new candidate.
 See `.github/workflows/MACOS_RELEASE.md` for dispatch and remaining limitations.
+The `v0.2.19-macos` preview packages the #42 callback change; build
+`36790029640` and published-asset smoke test `36790877680` passed. It remains
+unqualified for physical microphone capture and the reporter's device. The
+Windows Latest release remains v0.2.18.
 The Windows VirusTotal submission normalizes CRLF checksum manifests before
 filename matching and Linux checksum verification.
 
