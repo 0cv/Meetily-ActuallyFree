@@ -1,3 +1,7 @@
+#[cfg(target_os = "macos")]
+use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(target_os = "macos")]
+use std::sync::mpsc::{sync_channel, SyncSender, TrySendError};
 use std::sync::Arc;
 use anyhow::Result;
 use cpal::traits::{DeviceTrait, StreamTrait};
@@ -19,6 +23,14 @@ use super::recording_state::AudioError;
 pub enum StreamBackend {
     /// CPAL-based stream (ScreenCaptureKit or default)
     Cpal(Stream),
+    /// CPAL mic callback only enqueues samples; native DSP and pipeline delivery
+    /// run on a dedicated worker, which is drained before stopping the pipeline.
+    #[cfg(target_os = "macos")]
+    CpalMicrophone {
+        stream: Stream,
+        sender: SyncSender<MicFrame>,
+        worker: std::thread::JoinHandle<()>,
+    },
     /// Core Audio direct implementation (macOS only)
     #[cfg(target_os = "macos")]
     CoreAudio {
@@ -31,6 +43,15 @@ pub enum StreamBackend {
         thread_handles: Vec<std::thread::JoinHandle<()>>,
     },
 }
+
+#[cfg(target_os = "macos")]
+pub struct MicFrame {
+    samples: Vec<f32>,
+    timestamp: f64,
+}
+
+#[cfg(target_os = "macos")]
+const MIC_QUEUE_BLOCKS: usize = 256;
 
 // SAFETY: While Stream doesn't implement Send, we ensure it's only accessed
 // from the same thread context by using spawn_blocking for operations that cross thread boundaries
@@ -131,17 +152,78 @@ impl AudioStream {
             state.clone(),
             config.sample_rate().0,
             config.channels(),
-            device_type,
+            device_type.clone(),
             recording_sender,
         );
 
+        #[cfg(target_os = "macos")]
+        let mic_worker = if device_type == DeviceType::Microphone {
+            let (sender, receiver) = sync_channel::<MicFrame>(MIC_QUEUE_BLOCKS);
+            let overflowed = Arc::new(AtomicBool::new(false));
+            let worker_overflowed = overflowed.clone();
+            let worker_capture = capture.clone();
+            let worker_state = state.clone();
+            let worker = std::thread::Builder::new()
+                .name("mic-audio-processing".into())
+                .spawn(move || {
+                    let mut reported_overflow = false;
+                    while let Ok(frame) = receiver.recv() {
+                        worker_capture.process_audio_data_at(&frame.samples, frame.timestamp);
+                        if worker_overflowed.swap(false, Ordering::Relaxed) && !reported_overflow {
+                            warn!("Mac microphone processing queue overflowed; some audio was lost");
+                            worker_state.report_error(AudioError::BufferOverflow);
+                            reported_overflow = true;
+                        }
+                    }
+                })?;
+            Some((sender, worker, overflowed))
+        } else {
+            None
+        };
+
+        // CPAL calls this on the device thread. The macOS mic callback only
+        // enqueues blocks; stateful DSP and pipeline delivery belong to a worker.
+        #[cfg(target_os = "macos")]
+        let on_samples: Arc<dyn Fn(&[f32]) + Send + Sync> = if let Some((sender, _, overflowed)) = &mic_worker {
+            let sender = sender.clone();
+            let overflowed = overflowed.clone();
+            let state = state.clone();
+            Arc::new(move |samples| {
+                if !state.is_recording() {
+                    return;
+                }
+                let timestamp = state.get_active_recording_duration().unwrap_or(0.0);
+                if let Err(TrySendError::Full(_)) = sender.try_send(MicFrame {
+                    samples: samples.to_vec(),
+                    timestamp,
+                }) {
+                    overflowed.store(true, Ordering::Relaxed);
+                }
+            })
+        } else {
+            let capture = capture.clone();
+            Arc::new(move |samples| capture.process_audio_data(samples))
+        };
+        #[cfg(not(target_os = "macos"))]
+        let on_samples: Arc<dyn Fn(&[f32]) + Send + Sync> = {
+            let capture = capture.clone();
+            Arc::new(move |samples| capture.process_audio_data(samples))
+        };
+
         // Build the appropriate stream based on sample format
-        let stream = Self::build_stream(&cpal_device, &config, capture.clone())?;
+        let stream = Self::build_stream(&cpal_device, &config, capture.clone(), on_samples)?;
 
         // Start the stream
         stream.play()?;
         info!("CPAL stream started for device: {}", device.name);
 
+        #[cfg(target_os = "macos")]
+        if let Some((sender, worker, _)) = mic_worker {
+            return Ok(Self {
+                device,
+                backend: StreamBackend::CpalMicrophone { stream, sender, worker },
+            });
+        }
         Ok(Self {
             device,
             backend: StreamBackend::Cpal(stream),
@@ -374,6 +456,7 @@ impl AudioStream {
         device: &Device,
         config: &SupportedStreamConfig,
         capture: AudioCapture,
+        on_samples: Arc<dyn Fn(&[f32]) + Send + Sync>,
     ) -> Result<Stream> {
         let config_copy = config.clone();
 
@@ -383,7 +466,7 @@ impl AudioStream {
                 device.build_input_stream(
                     &config_copy.into(),
                     move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                        capture.process_audio_data(data);
+                        on_samples(data);
                     },
                     move |err| {
                         capture_clone.handle_stream_error(err);
@@ -399,7 +482,7 @@ impl AudioStream {
                         let f32_data: Vec<f32> = data.iter()
                             .map(|&sample| sample as f32 / i16::MAX as f32)
                             .collect();
-                        capture.process_audio_data(&f32_data);
+                        on_samples(&f32_data);
                     },
                     move |err| {
                         capture_clone.handle_stream_error(err);
@@ -415,7 +498,7 @@ impl AudioStream {
                         let f32_data: Vec<f32> = data.iter()
                             .map(|&sample| sample as f32 / i32::MAX as f32)
                             .collect();
-                        capture.process_audio_data(&f32_data);
+                        on_samples(&f32_data);
                     },
                     move |err| {
                         capture_clone.handle_stream_error(err);
@@ -431,7 +514,7 @@ impl AudioStream {
                         let f32_data: Vec<f32> = data.iter()
                             .map(|&sample| sample as f32 / i8::MAX as f32)
                             .collect();
-                        capture.process_audio_data(&f32_data);
+                        on_samples(&f32_data);
                     },
                     move |err| {
                         capture_clone.handle_stream_error(err);
@@ -466,6 +549,19 @@ impl AudioStream {
                 }
                 info!("Stream paused, now dropping to release callbacks");
                 drop(stream);
+            }
+            #[cfg(target_os = "macos")]
+            StreamBackend::CpalMicrophone { stream, sender, worker } => {
+                if let Err(error) = stream.pause() {
+                    warn!("Failed to pause microphone stream: {}", error);
+                }
+                drop(stream);
+                drop(sender);
+                // The receiver drains accepted blocks before the recording
+                // state and pipeline are stopped; otherwise the tail is lost.
+                worker
+                    .join()
+                    .map_err(|_| anyhow::anyhow!("Microphone processing worker panicked"))?;
             }
             #[cfg(target_os = "macos")]
             StreamBackend::CoreAudio { task } => {

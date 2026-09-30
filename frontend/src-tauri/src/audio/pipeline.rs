@@ -636,6 +636,17 @@ impl AudioCapture {
 
     /// Process audio data directly from callback
     pub fn process_audio_data(&self, data: &[f32]) {
+        self.process_audio_data_inner(data, None);
+    }
+
+    /// The mic worker must use callback time, not the time it drains a queued block.
+    /// Otherwise a busy transcriber shifts saved audio and can make continuous
+    /// microphone samples look like a late/reconnected source in the mixer.
+    pub fn process_audio_data_at(&self, data: &[f32], timestamp: f64) {
+        self.process_audio_data_inner(data, Some(timestamp));
+    }
+
+    fn process_audio_data_inner(&self, data: &[f32], callback_timestamp: Option<f64>) {
         // Check if still recording
         if !self.state.is_recording() {
             return;
@@ -877,12 +888,12 @@ impl AudioCapture {
         //     }
         // }
 
-        // Use global recording timestamp for proper synchronization
-        let timestamp = self.state.get_active_recording_duration().unwrap_or(0.0);
-
         if self.state.is_audio_source_muted(&self.device_type) {
             mono_data.fill(0.0);
         }
+
+        let timestamp = callback_timestamp
+            .unwrap_or_else(|| self.state.get_active_recording_duration().unwrap_or(0.0));
 
         // RAW AUDIO CHUNK: No gain applied - will be mixed and gained downstream
         // Use 48kHz if we resampled, otherwise use original rate
@@ -1824,6 +1835,21 @@ mod ring_buffer_tests {
         assert_eq!(chunk.data.len(), 1_024);
         assert!(chunk.data.iter().all(|sample| *sample == 0.0));
         assert_eq!(chunk.device_type, DeviceType::Microphone);
+    }
+
+    #[test]
+    fn delayed_capture_processing_preserves_callback_timestamp() {
+        let state = RecordingState::new();
+        state.start_recording().unwrap();
+        let (sender, mut receiver) = mpsc::unbounded_channel();
+        state.set_audio_sender(sender);
+        let device = Arc::new(AudioDevice::new(
+            "Test microphone".to_string(),
+            AudioDeviceType::Input,
+        ));
+        let capture = AudioCapture::new(device, state, 48_000, 1, DeviceType::Microphone, None);
+        capture.process_audio_data_at(&vec![0.1; 480], 12.5);
+        assert_eq!(receiver.try_recv().unwrap().timestamp, 12.5);
     }
 
     #[test]

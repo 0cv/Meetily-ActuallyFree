@@ -22,6 +22,21 @@ Speech-start pre-roll, live system speech sensitivity, and real-call replay
 qualification are documented in [LIVE_SPEECH_RETENTION.md](LIVE_SPEECH_RETENTION.md).
 Sample continuity across jittered capture callbacks and issue #40 qualification
 are documented in [AUDIO_CALLBACK_CONTINUITY.md](AUDIO_CALLBACK_CONTINUITY.md).
+That note also covers the unqualified macOS microphone callback isolation for
+issue #42: CPAL mic blocks move through a bounded native worker, with capture
+timestamps and stop/drain ordering owned by `audio/stream.rs`,
+`audio/pipeline.rs`, and `audio/recording_manager.rs`.
+The separate macOS system tap in `audio/capture/core_audio.rs` now survives
+ring-buffer pressure and closes its async wake registration race; neither path
+has a physical macOS reproduction/qualification yet.
+
+Meeting details layout lives in `frontend/src/app/meeting-details/page-content.tsx`:
+the transcript/notes separator stores its width locally and supports pointer and
+keyboard resizing. Pane stacking now responds to the actual content width (which
+the sidebar can reduce), not just viewport width; this retains the minimum
+transcript and notes widths from issue #25. The existing wrapped toolbars and
+Export access remain in `components/meeting/MeetingHeader.tsx` and
+`MeetingDocument.tsx`. Narrow-content browser checks are still required.
 
 ```text
 recording_commands.rs: start command

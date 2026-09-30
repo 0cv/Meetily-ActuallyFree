@@ -1,5 +1,32 @@
 # Recording callback continuity — issue #40
 
+## macOS microphone callback — issue #42 (unqualified)
+
+The macOS microphone is a CPAL input stream, **not** the CoreAudio system-audio
+tap mentioned in the issue attachment. CPAL used to perform resampling,
+normalization, and pipeline delivery synchronously in the device callback.
+It now copies each microphone block and its recording-relative callback timestamp
+into a bounded 256-block queue. A dedicated native worker owns the existing
+stateful DSP and pipeline send. On stop, capture is paused and the worker drains
+accepted blocks before recording state and the pipeline are stopped. System
+audio and non-macOS CPAL paths are unchanged. Queue exhaustion drops blocks
+instead of blocking the device thread; the worker reports the first overflow
+and logs that audio was lost. The queue is bounded by blocks, not by bytes, so
+device buffer size also determines the maximum buffered time and memory.
+
+A synthetic regression has been added for deferred processing's callback
+timestamp, but native tests did not run locally: the Windows `cargo check`
+stops in the existing `whisper-rs` generated bindings before compiling this
+crate. The regression does not reproduce several-minute distortion or
+establish that this change fixes the reporter's device. Physical macOS mic/system capture
+with live inference, pause/stop, and saved-track playback is still required.
+The attached CoreAudio `should_terminate`/`poll_next` hypothesis concerns the
+separate system-audio stream. That path now drops samples rather than permanently
+terminating after ten full callbacks, and rechecks the ring buffer after waker
+registration so a push during registration cannot strand the consumer. This
+prevents a system-tap stall from stopping the entire meeting, but is **not** a
+verified explanation for distortion on the microphone track.
+
 ## Report and reproduction
 
 [@fernandog's report](https://github.com/TylerBuza/Meetily-ActuallyFree/issues/40)
