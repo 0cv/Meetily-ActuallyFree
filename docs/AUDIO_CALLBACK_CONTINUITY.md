@@ -52,6 +52,12 @@ passed on Windows; the pre-fix new replay failed on system sample loss. The full
 Windows native CPU suite passed 367 tests with nine opt-in model/audio-dependent
 tests ignored. No real speech-model or physical microphone test ran.
 
+Apple Silicon candidate `36901769206` at `854771d` also passed: six capture-worker
+tests, all 21 pipeline tests, bundle/dependency/signature checks and repeated app
+launch. Frontend CI `36901770954` passed. The candidate retains internal version
+0.2.20 but is not the immutable `v0.2.20-macos` release asset; no replacement or
+new release was published for this follow-up.
+
 Limits: delivery-only timestamps remain a heuristic; the mixer cannot recover
 audio the driver never delivered or replace silence already emitted after the
 bounded wait. Adaptive resampling for indefinite independent-device clock drift
