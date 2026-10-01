@@ -65,6 +65,71 @@ is not implemented. Physical sustained recording under inference load, Windows
 installer qualification, and reporter-device confirmation are still required.
 This follow-up is source work, not part of a published Windows or Mac installer.
 
+### Opt-in Windows hardware capture check
+
+`audio/hardware_qualification.rs` is an ignored native test included under
+`audio::pipeline::hardware_qualification`. It opens explicitly named Windows
+CPAL microphone/output endpoints, plays a quiet generated tone, and runs the
+production mic worker/DSP and dual-VAD pipeline. A test-only input tap and
+retained-track sink compare counts and ordered nonzero-sample digests without
+writing audio, transcripts, meetings, or preferences. The ASR queue is drained
+without invoking a transcription model. It also measures native stream Stop
+and complete pipeline shutdown.
+
+Run from `frontend/src-tauri` with the normal Windows Rust/native prerequisites:
+
+```powershell
+$env:MEETILY_HW_MIC = 'Exact microphone endpoint name'
+$env:MEETILY_HW_OUTPUT = 'Exact output endpoint name'
+$env:MEETILY_HW_SECONDS = '660'
+cargo test --release -p meetily --lib physical_windows_capture_continuity --no-default-features -- --ignored --nocapture --test-threads=1
+```
+
+The test accepts 3–900 seconds and currently requires an f32 output endpoint.
+It checks that each source delivers at least 95% of its nominal sample count,
+that no captured nonzero sample changes or disappears before retained-track
+output, that output lengths agree, and that native stream shutdown stays below
+three seconds. It reports capture timestamp gaps, sample counts, peaks, VAD turn
+counts, and shutdown times. These are native capture/mixer checks, not a test of
+FFmpeg file saving, installed WebView Stop, or live ASR under inference load.
+A silent/muted microphone can pass the transport check but cannot qualify
+microphone speech retention; check the reported microphone peak/nonzero count.
+
+The initial three-second G733 probe passed on Windows with 44.1 → 48 kHz system
+resampling and 47 ms native Stop (50 ms complete pipeline shutdown). The mic
+provided only zero samples, so that probe established no speech retention.
+
+The first 660-second hardware soak failed: after a roughly one-second capture
+interruption, a timeline reset discarded 958 nonzero system samples. Its original
+Stop timer also took 14.8 seconds (including test-tone teardown). This blocked
+release and led to another correction:
+
+- The pipeline now preflights timeline resets and saves both pending source tails
+  through the normal retained-track/VAD path before changing the mixer origin.
+  A production-pipeline regression reproduced the old loss and now passes.
+- Windows system capture, as well as mic capture, now hands DSP to its own
+  bounded worker. An accepting gate closes before Stop so callbacks stop adding
+  work while WASAPI tears down.
+- Windows native stream disposal runs on an owned cleanup thread with a
+  three-second caller deadline per stream. Native cleanup can outlive that wait;
+  further CPAL/per-app capture is blocked until cleanup finishes. Completion,
+  timeout, panic, and restart-guard release have synthetic regressions. Worker
+  drain retains its separate two-second limit; timeout/failure is returned to
+  the recording manager and logged while its final-save path continues.
+- The hardware test now times mic Stop, system Stop, and fixture-tone disposal
+  separately.
+
+The corrected 660-second release-mode G733 soak **passed**: all 31,680,015
+nonzero system samples survived the production pipeline in order with an equal
+digest. Mic capture delivered 31,687,200 zero samples; this was explicitly a
+capture-only test, not microphone speech qualification. Maximum observed capture
+gaps were 8.53 ms (mic) and 11.37 ms (system). Native Stop took 35 ms (mic 20 ms,
+system 15 ms); fixture tone disposal took 46 ms and complete teardown 94 ms.
+No audio was saved or uploaded and ASR was not invoked. The full native suite
+passed 370 tests, with ten opt-in tests ignored in that ordinary invocation; this
+hardware test was then run explicitly. The new total includes eight worker and
+22 pipeline regressions.
+
 ## macOS microphone callback — issue #42 (unqualified)
 
 ### Follow-up after v0.2.19-macos (2026-10-01)

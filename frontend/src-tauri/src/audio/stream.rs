@@ -16,6 +16,13 @@ use super::pipeline::AudioCapture;
 use super::recording_state::{RecordingState, DeviceType};
 use super::capture::{AudioCaptureBackend, get_current_backend};
 
+// A timed-out WASAPI teardown retains native ownership on its cleanup thread.
+// Block new CPAL capture until it finishes rather than accumulating orphaned
+// streams each time the user retries Start.
+#[cfg(target_os = "windows")]
+static NATIVE_CLEANUPS: once_cell::sync::Lazy<super::capture_worker::NativeCleanup> =
+    once_cell::sync::Lazy::new(super::capture_worker::NativeCleanup::default);
+
 #[cfg(target_os = "macos")]
 use super::capture::CoreAudioCapture;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -25,12 +32,13 @@ use super::recording_state::AudioError;
 pub enum StreamBackend {
     /// CPAL-based stream (ScreenCaptureKit or default)
     Cpal(Stream),
-    /// CPAL mic callback only enqueues samples; native DSP and pipeline delivery
+    /// CPAL callback only enqueues samples; native DSP and pipeline delivery
     /// run on a dedicated worker, which is drained before stopping the pipeline.
     #[cfg(any(target_os = "macos", target_os = "windows"))]
-    CpalMicrophone {
+    CpalWorker {
         stream: Stream,
-        worker: CaptureWorker<MicFrame>,
+        worker: CaptureWorker<CaptureFrame>,
+        accepting: Arc<AtomicBool>,
     },
     /// Core Audio direct implementation (macOS only)
     #[cfg(target_os = "macos")]
@@ -46,14 +54,14 @@ pub enum StreamBackend {
 }
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
-pub struct MicFrame {
+pub struct CaptureFrame {
     samples: Vec<f32>,
     timestamp: f64,
     muted: bool,
 }
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
-const MIC_QUEUE_BLOCKS: usize = 256;
+const CAPTURE_QUEUE_BLOCKS: usize = 256;
 
 // SAFETY: While Stream doesn't implement Send, we ensure it's only accessed
 // from the same thread context by using spawn_blocking for operations that cross thread boundaries
@@ -142,6 +150,10 @@ impl AudioStream {
     ) -> Result<Self> {
         info!("Creating CPAL stream for device: {}", device.name);
 
+        #[cfg(target_os = "windows")]
+        anyhow::ensure!(!NATIVE_CLEANUPS.is_pending(),
+            "Previous Windows audio cleanup is still running; retry recording shortly");
+
         // Get the underlying cpal device and config
         let (cpal_device, config) = get_device_and_config(&device).await?;
 
@@ -159,37 +171,39 @@ impl AudioStream {
         );
 
         #[cfg(any(target_os = "macos", target_os = "windows"))]
-        let mic_worker = if device_type == DeviceType::Microphone {
+        let capture_worker = if cfg!(target_os = "windows") || device_type == DeviceType::Microphone {
             let overflowed = Arc::new(AtomicBool::new(false));
             let worker_overflowed = overflowed.clone();
             let worker_capture = capture.clone();
             let worker_state = state.clone();
             let mut reported_overflow = false;
-            let worker = CaptureWorker::spawn(MIC_QUEUE_BLOCKS, move |frame: MicFrame| {
+            let source = device_type.clone();
+            let worker = CaptureWorker::spawn(CAPTURE_QUEUE_BLOCKS, move |frame: CaptureFrame| {
                 worker_capture.process_audio_data_at(&frame.samples, frame.timestamp, frame.muted);
                 if worker_overflowed.swap(false, Ordering::Relaxed) && !reported_overflow {
-                    warn!("Microphone processing queue overflowed; some audio was lost");
+                    warn!("{:?} processing queue overflowed; some audio was lost", source);
                     worker_state.report_error(AudioError::BufferOverflow);
                     reported_overflow = true;
                 }
             })?;
-            Some((worker, overflowed))
+            Some((worker, overflowed, Arc::new(AtomicBool::new(true))))
         } else {
             None
         };
 
-        // The Windows/macOS mic callback only enqueues blocks. Stateful DSP and
+        // Windows CPAL and macOS mic callbacks only enqueue blocks. Stateful DSP and
         // pipeline delivery belong to the worker. CPAL timestamps describe the
         // first captured sample, whereas the mixer consumes block-end seconds.
         #[cfg(any(target_os = "macos", target_os = "windows"))]
-        let on_samples: Arc<dyn Fn(&[f32], &cpal::InputCallbackInfo) + Send + Sync> = if let Some((worker, overflowed)) = &mic_worker {
+        let on_samples: Arc<dyn Fn(&[f32], &cpal::InputCallbackInfo) + Send + Sync> = if let Some((worker, overflowed, accepting)) = &capture_worker {
             let sender = worker.sender();
             let overflowed = overflowed.clone();
             let state = state.clone();
+            let accepting = accepting.clone();
             let sample_rate = config.sample_rate().0;
             let channels = config.channels();
             Arc::new(move |samples, info| {
-                if !state.is_recording() || state.is_paused() {
+                if !accepting.load(Ordering::Acquire) || !state.is_recording() || state.is_paused() {
                     return;
                 }
                 let times = info.timestamp();
@@ -198,10 +212,10 @@ impl AudioStream {
                     samples.len(), channels, sample_rate,
                     times.callback.duration_since(&times.capture),
                 );
-                if let Err(TrySendError::Full(_)) = sender.try_send(MicFrame {
+                if let Err(TrySendError::Full(_)) = sender.try_send(CaptureFrame {
                     samples: samples.to_vec(),
                     timestamp,
-                    muted: state.is_audio_source_muted(&DeviceType::Microphone),
+                    muted: state.is_audio_source_muted(&device_type),
                 }) {
                     overflowed.store(true, Ordering::Relaxed);
                 }
@@ -235,10 +249,10 @@ impl AudioStream {
         info!("CPAL stream started for device: {}", device.name);
 
         #[cfg(any(target_os = "macos", target_os = "windows"))]
-        if let Some((worker, _)) = mic_worker {
+        if let Some((worker, _, accepting)) = capture_worker {
             return Ok(Self {
                 device,
-                backend: StreamBackend::CpalMicrophone { stream, worker },
+                backend: StreamBackend::CpalWorker { stream, worker, accepting },
             });
         }
         Ok(Self {
@@ -395,6 +409,10 @@ impl AudioStream {
         recording_sender: Option<mpsc::UnboundedSender<super::recording_state::AudioChunk>>,
     ) -> Result<Self> {
         info!("🎯 Creating per-app audio stream for {} target(s)", targets.len());
+
+        #[cfg(target_os = "windows")]
+        anyhow::ensure!(!NATIVE_CLEANUPS.is_pending(),
+            "Previous Windows audio cleanup is still running; retry recording shortly");
 
         #[cfg(target_os = "macos")]
         if targets.len() > 1 {
@@ -554,6 +572,23 @@ impl AudioStream {
 
     /// Stop the stream
     pub fn stop(self) -> Result<()> {
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        if let StreamBackend::CpalWorker { accepting, .. } = &self.backend {
+            accepting.store(false, Ordering::Release);
+        }
+        #[cfg(target_os = "windows")]
+        {
+            // WASAPI's public Stream drop joins its native thread without a
+            // timeout. Own that drop off the caller, with explicit completion
+            // and a guard that keeps new capture blocked while cleanup lives.
+            return NATIVE_CLEANUPS.run(move || self.stop_inner().map_err(|error| error.to_string()),
+                std::time::Duration::from_secs(3)).map_err(anyhow::Error::msg);
+        }
+        #[cfg(not(target_os = "windows"))]
+        self.stop_inner()
+    }
+
+    fn stop_inner(self) -> Result<()> {
         info!("Stopping audio stream for device: {}", self.device.name);
 
         match self.backend {
@@ -568,9 +603,9 @@ impl AudioStream {
                 drop(stream);
             }
             #[cfg(any(target_os = "macos", target_os = "windows"))]
-            StreamBackend::CpalMicrophone { stream, mut worker } => {
+            StreamBackend::CpalWorker { stream, mut worker, .. } => {
                 if let Err(error) = stream.pause() {
-                    warn!("Failed to pause microphone stream: {}", error);
+                    warn!("Failed to pause capture stream: {}", error);
                 }
                 drop(stream);
                 // CPAL's macOS disconnect listener can retain the callback and
@@ -578,7 +613,7 @@ impl AudioStream {
                 // waiting for channel disconnection, with a bounded DSP wait.
                 worker
                     .stop(std::time::Duration::from_secs(2))
-                    .map_err(|error| anyhow::anyhow!("Microphone worker shutdown failed ({:?}); queued audio may be incomplete", error))?;
+                    .map_err(|error| anyhow::anyhow!("Capture worker shutdown failed ({:?}); queued audio may be incomplete", error))?;
             }
             #[cfg(target_os = "macos")]
             StreamBackend::CoreAudio { task } => {

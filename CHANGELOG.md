@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v0.2.20 — Windows recording reliability and setup improvements
+
+See [release notes](docs/RELEASE_V0220.md) for the complete update and test limits.
+
+- Correct shared-mixer premature silence padding and queued-sample loss (#42).
+- Move Windows microphone DSP onto the bounded capture worker; preserve driver
+  capture timestamps, queued mute state, and explicit Stop/drain ownership.
+- Hide FFmpeg's Windows console during waveform extraction (#43).
+- Stack meeting panes by available content width and support keyboard resizing (#25).
+- Bundle Inter locally so production builds do not fetch Google fonts.
 - Show a recording disclosure and consent notice after setup on each launch,
   with an optional permanent acknowledgement to stop showing it.
 - Show optional Whisper and Nemotron downloads in the top-right background

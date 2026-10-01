@@ -23,15 +23,26 @@ qualification are documented in [LIVE_SPEECH_RETENTION.md](LIVE_SPEECH_RETENTION
 Sample continuity across jittered capture callbacks and issue #40 qualification
 are documented in [AUDIO_CALLBACK_CONTINUITY.md](AUDIO_CALLBACK_CONTINUITY.md).
 That note also covers the Windows/shared-mixer and macOS follow-ups for #42:
-Windows and macOS CPAL mic blocks move through a bounded native worker, with
+Windows CPAL mic/system blocks and macOS CPAL mic blocks use bounded workers, with
 capture timestamps, queued mute state, and stop/drain ordering owned by
 `audio/stream.rs`, `audio/pipeline.rs`, and `audio/recording_manager.rs`.
 CPAL capture age is converted to block-end recording seconds before processing.
 The shared mixer uses its full 400 ms missing-source allowance and drains input
 before enforcing further waiting; it no longer pops queued samples off the front.
 Per-instance local logs count inserted silence and discarded late samples.
-Twenty-one pipeline regressions passed on Windows, including ten-minute dual
+Timeline resets save both pending source tails before replacing the mixer origin.
+Windows Stop gates new callbacks and bounds native cleanup to three seconds per
+stream; new capture is blocked while timed-out cleanup still owns a native stream.
+Twenty-two pipeline regressions passed on Windows, including ten-minute dual
 source skew/stall replays, bounded missing-source output, and queued mute state.
+The ignored `audio::pipeline::hardware_qualification` test opens explicitly named
+Windows endpoints and exercises the production mic worker, dual VAD, mixer, and
+native Stop without saving audio. See the continuity note for its opt-in command,
+results, and limitations (especially silent microphones and omitted ASR).
+The corrected 11-minute G733 capture-only soak passed with 35 ms native Stop and
+all nonzero system samples preserved. The microphone supplied silence; speech
+retention remains unqualified. The native suite passed 370 tests (ten opt-in tests
+ignored normally), including 22 pipeline and eight worker regressions.
 Published previews predate these corrections; see the linked continuity note
 for verification and limits.
 The #42 follow-up uses `audio/capture_worker.rs` for explicit close/drain and a

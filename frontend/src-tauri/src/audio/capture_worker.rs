@@ -2,13 +2,49 @@
 //! Some native backends retain callback closures after their public stream drops.
 //! Waiting for sender disconnection would therefore make Stop wait forever.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 const WAKE_INTERVAL: Duration = Duration::from_millis(20);
+
+/// Own an uninterruptible native teardown after a bounded caller wait. Callers
+/// reject new capture while pending, so repeated retries cannot leak streams.
+#[derive(Default)]
+pub struct NativeCleanup {
+    active: Arc<AtomicUsize>,
+}
+
+impl NativeCleanup {
+    pub fn is_pending(&self) -> bool {
+        self.active.load(Ordering::Acquire) != 0
+    }
+
+    pub fn run(&self, cleanup: impl FnOnce() -> Result<(), String> + Send + 'static, timeout: Duration) -> Result<(), String> {
+        let (completed, wait) = mpsc::sync_channel(1);
+        let active = self.active.clone();
+        active.fetch_add(1, Ordering::AcqRel);
+        let thread = thread::Builder::new().name("audio-native-cleanup".into()).spawn(move || {
+            struct Guard(Arc<AtomicUsize>);
+            impl Drop for Guard {
+                fn drop(&mut self) { self.0.fetch_sub(1, Ordering::AcqRel); }
+            }
+            let guard = Guard(active);
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(cleanup))
+                .unwrap_or_else(|_| Err("Native audio cleanup panicked".into()));
+            drop(guard);
+            let _ = completed.send(result);
+        });
+        if let Err(error) = thread {
+            self.active.fetch_sub(1, Ordering::AcqRel);
+            return Err(error.to_string());
+        }
+        wait.recv_timeout(timeout)
+            .map_err(|_| "Audio shutdown timed out; native cleanup is still running".to_string())?
+    }
+}
 
 /// Convert CPAL's first-sample capture age into a recording-relative block end.
 /// WASAPI packets can wait in the driver before delivery: using callback time
@@ -51,7 +87,7 @@ impl<T: Send + 'static> CaptureWorker<T> {
         let worker_cancel = cancel.clone();
         let (done_sender, done) = mpsc::sync_channel(1);
         let thread = thread::Builder::new()
-            .name("mic-audio-processing".into())
+            .name("capture-audio-processing".into())
             .spawn(move || {
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     loop {
@@ -130,6 +166,31 @@ mod tests {
     use super::*;
     use std::sync::{Barrier, Mutex};
     use std::time::Instant;
+
+    #[test]
+    fn native_cleanup_timeout_retains_ownership_and_blocks_restart_until_done() {
+        let cleanup = NativeCleanup::default();
+        let (release, wait) = mpsc::channel();
+        let started = Instant::now();
+        let result = cleanup.run(move || { wait.recv().unwrap(); Ok(()) }, Duration::from_millis(20));
+        assert!(result.unwrap_err().contains("timed out"));
+        assert!(started.elapsed() < Duration::from_secs(1));
+        assert!(cleanup.is_pending());
+        release.send(()).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(1);
+        while cleanup.is_pending() && Instant::now() < deadline { thread::yield_now(); }
+        assert!(!cleanup.is_pending());
+        assert_eq!(cleanup.run(|| Ok(()), Duration::from_secs(1)), Ok(()));
+    }
+
+    #[test]
+    fn native_cleanup_failure_and_panic_release_restart_guard() {
+        let cleanup = NativeCleanup::default();
+        assert_eq!(cleanup.run(|| Err("driver failure".into()), Duration::from_secs(1)), Err("driver failure".into()));
+        assert!(!cleanup.is_pending());
+        assert!(cleanup.run(|| panic!("native teardown failure"), Duration::from_secs(1)).unwrap_err().contains("panicked"));
+        assert!(!cleanup.is_pending());
+    }
 
     #[test]
     fn driver_backlog_keeps_capture_time_instead_of_delivery_time() {
