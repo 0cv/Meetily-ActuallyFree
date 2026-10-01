@@ -35,6 +35,13 @@ including jitter/drift preservation and both new recovery cases. No private
 recording or real-microphone capture was used. This follow-up is not part of the
 published v0.2.19 preview.
 
+Apple Silicon candidate run `36872151061` at `8bf63ec` subsequently passed the
+five capture-worker tests, all 17 pipeline tests, native build, bundle checks,
+and repeated app launch. Frontend CI `36872130895` also passed. The artifact is
+a test build with internal version 0.2.19, **not** the DMG published under
+`v0.2.19-macos`; it does not change that immutable release. These are synthetic
+regressions and CI launch checks, not physical mic capture or ASR accuracy tests.
+
 There is also a source-clock recovery bug: after a short loss below the 100 ms
 callback-gap threshold, the mixer may already have emitted silence past the
 source's sample counter. Continuous resumed callbacks can then be trimmed
