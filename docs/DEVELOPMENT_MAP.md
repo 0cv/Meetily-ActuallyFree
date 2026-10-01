@@ -26,6 +26,15 @@ That note also covers the unqualified macOS microphone callback isolation for
 issue #42: CPAL mic blocks move through a bounded native worker, with capture
 timestamps and stop/drain ordering owned by `audio/stream.rs`,
 `audio/pipeline.rs`, and `audio/recording_manager.rs`.
+The #42 follow-up uses `audio/capture_worker.rs` for explicit close/drain and a
+bounded wait independent of retained native callbacks. Its five std-only
+regressions passed on synthetic inputs; physical Mac Stop, missing microphone
+audio, and live-text gaps remain unqualified (see the linked continuity note).
+`AudioMixerRingBuffer` also recovers a source clock left behind emitted silence
+or a full-window callback loss, but only once fresh capture timestamps reach the
+un-emitted timeline. Old queued frames still cannot overwrite saved silence.
+All 17 native pipeline regressions passed on Windows. Mac candidate builds run
+worker and source-continuity regressions before upload.
 The separate macOS system tap in `audio/capture/core_audio.rs` now survives
 ring-buffer pressure and closes its async wake registration race; neither path
 has a physical macOS reproduction/qualification yet.

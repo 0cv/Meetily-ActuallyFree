@@ -1,7 +1,9 @@
 #[cfg(target_os = "macos")]
 use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(target_os = "macos")]
-use std::sync::mpsc::{sync_channel, SyncSender, TrySendError};
+use std::sync::mpsc::TrySendError;
+#[cfg(target_os = "macos")]
+use super::capture_worker::CaptureWorker;
 use std::sync::Arc;
 use anyhow::Result;
 use cpal::traits::{DeviceTrait, StreamTrait};
@@ -28,8 +30,7 @@ pub enum StreamBackend {
     #[cfg(target_os = "macos")]
     CpalMicrophone {
         stream: Stream,
-        sender: SyncSender<MicFrame>,
-        worker: std::thread::JoinHandle<()>,
+        worker: CaptureWorker<MicFrame>,
     },
     /// Core Audio direct implementation (macOS only)
     #[cfg(target_os = "macos")]
@@ -158,25 +159,20 @@ impl AudioStream {
 
         #[cfg(target_os = "macos")]
         let mic_worker = if device_type == DeviceType::Microphone {
-            let (sender, receiver) = sync_channel::<MicFrame>(MIC_QUEUE_BLOCKS);
             let overflowed = Arc::new(AtomicBool::new(false));
             let worker_overflowed = overflowed.clone();
             let worker_capture = capture.clone();
             let worker_state = state.clone();
-            let worker = std::thread::Builder::new()
-                .name("mic-audio-processing".into())
-                .spawn(move || {
-                    let mut reported_overflow = false;
-                    while let Ok(frame) = receiver.recv() {
-                        worker_capture.process_audio_data_at(&frame.samples, frame.timestamp);
-                        if worker_overflowed.swap(false, Ordering::Relaxed) && !reported_overflow {
-                            warn!("Mac microphone processing queue overflowed; some audio was lost");
-                            worker_state.report_error(AudioError::BufferOverflow);
-                            reported_overflow = true;
-                        }
-                    }
-                })?;
-            Some((sender, worker, overflowed))
+            let mut reported_overflow = false;
+            let worker = CaptureWorker::spawn(MIC_QUEUE_BLOCKS, move |frame: MicFrame| {
+                worker_capture.process_audio_data_at(&frame.samples, frame.timestamp);
+                if worker_overflowed.swap(false, Ordering::Relaxed) && !reported_overflow {
+                    warn!("Mac microphone processing queue overflowed; some audio was lost");
+                    worker_state.report_error(AudioError::BufferOverflow);
+                    reported_overflow = true;
+                }
+            })?;
+            Some((worker, overflowed))
         } else {
             None
         };
@@ -184,8 +180,8 @@ impl AudioStream {
         // CPAL calls this on the device thread. The macOS mic callback only
         // enqueues blocks; stateful DSP and pipeline delivery belong to a worker.
         #[cfg(target_os = "macos")]
-        let on_samples: Arc<dyn Fn(&[f32]) + Send + Sync> = if let Some((sender, _, overflowed)) = &mic_worker {
-            let sender = sender.clone();
+        let on_samples: Arc<dyn Fn(&[f32]) + Send + Sync> = if let Some((worker, overflowed)) = &mic_worker {
+            let sender = worker.sender();
             let overflowed = overflowed.clone();
             let state = state.clone();
             Arc::new(move |samples| {
@@ -218,10 +214,10 @@ impl AudioStream {
         info!("CPAL stream started for device: {}", device.name);
 
         #[cfg(target_os = "macos")]
-        if let Some((sender, worker, _)) = mic_worker {
+        if let Some((worker, _)) = mic_worker {
             return Ok(Self {
                 device,
-                backend: StreamBackend::CpalMicrophone { stream, sender, worker },
+                backend: StreamBackend::CpalMicrophone { stream, worker },
             });
         }
         Ok(Self {
@@ -551,17 +547,17 @@ impl AudioStream {
                 drop(stream);
             }
             #[cfg(target_os = "macos")]
-            StreamBackend::CpalMicrophone { stream, sender, worker } => {
+            StreamBackend::CpalMicrophone { stream, mut worker } => {
                 if let Err(error) = stream.pause() {
                     warn!("Failed to pause microphone stream: {}", error);
                 }
                 drop(stream);
-                drop(sender);
-                // The receiver drains accepted blocks before the recording
-                // state and pipeline are stopped; otherwise the tail is lost.
+                // CPAL's macOS disconnect listener can retain the callback and
+                // its sender after drop. Explicitly close/drain instead of
+                // waiting for channel disconnection, with a bounded DSP wait.
                 worker
-                    .join()
-                    .map_err(|_| anyhow::anyhow!("Microphone processing worker panicked"))?;
+                    .stop(std::time::Duration::from_secs(2))
+                    .map_err(|error| anyhow::anyhow!("Microphone worker shutdown failed ({:?}); queued audio may be incomplete", error))?;
             }
             #[cfg(target_os = "macos")]
             StreamBackend::CoreAudio { task } => {

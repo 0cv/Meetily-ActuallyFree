@@ -2,6 +2,59 @@
 
 ## macOS microphone callback — issue #42 (unqualified)
 
+### Follow-up after v0.2.19-macos (2026-10-01)
+
+The reporter observed clear microphone checkpoint audio in one meeting, but
+Stop hung and several intervals of live transcription were missing. A later
+meeting only retained the first few seconds of microphone audio. This is not
+confirmation that #42 is fixed.
+
+The v0.2.19 worker waited for channel disconnection before exiting. CPAL 0.15.3's
+macOS `add_disconnect_listener` retains a cloned stream in a listener owned by
+that stream; dropping the public stream need not release its callback/sender.
+Consequently `worker.join()` could wait forever even with an empty audio queue.
+
+`audio/capture_worker.rs` now owns an explicit close signal. After capture is
+paused, it drains accepted blocks and exits when the queue is empty, independent
+of callback ownership. Receive waits check close every 20 ms. The caller allows
+two seconds for processing, reports timeout/panic through the existing Stop
+error/final-save path, and cancels pending work on timeout. A native DSP call
+already in progress cannot be forcibly interrupted; it may finish after timeout.
+Dropping the worker during stream creation/play failure also cancels its queue.
+The existing 256-block capacity, callback timestamps and source labels remain.
+
+Five tests compile the actual std-only worker module directly with `rustc --test`
+on Windows: retained callback plus ordered audio/timestamp drain, blocked DSP
+with bounded Stop, full-queue nonblocking send, DSP panic reporting, and early
+owner drop. All passed using synthetic blocks and synchronization gates; no
+recording, speech model, or Mac device was used. The Windows native audio suite
+also compiled with the existing LLVM 18 helper: 143 tests passed, three opt-in
+tests were ignored, and the new short-loss regression exposed an initial recovery
+alignment error. After correcting it, all 17 pipeline regressions passed,
+including jitter/drift preservation and both new recovery cases. No private
+recording or real-microphone capture was used. This follow-up is not part of the
+published v0.2.19 preview.
+
+There is also a source-clock recovery bug: after a short loss below the 100 ms
+callback-gap threshold, the mixer may already have emitted silence past the
+source's sample counter. Continuous resumed callbacks can then be trimmed
+forever as stale. An empty source which has missed a full mixing window (50 ms
+by default), or whose sample counter is behind emitted audio, now reanchors only
+when its callback timestamp reaches un-emitted audio. Old
+queued samples still get discarded; normal callback jitter still uses sample
+counting. Regressions cover an 80 ms mic loss with a continuing system track,
+and stale queued frames followed by a fresh frame. This affects source tracks,
+mixed playback, and the VAD input without changing transcript text or labels.
+
+The Mac build workflow now gates artifacts on the capture-worker and pipeline
+regressions. Reporter-device confirmation is still needed. Audio present in
+checkpoints but absent from text must also be investigated in VAD, ASR, or
+transcript delivery; neither correction proves that those particular gaps are
+resolved. The reporter's app log around onset/Stop, selected microphone and
+transcription model, and macOS version would distinguish the remaining paths.
+
+### v0.2.19 capture handoff
+
 The macOS microphone is a CPAL input stream, **not** the CoreAudio system-audio
 tap mentioned in the issue attachment. CPAL used to perform resampling,
 normalization, and pipeline delivery synchronously in the device callback.

@@ -1,0 +1,220 @@
+//! Bounded capture handoff with explicit shutdown, independent of callback lifetime.
+//! Some native backends retain callback closures after their public stream drops.
+//! Waiting for sender disconnection would therefore make Stop wait forever.
+
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender};
+use std::sync::Arc;
+use std::thread::{self, JoinHandle};
+use std::time::Duration;
+
+const WAKE_INTERVAL: Duration = Duration::from_millis(20);
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum StopError {
+    TimedOut,
+    Panicked,
+}
+
+pub struct CaptureWorker<T> {
+    sender: SyncSender<T>,
+    closing: Arc<AtomicBool>,
+    cancel: Arc<AtomicBool>,
+    done: Receiver<bool>,
+    thread: Option<JoinHandle<()>>,
+}
+
+impl<T: Send + 'static> CaptureWorker<T> {
+    pub fn spawn(
+        capacity: usize,
+        mut process: impl FnMut(T) + Send + 'static,
+    ) -> std::io::Result<Self> {
+        let (sender, receiver) = mpsc::sync_channel(capacity);
+        let closing = Arc::new(AtomicBool::new(false));
+        let cancel = Arc::new(AtomicBool::new(false));
+        let worker_closing = closing.clone();
+        let worker_cancel = cancel.clone();
+        let (done_sender, done) = mpsc::sync_channel(1);
+        let thread = thread::Builder::new()
+            .name("mic-audio-processing".into())
+            .spawn(move || {
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    loop {
+                        if worker_cancel.load(Ordering::Acquire) {
+                            break;
+                        }
+                        let frame = if worker_closing.load(Ordering::Acquire) {
+                            // Capture is already paused: drain only accepted blocks.
+                            // An empty queue means finished, even with a live sender.
+                            match receiver.try_recv() {
+                                Ok(frame) => frame,
+                                Err(_) => break,
+                            }
+                        } else {
+                            match receiver.recv_timeout(WAKE_INTERVAL) {
+                                Ok(frame) => frame,
+                                Err(RecvTimeoutError::Timeout) => continue,
+                                Err(RecvTimeoutError::Disconnected) => break,
+                            }
+                        };
+                        process(frame);
+                    }
+                }));
+                // Release callback/DSP ownership before acknowledging completion.
+                drop(receiver);
+                drop(process);
+                let _ = done_sender.send(result.is_ok());
+            })?;
+        Ok(Self {
+            sender,
+            closing,
+            cancel,
+            done,
+            thread: Some(thread),
+        })
+    }
+
+    pub fn sender(&self) -> SyncSender<T> {
+        self.sender.clone()
+    }
+
+    /// Call after pausing capture. A stalled DSP operation cannot be interrupted;
+    /// bound the caller's wait and abandon queued work if it exceeds the deadline.
+    /// The recording manager then closes pipeline input and reports the failure.
+    pub fn stop(&mut self, timeout: Duration) -> Result<(), StopError> {
+        self.closing.store(true, Ordering::Release);
+        let result = match self.done.recv_timeout(timeout) {
+            Ok(true) => Ok(()),
+            Ok(false) | Err(RecvTimeoutError::Disconnected) => Err(StopError::Panicked),
+            Err(RecvTimeoutError::Timeout) => {
+                self.cancel.store(true, Ordering::Release);
+                Err(StopError::TimedOut)
+            }
+        };
+        if let Some(thread) = self.thread.take() {
+            // Never turn a bounded completion wait back into an unbounded join.
+            if thread.is_finished() {
+                let _ = thread.join();
+            }
+        }
+        result
+    }
+}
+
+impl<T> Drop for CaptureWorker<T> {
+    fn drop(&mut self) {
+        // Covers device-build/play failure and other early exits too. The worker
+        // sees this on its next receive, even if the native callback is retained.
+        self.closing.store(true, Ordering::Release);
+        self.cancel.store(true, Ordering::Release);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{Barrier, Mutex};
+    use std::time::Instant;
+
+    #[test]
+    fn stop_drains_audio_and_timestamps_with_callback_sender_still_alive() {
+        let output = Arc::new(Mutex::new(Vec::new()));
+        let collected = output.clone();
+        let mut worker = CaptureWorker::spawn(8, move |frame: (Vec<f32>, f64)| {
+            collected.lock().unwrap().push(frame);
+        })
+        .unwrap();
+        let retained_callback_sender = worker.sender();
+        let frames = vec![(vec![0.25; 480], 0.01), (vec![-0.25; 480], 0.02)];
+        for frame in &frames {
+            retained_callback_sender.try_send(frame.clone()).unwrap();
+        }
+        assert_eq!(worker.stop(Duration::from_secs(1)), Ok(()));
+        assert_eq!(*output.lock().unwrap(), frames);
+        assert!(retained_callback_sender
+            .try_send((vec![1.0], 0.03))
+            .is_err());
+    }
+
+    #[test]
+    fn stalled_processing_has_bounded_stop_and_discards_pending_work() {
+        let entered = Arc::new(Barrier::new(2));
+        let gate = entered.clone();
+        let (release, wait) = mpsc::channel();
+        let (processed, results) = mpsc::channel();
+        let mut worker = CaptureWorker::spawn(2, move |frame: u32| {
+            gate.wait();
+            wait.recv().unwrap();
+            processed.send(frame).unwrap();
+        })
+        .unwrap();
+        let sender = worker.sender();
+        sender.try_send(1).unwrap();
+        entered.wait();
+        sender.try_send(2).unwrap();
+        let started = Instant::now();
+        assert_eq!(
+            worker.stop(Duration::from_millis(25)),
+            Err(StopError::TimedOut)
+        );
+        assert!(started.elapsed() < Duration::from_secs(1));
+        release.send(()).unwrap();
+        assert_eq!(results.recv_timeout(Duration::from_secs(1)).unwrap(), 1);
+        assert_eq!(
+            results.recv_timeout(Duration::from_secs(1)),
+            Err(RecvTimeoutError::Disconnected)
+        );
+    }
+
+    #[test]
+    fn full_queue_never_waits_for_processing() {
+        let (release, wait) = mpsc::channel();
+        let (entered, entry) = mpsc::channel();
+        let mut worker = CaptureWorker::spawn(1, move |_: u32| {
+            entered.send(()).unwrap();
+            wait.recv().unwrap();
+        })
+        .unwrap();
+        let sender = worker.sender();
+        sender.try_send(1).unwrap();
+        entry.recv_timeout(Duration::from_secs(1)).unwrap();
+        sender.try_send(2).unwrap();
+        assert!(matches!(
+            sender.try_send(3),
+            Err(mpsc::TrySendError::Full(3))
+        ));
+        release.send(()).unwrap();
+        release.send(()).unwrap();
+        assert_eq!(worker.stop(Duration::from_secs(1)), Ok(()));
+    }
+
+    #[test]
+    fn processing_panic_is_reported_instead_of_hanging_stop() {
+        let mut worker = CaptureWorker::spawn(1, |_: u32| panic!("synthetic DSP failure")).unwrap();
+        worker.sender().try_send(1).unwrap();
+        assert_eq!(
+            worker.stop(Duration::from_secs(1)),
+            Err(StopError::Panicked)
+        );
+    }
+
+    #[test]
+    fn early_owner_drop_releases_worker_despite_retained_callback() {
+        let (released, release_notice) = mpsc::channel();
+        struct OnDrop(mpsc::Sender<()>);
+        impl Drop for OnDrop {
+            fn drop(&mut self) {
+                let _ = self.0.send(());
+            }
+        }
+        let guard = OnDrop(released);
+        let worker = CaptureWorker::spawn(1, move |_: u32| {
+            let _ = &guard;
+        })
+        .unwrap();
+        let sender = worker.sender();
+        drop(worker);
+        release_notice.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert!(sender.try_send(1).is_err());
+    }
+}

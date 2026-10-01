@@ -179,6 +179,19 @@ impl AudioMixerRingBuffer {
             DeviceType::System => self.system_buffer.len(),
             DeviceType::Mixed => return None,
         };
+        // If a source missed a mixing deadline, silence has already consumed
+        // those positions. A short loss (<100 ms) otherwise leaves its sample
+        // clock behind forever: every new callback can be trimmed as stale.
+        // Recover only when capture time itself reaches the un-emitted timeline;
+        // genuinely old queued blocks must still be discarded, not moved forward.
+        let missed_window = clock.map(|clock| {
+            start - clock.last_callback_end_seconds > self.window_size_samples as f64 / self.sample_rate
+        }).unwrap_or(false);
+        if current_len == 0 && wall_start >= self.output_samples
+            && (chunk_start < self.output_samples || missed_window)
+        {
+            chunk_start = wall_start;
+        }
         let buffered_end = self.output_samples + current_len;
         let mut discontinuity_start = None;
         if chunk_start.saturating_sub(buffered_end) > self.max_buffer_size {
@@ -1704,6 +1717,45 @@ mod ring_buffer_tests {
         ring.add_samples(DeviceType::System, vec![2.0; 50], 0.349);
         while let Some((mic, _)) = ring.extract_window() { microphone.extend(mic); }
         assert_eq!(microphone, [vec![1.0; 50], vec![0.0; 200], vec![3.0; 50], vec![4.0; 50]].concat());
+    }
+
+    #[test]
+    fn short_mic_loss_does_not_silence_all_subsequent_callbacks() {
+        let mut ring = AudioMixerRingBuffer::new(1000, true, true);
+        let mut recorded = Vec::new();
+        // Lose eight 10 ms mic callbacks, below the 100 ms reanchor threshold.
+        // System audio keeps advancing, forcing a silence-padded mic window.
+        for block in 0..100 {
+            let end = (block + 1) as f64 * 0.01;
+            if !(5..13).contains(&block) {
+                ring.add_samples(DeviceType::Microphone, vec![1.0; 10], end);
+            }
+            ring.add_samples(DeviceType::System, vec![2.0; 10], end);
+            while let Some((mic, _)) = ring.extract_window() { recorded.extend(mic); }
+        }
+        while let Some((mic, _)) = ring.extract_remaining() { recorded.extend(mic); }
+        assert_eq!(recorded.len(), 1000);
+        assert_eq!(&recorded[..50], &[1.0; 50]);
+        assert_eq!(&recorded[50..130], &[0.0; 80]);
+        assert!(recorded[130..].iter().all(|sample| *sample == 1.0));
+    }
+
+    #[test]
+    fn late_queued_mic_blocks_are_not_shifted_into_current_audio() {
+        let mut ring = AudioMixerRingBuffer::new(1000, true, true);
+        ring.add_samples(DeviceType::Microphone, vec![1.0; 50], 0.05);
+        ring.add_samples(DeviceType::System, vec![2.0; 50], 0.05);
+        ring.extract_window().unwrap();
+        for end in [0.10, 0.15, 0.20] {
+            ring.add_samples(DeviceType::System, vec![2.0; 50], end);
+            while ring.extract_window().is_some() {}
+        }
+        // Audio from 50–100 ms arrives after silence has already been emitted.
+        ring.add_samples(DeviceType::Microphone, vec![3.0; 50], 0.10);
+        assert!(ring.mic_buffer.is_empty());
+        // Once the callback catches up, only the new interval is retained.
+        ring.add_samples(DeviceType::Microphone, vec![4.0; 50], 0.20);
+        assert_eq!(ring.mic_buffer.iter().copied().collect::<Vec<_>>(), vec![4.0; 50]);
     }
 
     #[test]
