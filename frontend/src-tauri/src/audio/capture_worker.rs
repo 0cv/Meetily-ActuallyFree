@@ -10,6 +10,21 @@ use std::time::Duration;
 
 const WAKE_INTERVAL: Duration = Duration::from_millis(20);
 
+/// Convert CPAL's first-sample capture age into a recording-relative block end.
+/// WASAPI packets can wait in the driver before delivery: using callback time
+/// would turn a scheduling stall into a fake gap and then discard the backlog.
+pub fn capture_end_seconds(
+    callback_seconds: f64,
+    samples: usize,
+    channels: u16,
+    sample_rate: u32,
+    capture_age: Option<Duration>,
+) -> f64 {
+    let Some(age) = capture_age else { return callback_seconds; };
+    let duration = samples as f64 / channels.max(1) as f64 / sample_rate.max(1) as f64;
+    (callback_seconds - age.as_secs_f64() + duration).clamp(0.0, callback_seconds.max(0.0))
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum StopError {
     TimedOut,
@@ -115,6 +130,18 @@ mod tests {
     use super::*;
     use std::sync::{Barrier, Mutex};
     use std::time::Instant;
+
+    #[test]
+    fn driver_backlog_keeps_capture_time_instead_of_delivery_time() {
+        // Two consecutive stereo 10 ms blocks arrive almost together after
+        // an 80 ms scheduling stall. Their actual sample ends remain 10 ms apart.
+        let first = capture_end_seconds(12.590, 960, 2, 48_000, Some(Duration::from_millis(90)));
+        let second = capture_end_seconds(12.591, 960, 2, 48_000, Some(Duration::from_millis(81)));
+        assert!((first - 12.510).abs() < 1e-9);
+        assert!((second - 12.520).abs() < 1e-9);
+        assert_eq!(capture_end_seconds(0.005, 480, 1, 48_000, Some(Duration::from_millis(80))), 0.0);
+        assert_eq!(capture_end_seconds(1.0, 480, 1, 48_000, None), 1.0);
+    }
 
     #[test]
     fn stop_drains_audio_and_timestamps_with_callback_sender_still_alive() {

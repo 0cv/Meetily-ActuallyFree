@@ -1,5 +1,64 @@
 # Recording callback continuity — issue #40
 
+## Windows/shared-mixer follow-up — issue #42 (2026-10-01)
+
+Fernando also reported v0.2.18 Windows 11 microphone gaps: exact digital silence
+in roughly 10–40 ms multiples, worsening during an 8:38 recording. The file
+measurements alone do not distinguish capture loss from mixer padding.
+
+A ten-minute synthetic replay delivers every block from both sources, but varies
+arrival order with 100 ppm clock skew and recurrent scheduling stalls after two
+minutes. It reproduces lost microphone samples in v0.2.18. The v0.2.20 recovery
+change preserves the mic in some cases but loses system samples with 80 ms mic
+stalls. Thus the published Mac preview does not qualify this shared-mixer case.
+
+The follow-up corrects these paths:
+
+- `AudioMixerRingBuffer::can_mix` uses the existing 400 ms waiting allowance
+  instead of padding once the other source has only two 50 ms windows. A whole
+  output window must be past that allowance before missing input becomes silence.
+  When both sources are ready, mixing still proceeds immediately. Delayed-source
+  waiting can add up to 400 ms to VAD/recording delivery.
+- `add_samples` no longer discards the oldest samples before the consumer has a
+  chance to drain them. That discard also moved surviving samples to incorrect
+  timeline positions. The pipeline drains after each add: retained queues stay
+  below the allowance plus one window (450 ms at production settings), with a
+  temporary extra incoming callback. A genuinely absent source still produces
+  silence and cannot stall output indefinitely.
+- Per-mixer local counters report padded and discarded-late sample totals for
+  both sources at a bounded logging frequency. These logs contain no audio/text
+  and are not remote telemetry. The diagnostic input counter is instance-owned
+  rather than a shared mutable static.
+- Windows CPAL microphone processing now uses the same 256-block worker as
+  macOS. Resampling, filtering, normalization and pipeline delivery run off the
+  capture thread. Stream Stop pauses capture and explicitly closes/drains the
+  worker before pipeline shutdown, with the existing two-second wait bound.
+- CPAL callback metadata maps first-sample capture age to recording-relative
+  **block-end seconds** before DSP. WASAPI's packet QPC timestamp therefore
+  preserves when delayed driver packets were captured, rather than when DSP
+  finished. Both CPAL mic and system paths use this mapping on Windows/macOS;
+  per-app loopback and the separate Core Audio tap retain their existing clocks.
+  An unavailable/invalid age falls back to callback time. Capture-time mute is
+  retained with queued mic blocks, and callbacks received while paused are skipped.
+
+Regressions use synthetic data, not private speech: both sources are checked for
+every sample in order over ten minutes, with either source delayed, capture or
+delivery timestamps, 80 ms stalls, 100 ppm drift, drift plus 40 ms stalls, and
+drift plus 320 ms stalls. Capture-timed complete streams must gain no silence.
+Additional cases cover oversized callbacks, bounded missing-source output, late
+data after the waiting deadline, true gaps, jitter, driver backlog timestamp
+mapping, and muted blocks processed after unmute. All 21 pipeline regressions
+passed on Windows; the pre-fix new replay failed on system sample loss. The full
+Windows native CPU suite passed 367 tests with nine opt-in model/audio-dependent
+tests ignored. No real speech-model or physical microphone test ran.
+
+Limits: delivery-only timestamps remain a heuristic; the mixer cannot recover
+audio the driver never delivered or replace silence already emitted after the
+bounded wait. Adaptive resampling for indefinite independent-device clock drift
+is not implemented. Physical sustained recording under inference load, Windows
+installer qualification, and reporter-device confirmation are still required.
+This follow-up is source work, not part of a published Windows or Mac installer.
+
 ## macOS microphone callback — issue #42 (unqualified)
 
 ### Follow-up after v0.2.19-macos (2026-10-01)

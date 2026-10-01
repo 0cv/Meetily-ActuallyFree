@@ -22,10 +22,18 @@ Speech-start pre-roll, live system speech sensitivity, and real-call replay
 qualification are documented in [LIVE_SPEECH_RETENTION.md](LIVE_SPEECH_RETENTION.md).
 Sample continuity across jittered capture callbacks and issue #40 qualification
 are documented in [AUDIO_CALLBACK_CONTINUITY.md](AUDIO_CALLBACK_CONTINUITY.md).
-That note also covers the unqualified macOS microphone callback isolation for
-issue #42: CPAL mic blocks move through a bounded native worker, with capture
-timestamps and stop/drain ordering owned by `audio/stream.rs`,
-`audio/pipeline.rs`, and `audio/recording_manager.rs`.
+That note also covers the Windows/shared-mixer and macOS follow-ups for #42:
+Windows and macOS CPAL mic blocks move through a bounded native worker, with
+capture timestamps, queued mute state, and stop/drain ordering owned by
+`audio/stream.rs`, `audio/pipeline.rs`, and `audio/recording_manager.rs`.
+CPAL capture age is converted to block-end recording seconds before processing.
+The shared mixer uses its full 400 ms missing-source allowance and drains input
+before enforcing further waiting; it no longer pops queued samples off the front.
+Per-instance local logs count inserted silence and discarded late samples.
+Twenty-one pipeline regressions passed on Windows, including ten-minute dual
+source skew/stall replays, bounded missing-source output, and queued mute state.
+Published previews predate these corrections; see the linked continuity note
+for verification and limits.
 The #42 follow-up uses `audio/capture_worker.rs` for explicit close/drain and a
 bounded wait independent of retained native callbacks. Its five std-only
 regressions passed on synthetic inputs; physical Mac Stop, missing microphone
