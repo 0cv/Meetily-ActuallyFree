@@ -232,7 +232,9 @@ See `.github/workflows/MACOS_RELEASE.md` for dispatch and remaining limitations.
 The `v0.2.19-macos` preview packages the #42 callback change; build
 `36790029640` and published-asset smoke test `36790877680` passed. It remains
 unqualified for physical microphone capture and the reporter's device. The
-Windows Latest release remains v0.2.18.
+Windows Latest release is now v0.2.20; see
+[RELEASE_V0220_QUALIFICATION.md](RELEASE_V0220_QUALIFICATION.md) for Windows build,
+hardware-capture, installed-upgrade, and public updater verification.
 The `v0.2.20-macos` follow-up packages explicit worker shutdown and short-gap
 source recovery for #42. Apple Silicon build `36876715270` passed all 22 worker
 and pipeline regressions plus bundle/launch checks; public smoke test
