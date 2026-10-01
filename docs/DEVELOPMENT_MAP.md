@@ -214,6 +214,11 @@ The `v0.2.19-macos` preview packages the #42 callback change; build
 `36790029640` and published-asset smoke test `36790877680` passed. It remains
 unqualified for physical microphone capture and the reporter's device. The
 Windows Latest release remains v0.2.18.
+The `v0.2.20-macos` follow-up packages explicit worker shutdown and short-gap
+source recovery for #42. Apple Silicon build `36876715270` passed all 22 worker
+and pipeline regressions plus bundle/launch checks; public smoke test
+`36878960910` passed. See [RELEASE_V0220_MACOS.md](RELEASE_V0220_MACOS.md) for
+provenance. Physical recording and live-transcription confirmation remain open.
 The Windows VirusTotal submission normalizes CRLF checksum manifests before
 filename matching and Linux checksum verification.
 

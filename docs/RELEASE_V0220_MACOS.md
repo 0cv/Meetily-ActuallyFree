@@ -20,3 +20,14 @@ Please make a new 10–15 minute recording, watch live transcription, click Stop
 The publication gate requires an Apple Silicon build, all 22 synthetic capture-worker/source-continuity regressions, bundle/signature/dependency verification, and repeated launch checks. These do not establish physical recording or speech-model accuracy. Real-device capture, permission prompts, and the macOS 14.2 minimum remain unqualified. Existing damaged recordings are not repaired.
 
 This is a separate, non-Latest prerelease. Windows v0.2.18 remains Latest.
+
+### Published build evidence
+
+- Source: `9aa4f21baaf3cd1670aa9cbc8b88780afbc05d14`.
+- [Apple Silicon build 36876715270](https://github.com/TylerBuza/Meetily-ActuallyFree/actions/runs/36876715270): all 22 targeted regressions, bundle checks, and repeated launches passed.
+- [Frontend CI 36876715035](https://github.com/TylerBuza/Meetily-ActuallyFree/actions/runs/36876715035): passed.
+- [Publisher 36878838754](https://github.com/TylerBuza/Meetily-ActuallyFree/actions/runs/36878838754): published the immutable prerelease.
+- [Public smoke test 36878960910](https://github.com/TylerBuza/Meetily-ActuallyFree/actions/runs/36878960910): public download/provenance, installation, and repeated-launch checks passed.
+- DMG SHA-256: `cf22a9264d80cbcebc0042cffaf13b07574426e752f1e3ed47a094b12e55bc92`.
+
+No physical Mac recording or real-speech fixture was used for this qualification.
