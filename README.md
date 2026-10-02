@@ -4,15 +4,29 @@
   <img src="frontend/src-tauri/icon-source.png" alt="Meetily - Actually Free logo" width="240" />
 </p>
 
-**Record a meeting. Follow the conversation. Turn it into useful notes.**
+**Know who said what—during this meeting and, optionally, the next.**
 
 A free, local-first meeting recorder and workspace, built on
 [Meetily](https://github.com/Zackriya-Solutions/meetily). This fork unlocks the app's
-features without an account, license key, trial, or paid app tier—and adds live
-speaker editing, per-app capture, a redesigned interface, and more.
+features without an account, license key, trial, or paid app tier. It puts
+speaker-aware transcripts at the center of recording, notes, and follow-up.
+
+**What sets this fork apart**
+
+- **Speaker diarization:** see *when* different people spoke. Your microphone
+  stays labeled **You**; on-device speaker models distinguish remote voices.
+  Rename or merge speakers live or afterward, with optional Nemotron-3 for
+  live labeling and post-call refinement.
+- **Remember voices across meetings (beta):** opt in to local voice profiles,
+  explicitly teach the app a named contact's voice from a recorded meeting,
+  and get suggested names in later meetings. Matching needs clean audio and
+  can be wrong—it is not proof of someone's identity.
+- **More control, still local-first:** capture selected apps, revisit
+  speaker-colored transcripts alongside audio, and keep notes, action items,
+  and summaries in one workspace. No account or paid tier required.
 
 [Download Windows](https://github.com/TylerBuza/Meetily-ActuallyFree/releases/latest)
-· [macOS Apple Silicon preview](https://github.com/TylerBuza/Meetily-ActuallyFree/releases/tag/v0.2.18-macos)
+· [macOS Apple Silicon preview](https://github.com/TylerBuza/Meetily-ActuallyFree/releases/tag/v0.2.20-macos)
 · [Release notes](https://github.com/TylerBuza/Meetily-ActuallyFree/releases)
 · [Report an issue](https://github.com/TylerBuza/Meetily-ActuallyFree/issues)
 
@@ -124,8 +138,9 @@ Settings → **Labs** contains opt-in, experimental capabilities:
   text for new summaries.
 - **Whisper silence guard:** stricter silence/noise handling for Whisper.
 - **Parakeet GPU:** run the encoder through DirectML on Windows.
-- **Voice profiles:** learn a contact's voice from their recorded meetings and
-  use voice matching in later meetings. Matching is experimental.
+- **Voice profiles (beta):** explicitly remember a named contact's voice from
+  recorded system audio for suggested names in later meetings. Opt-in matching
+  is experimental and depends on clean speech; review names before trusting them.
 
 </details>
 
@@ -156,7 +171,7 @@ checksums; the Windows updater payload has a separate cryptographic signature.
 <summary><strong>macOS Apple Silicon preview setup</strong></summary>
 
 1. Download the Apple Silicon `.dmg` from the
-   [macOS release](https://github.com/TylerBuza/Meetily-ActuallyFree/releases/tag/v0.2.18-macos).
+[macOS release](https://github.com/TylerBuza/Meetily-ActuallyFree/releases/tag/v0.2.20-macos).
 2. Open the DMG and drag **Meetily - Actually Free** into Applications.
 3. Grant microphone and Audio Capture permissions when prompted.
 

@@ -22,6 +22,56 @@ Speech-start pre-roll, live system speech sensitivity, and real-call replay
 qualification are documented in [LIVE_SPEECH_RETENTION.md](LIVE_SPEECH_RETENTION.md).
 Sample continuity across jittered capture callbacks and issue #40 qualification
 are documented in [AUDIO_CALLBACK_CONTINUITY.md](AUDIO_CALLBACK_CONTINUITY.md).
+That note also covers the Windows/shared-mixer and macOS follow-ups for #42:
+Windows CPAL mic/system blocks and macOS CPAL mic blocks use bounded workers, with
+capture timestamps, queued mute state, and stop/drain ordering owned by
+`audio/stream.rs`, `audio/pipeline.rs`, and `audio/recording_manager.rs`.
+CPAL capture age is converted to block-end recording seconds before processing.
+The shared mixer uses its full 400 ms missing-source allowance and drains input
+before enforcing further waiting; it no longer pops queued samples off the front.
+Per-instance local logs count inserted silence and discarded late samples.
+Timeline resets save both pending source tails before replacing the mixer origin.
+Their intermediate VAD flush keeps live Nemotron input open; the pipeline closes
+that input only after its final drain. The synthetic reset regression covers
+retained source tails, but not live speaker labels after a physical stall.
+Windows Stop gates new callbacks and bounds native cleanup to three seconds per
+stream; new capture is blocked while timed-out cleanup still owns a native stream.
+Twenty-two pipeline regressions passed on Windows, including ten-minute dual
+source skew/stall replays, bounded missing-source output, and queued mute state.
+The ignored `audio::pipeline::hardware_qualification` test opens explicitly named
+Windows endpoints and exercises the production mic worker, dual VAD, mixer, and
+native Stop without saving audio. See the continuity note for its opt-in command,
+results, and limitations (especially silent microphones and omitted ASR).
+The corrected 11-minute G733 capture-only soak passed with 35 ms native Stop and
+all nonzero system samples preserved. The microphone supplied silence; speech
+retention remains unqualified. The native suite passed 370 tests (ten opt-in tests
+ignored normally), including 22 pipeline and eight worker regressions.
+Published previews predate these corrections; see the linked continuity note
+for verification and limits.
+The #42 follow-up uses `audio/capture_worker.rs` for explicit close/drain and a
+bounded wait independent of retained native callbacks. Its five std-only
+regressions passed on synthetic inputs; physical Mac Stop, missing microphone
+audio, and live-text gaps remain unqualified (see the linked continuity note).
+`AudioMixerRingBuffer` also recovers a source clock left behind emitted silence
+or a full-window callback loss, but only once fresh capture timestamps reach the
+un-emitted timeline. Old queued frames still cannot overwrite saved silence.
+All 17 native pipeline regressions passed on Windows. Mac candidate builds run
+worker and source-continuity regressions before upload.
+The separate macOS system tap in `audio/capture/core_audio.rs` now survives
+ring-buffer pressure and closes its async wake registration race; neither path
+has a physical macOS reproduction/qualification yet.
+`frontend/src/app/layout.tsx` now loads packaged Inter font files from
+`@fontsource-variable/inter` rather than fetching Google CSS during a Next
+production build. `globals.css` owns `--font-sans`, and `frontend/pnpm-lock.yaml`
+pins the bundled font package; this removes a network-dependent build step.
+
+Meeting details layout lives in `frontend/src/app/meeting-details/page-content.tsx`:
+the transcript/notes separator stores its width locally and supports pointer and
+keyboard resizing. Pane stacking now responds to the actual content width (which
+the sidebar can reduce), not just viewport width; this retains the minimum
+transcript and notes widths from issue #25. The existing wrapped toolbars and
+Export access remain in `components/meeting/MeetingHeader.tsx` and
+`MeetingDocument.tsx`. Narrow-content browser checks are still required.
 
 ```text
 recording_commands.rs: start command
@@ -182,6 +232,17 @@ provenance and public launch checks. Stable publication still requires the
 physical checklist. Documentation/publishing-only commits may follow a candidate;
 application, dependency, and build-workflow changes require a new candidate.
 See `.github/workflows/MACOS_RELEASE.md` for dispatch and remaining limitations.
+The `v0.2.19-macos` preview packages the #42 callback change; build
+`36790029640` and published-asset smoke test `36790877680` passed. It remains
+unqualified for physical microphone capture and the reporter's device. The
+Windows Latest release is now v0.2.20; see
+[RELEASE_V0220_QUALIFICATION.md](RELEASE_V0220_QUALIFICATION.md) for Windows build,
+hardware-capture, installed-upgrade, and public updater verification.
+The `v0.2.20-macos` follow-up packages explicit worker shutdown and short-gap
+source recovery for #42. Apple Silicon build `36876715270` passed all 22 worker
+and pipeline regressions plus bundle/launch checks; public smoke test
+`36878960910` passed. See [RELEASE_V0220_MACOS.md](RELEASE_V0220_MACOS.md) for
+provenance. Physical recording and live-transcription confirmation remain open.
 The Windows VirusTotal submission normalizes CRLF checksum manifests before
 filename matching and Linux checksum verification.
 
